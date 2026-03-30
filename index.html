@@ -1,0 +1,3064 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#060d1f">
+<meta name="description" content="Düzgün Ekonomi Pro — Gelişmiş Kişisel Finans Yöneticisi">
+<title>Düzgün Ekonomi Pro</title>
+
+
+<meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Düzgün Ekonomi">
+    
+    <link rel="apple-touch-icon" href="icon.png">
+    <meta name="theme-color" content="#000000"> <link rel="manifest" href="manifest.json">
+
+
+
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<!-- CryptoJS for AES-256 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+
+<style>
+/* ═══════════════════════════════════════════
+   CSS VARIABLES & THEME ENGINE
+═══════════════════════════════════════════ */
+:root {
+  --bg: #060d1f;
+  --bg2: #080f24;
+  --s1: #0c1628;
+  --s2: #101d33;
+  --s3: #152240;
+  --s4: #1a2a4d;
+
+  --b1: rgba(255,255,255,.05);
+  --b2: rgba(255,255,255,.10);
+  --b3: rgba(255,255,255,.16);
+  --b4: rgba(255,255,255,.24);
+
+  --t1: #f0f5ff;
+  --t2: #8ba0c8;
+  --t3: #4a5e82;
+  --t4: #293855;
+
+  --acc: #3b82f6;
+  --acc2: #60a5fa;
+  --acc3: #93c5fd;
+  --acc-g: rgba(59,130,246,.18);
+  --acc-gg: rgba(59,130,246,.08);
+
+  --grn: #10d9a0;
+  --grn2: #34d399;
+  --grn-g: rgba(16,217,160,.16);
+
+  --red: #f43f5e;
+  --red2: #fb7185;
+  --red-g: rgba(244,63,94,.16);
+
+  --amb: #f59e0b;
+  --amb2: #fbbf24;
+  --amb-g: rgba(245,158,11,.14);
+
+  --pur: #a855f7;
+  --pur2: #c084fc;
+  --pur-g: rgba(168,85,247,.14);
+
+  --cyn: #06b6d4;
+  --cyn-g: rgba(6,182,212,.14);
+
+  --r: 20px;
+  --r2: 14px;
+  --r3: 10px;
+
+  --mono: 'JetBrains Mono', monospace;
+  --font: 'Syne', sans-serif;
+  --body: 'Inter', sans-serif;
+
+  /* Dynamic theme overlays */
+  --theme-tint: transparent;
+  --theme-border: var(--b1);
+  --theme-glow: var(--acc-g);
+}
+
+/* Dynamic themes */
+body.theme-warning {
+  --acc: #f59e0b;
+  --acc2: #fbbf24;
+  --acc-g: rgba(245,158,11,.18);
+  --acc-gg: rgba(245,158,11,.08);
+  --theme-glow: rgba(245,158,11,.15);
+}
+body.theme-danger {
+  --acc: #f43f5e;
+  --acc2: #fb7185;
+  --acc-g: rgba(244,63,94,.18);
+  --acc-gg: rgba(244,63,94,.08);
+  --theme-glow: rgba(244,63,94,.15);
+}
+
+/* ═══════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════ */
+*, *::before, *::after {
+  margin: 0; padding: 0; box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+html { scroll-behavior: smooth; font-size: 16px; }
+body {
+  font-family: var(--body);
+  background: var(--bg);
+  color: var(--t1);
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.5;
+}
+
+/* Animated background mesh */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 120% 70% at -5% -10%, rgba(59,130,246,.06) 0, transparent 50%),
+    radial-gradient(ellipse 80% 60% at 105% 120%, rgba(168,85,247,.05) 0, transparent 50%),
+    radial-gradient(ellipse 60% 50% at 50% 50%, rgba(16,217,160,.02) 0, transparent 60%);
+}
+
+/* Grain texture overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: .018;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
+
+/* ═══════════════════════════════════════════
+   LAYOUT
+═══════════════════════════════════════════ */
+.shell {
+  position: relative;
+  z-index: 1;
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 16px 14px 120px;
+  padding-top: max(16px, env(safe-area-inset-top));
+}
+
+/* ═══════════════════════════════════════════
+   HEADER
+═══════════════════════════════════════════ */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding: 0 2px;
+}
+.app-logo {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.logo-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, var(--acc), var(--pur));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  box-shadow: 0 4px 18px var(--acc-g), 0 0 0 1px rgba(255,255,255,.1);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+.logo-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.15) 0, transparent 60%);
+}
+.logo-text .title {
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -.4px;
+  line-height: 1;
+}
+.logo-text .sub {
+  font-size: 10px;
+  color: var(--t3);
+  font-weight: 500;
+  letter-spacing: .3px;
+  margin-top: 2px;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hdr-chip {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--t3);
+  background: var(--s1);
+  border: 1px solid var(--b1);
+  padding: 6px 12px;
+  border-radius: 40px;
+  letter-spacing: .3px;
+}
+.hdr-online {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--grn);
+  box-shadow: 0 0 8px var(--grn);
+  animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .6; transform: scale(.85); }
+}
+
+/* ═══════════════════════════════════════════
+   TAB BAR
+═══════════════════════════════════════════ */
+.tab-bar {
+  display: flex;
+  gap: 5px;
+  background: var(--s1);
+  border: 1px solid var(--b1);
+  border-radius: 18px;
+  padding: 5px;
+  margin-bottom: 20px;
+  position: sticky;
+  top: 8px;
+  z-index: 100;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.tab {
+  flex: 1;
+  padding: 10px 4px;
+  border: none;
+  border-radius: 13px;
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--t3);
+  text-transform: uppercase;
+  transition: all .25s cubic-bezier(.34,1.56,.64,1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.tab.active {
+  background: linear-gradient(135deg, var(--acc), var(--pur));
+  color: #fff;
+  box-shadow: 0 4px 16px var(--acc-g), inset 0 1px 0 rgba(255,255,255,.15);
+  transform: translateY(-1px);
+}
+.tab:not(.active):hover { background: var(--b1); color: var(--t2); }
+.tab:active { transform: scale(.95); }
+.tab-badge {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 6px var(--red);
+}
+
+/* ═══════════════════════════════════════════
+   GLASSMORPHISM CARDS
+═══════════════════════════════════════════ */
+.card {
+  background: rgba(12, 22, 40, .8);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--b2);
+  border-radius: var(--r);
+  padding: 20px;
+  margin-bottom: 14px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .3s;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent);
+}
+.card:hover { border-color: var(--b3); }
+
+.card-hdr {
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--t3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.card-hdr-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-hdr-left::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--acc), var(--pur));
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════
+   HERO BALANCE
+═══════════════════════════════════════════ */
+.hero {
+  background: linear-gradient(145deg, rgba(16,26,48,.9), rgba(8,14,32,.9));
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid var(--b2);
+  border-radius: 26px;
+  padding: 26px 22px 22px;
+  margin-bottom: 14px;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -60%;
+  right: -20%;
+  width: 350px;
+  height: 350px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--theme-glow), transparent 65%);
+  pointer-events: none;
+  transition: background .6s;
+}
+.hero::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--b3), transparent);
+}
+.hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.hero-label {
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--t3);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+.hero-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--t3);
+  background: var(--s3);
+  border: 1px solid var(--b1);
+  padding: 4px 11px;
+  border-radius: 40px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hero-amount {
+  font-family: var(--font);
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: -2.5px;
+  line-height: 1.1;
+  margin: 12px 0 22px;
+  transition: all .5s;
+  cursor: default;
+}
+.hero-amount.pos {
+  background: linear-gradient(135deg, var(--grn), #5af0c8);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.hero-amount.neg {
+  background: linear-gradient(135deg, var(--red), #ff8fa3);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.hero-amount.zero {
+  background: linear-gradient(135deg, var(--t1), var(--t2));
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.hero-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.hero-stat {
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--b1);
+  border-radius: 16px;
+  padding: 14px;
+  transition: background .2s;
+}
+.hero-stat:hover { background: rgba(255,255,255,.06); }
+.hero-stat-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-bottom: 8px;
+}
+.hero-stat-dot.g { background: var(--grn); box-shadow: 0 0 8px var(--grn); }
+.hero-stat-dot.r { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.hero-stat-lbl {
+  font-size: 10px;
+  color: var(--t3);
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  font-weight: 600;
+  margin-bottom: 3px;
+  font-family: var(--font);
+}
+.hero-stat-val {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hero-stat-val.g { color: var(--grn); }
+.hero-stat-val.r { color: var(--red); }
+
+/* ═══════════════════════════════════════════
+   GAUGE CHART
+═══════════════════════════════════════════ */
+.gauge-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 8px 0 4px;
+  position: relative;
+}
+.gauge-canvas { width: 220px !important; height: 130px !important; }
+.gauge-label {
+  position: absolute;
+  bottom: 12px;
+  text-align: center;
+}
+.gauge-pct {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+.gauge-sub {
+  font-size: 10px;
+  color: var(--t3);
+  font-family: var(--font);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  margin-top: 3px;
+}
+.gauge-forecast {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--t2);
+  text-align: center;
+  line-height: 1.5;
+  font-family: var(--body);
+}
+.gauge-forecast strong { color: var(--amb); }
+.gauge-forecast.danger strong { color: var(--red); }
+
+/* ═══════════════════════════════════════════
+   ALERTS
+═══════════════════════════════════════════ */
+.alert {
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  display: none;
+  animation: fadeUp .3s ease;
+}
+.alert.show { display: block; }
+.alert-title {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.alert-body { font-size: 12px; line-height: 1.65; opacity: .85; }
+.alert-tips { margin-top: 10px; font-size: 11px; padding-left: 2px; }
+.alert-tips li { margin-bottom: 5px; list-style: none; padding-left: 12px; position: relative; }
+.alert-tips li::before { content: '▸'; position: absolute; left: 0; color: inherit; opacity: .6; }
+
+.alert-deficit { background: rgba(244,63,94,.1); border: 1px solid rgba(244,63,94,.3); color: var(--red); }
+.alert-anomaly { background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.3); color: var(--amb); }
+.alert-forecast { background: rgba(168,85,247,.1); border: 1px solid rgba(168,85,247,.3); color: var(--pur2); }
+
+/* ═══════════════════════════════════════════
+   METRICS GRID
+═══════════════════════════════════════════ */
+.section-label {
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--t3);
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-label::before {
+  content: '';
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--acc), var(--pur));
+  flex-shrink: 0;
+}
+
+.metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.metric {
+  background: rgba(12,22,40,.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--b1);
+  border-radius: 18px;
+  padding: 16px 14px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .2s, transform .2s;
+}
+.metric::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent);
+}
+.metric:hover { border-color: var(--b3); transform: translateY(-1px); }
+.metric-glow {
+  position: absolute;
+  top: -30%;
+  right: -20%;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  opacity: .12;
+  filter: blur(15px);
+}
+.metric-icon { font-size: 17px; margin-bottom: 9px; }
+.metric-val {
+  font-family: var(--mono);
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all .4s;
+}
+.metric-lbl {
+  font-family: var(--font);
+  font-size: 10px;
+  color: var(--t3);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+}
+.metric-sub { font-size: 10px; color: var(--t2); margin-top: 3px; font-family: var(--body); }
+.metric-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  margin-top: 5px;
+  font-family: var(--font);
+}
+.badge-up { background: var(--grn-g); color: var(--grn); }
+.badge-dn { background: var(--red-g); color: var(--red); }
+.badge-nt { background: var(--b1); color: var(--t2); }
+
+/* Sparkline */
+.sparkline-wrap { margin-top: 8px; height: 32px; }
+
+/* Health bar */
+.hbar-bg { background: var(--s4); border-radius: 4px; height: 5px; margin-top: 7px; overflow: hidden; }
+.hbar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width .9s cubic-bezier(.22,1,.36,1), background .6s;
+}
+.hbar.safe { background: linear-gradient(90deg, var(--grn), #5af0c8); }
+.hbar.warn { background: linear-gradient(90deg, var(--amb), #fbbf24); }
+.hbar.danger { background: linear-gradient(90deg, var(--red), #fb7185); }
+
+/* ═══════════════════════════════════════════
+   CHARTS
+═══════════════════════════════════════════ */
+.chart-mini { height: 130px; margin: 10px 0 4px; }
+
+/* ═══════════════════════════════════════════
+   CATEGORY BREAKDOWN
+═══════════════════════════════════════════ */
+.cat-item {
+  display: flex;
+  flex-direction: column;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--b1);
+}
+.cat-item:last-child { border-bottom: none; }
+.cat-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+.cat-nm { font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.cat-vl { font-family: var(--mono); font-size: 12px; font-weight: 700; }
+.pbar-bg { height: 4px; background: var(--s4); border-radius: 3px; overflow: hidden; flex: 1; }
+.pbar {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--acc), var(--pur));
+  transition: width .8s cubic-bezier(.22,1,.36,1);
+}
+.cat-spark { width: 60px; height: 28px; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════
+   ADD FORM
+═══════════════════════════════════════════ */
+.form-card {
+  background: rgba(12,22,40,.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--b2);
+  border-radius: var(--r);
+  padding: 22px;
+  margin-bottom: 14px;
+  position: relative;
+  overflow: hidden;
+}
+.form-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--b3), transparent);
+}
+
+.f-label {
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--t3);
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  margin-bottom: 7px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.f-label i { color: var(--acc2); font-size: 10px; }
+
+.f-ctrl {
+  width: 100%;
+  background: rgba(21,34,64,.6);
+  backdrop-filter: blur(10px);
+  border: 1.5px solid var(--b2);
+  border-radius: var(--r2);
+  color: var(--t1);
+  font-family: var(--body);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 12px 15px;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.f-ctrl:focus {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 3px var(--acc-g);
+  background: rgba(21,34,64,.85);
+}
+.f-ctrl::placeholder { color: var(--t4); }
+.f-ctrl option { background: #0c1628; color: var(--t1); }
+
+.f-group { margin-bottom: 13px; }
+.f-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; margin-bottom: 13px; }
+.f-row2 .f-group { margin-bottom: 0; }
+
+.amt-wrap { position: relative; }
+.amt-sym {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--t2);
+  font-weight: 700;
+  font-size: 14px;
+  font-family: var(--mono);
+  pointer-events: none;
+}
+.amt-wrap .f-ctrl {
+  padding-left: 32px;
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.type-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.type-btn {
+  flex: 1;
+  border: 1.5px solid var(--b2);
+  background: rgba(21,34,64,.5);
+  color: var(--t3);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 13px;
+  border-radius: var(--r2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: all .2s;
+}
+.type-btn:active { transform: scale(.97); }
+.type-btn.active-exp {
+  background: var(--red-g);
+  border-color: var(--red);
+  color: var(--red);
+  box-shadow: 0 0 20px rgba(244,63,94,.15);
+}
+.type-btn.active-inc {
+  background: var(--grn-g);
+  border-color: var(--grn);
+  color: var(--grn);
+  box-shadow: 0 0 20px rgba(16,217,160,.15);
+}
+
+/* Photo buttons */
+.photo-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 13px; }
+.photo-btn {
+  border: 1.5px dashed var(--b3);
+  background: rgba(59,130,246,.04);
+  color: var(--acc2);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 14px;
+  border-radius: var(--r2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: all .2s;
+}
+.photo-btn:active { background: rgba(59,130,246,.12); transform: scale(.98); }
+
+.ocr-preview { display: none; background: var(--s2); border: 1px solid var(--b1); border-radius: var(--r2); padding: 12px; margin-bottom: 13px; }
+.ocr-preview.show { display: block; }
+.ocr-preview img { width: 100%; border-radius: 10px; max-height: 140px; object-fit: cover; margin-bottom: 10px; }
+.ocr-badge {
+  background: var(--grn-g);
+  border: 1px solid rgba(16,217,160,.3);
+  color: var(--grn);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 13px;
+  border-radius: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font);
+}
+.ocr-spin { display: none; text-align: center; padding: 22px; color: var(--t2); font-size: 13px; }
+.ocr-spin.show { display: block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.fa-spin-fast { animation: spin .6s linear infinite; }
+
+/* Save button */
+.btn-save {
+  width: 100%;
+  padding: 15px;
+  background: linear-gradient(135deg, var(--acc), var(--pur));
+  border: none;
+  border-radius: var(--r2);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  transition: all .2s;
+  box-shadow: 0 4px 22px var(--acc-g);
+  position: relative;
+  overflow: hidden;
+  letter-spacing: .3px;
+}
+.btn-save::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: rgba(255,255,255,.2);
+}
+.btn-save:active { transform: scale(.98); opacity: .9; }
+.btn-save:hover { box-shadow: 0 6px 28px var(--acc-g); }
+
+/* ═══════════════════════════════════════════
+   FILTER BAR
+═══════════════════════════════════════════ */
+.filter-card {
+  background: rgba(12,22,40,.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--b1);
+  border-radius: var(--r);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.srch-wrap { position: relative; margin-bottom: 11px; }
+.srch-wrap i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--t3); font-size: 12px; }
+.srch-wrap .f-ctrl { padding-left: 36px; }
+
+.period-btns { display: flex; gap: 6px; margin-bottom: 11px; flex-wrap: wrap; }
+.period-btn {
+  background: var(--s2);
+  border: 1px solid var(--b1);
+  color: var(--t3);
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 40px;
+  cursor: pointer;
+  transition: all .2s;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.period-btn.active, .period-btn:hover {
+  background: var(--acc-gg);
+  border-color: var(--acc);
+  color: var(--acc2);
+}
+
+.f-row3 { display: grid; grid-template-columns: 1fr 1fr auto; gap: 9px; align-items: end; }
+.f-row3 .f-group { margin-bottom: 0; }
+.btn-ghost {
+  background: var(--s2);
+  border: 1px solid var(--b1);
+  color: var(--t2);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 12px 14px;
+  border-radius: var(--r2);
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all .2s;
+  height: 100%;
+}
+.btn-ghost:active { background: var(--s3); }
+
+/* ═══════════════════════════════════════════
+   TX LIST
+═══════════════════════════════════════════ */
+.tx-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.tx {
+  background: rgba(12,22,40,.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--b1);
+  border-radius: 20px;
+  padding: 13px 15px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  animation: fadeUp .25s ease;
+  transition: border-color .2s, transform .15s;
+}
+.tx:hover { border-color: var(--b3); }
+.tx.selected {
+  border-color: var(--acc);
+  background: rgba(59,130,246,.06);
+}
+@keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+.tx-chk {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 1.5px solid var(--b3);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all .2s;
+  color: transparent;
+  font-size: 11px;
+}
+.tx.selected .tx-chk {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: #fff;
+}
+
+.tx-ico {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  transition: transform .2s;
+}
+.tx:hover .tx-ico { transform: scale(1.05); }
+.tx-body { flex: 1; min-width: 0; }
+.tx-ttl { font-size: 14px; font-weight: 600; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--body); }
+.tx-meta { font-size: 11px; color: var(--t3); display: flex; align-items: center; gap: 5px; font-family: var(--body); }
+.tx-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.tx-amt { font-family: var(--mono); font-size: 14px; font-weight: 700; }
+.tx-amt.g { color: var(--grn); }
+.tx-amt.r { color: var(--red); }
+.del-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: transparent;
+  border: 1px solid var(--b1);
+  color: var(--t3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition: all .2s;
+}
+.del-btn:active { background: var(--red-g); border-color: var(--red); color: var(--red); }
+
+.bulk-bar {
+  background: linear-gradient(135deg, var(--s2), var(--s1));
+  border: 1px solid var(--b2);
+  border-radius: var(--r2);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  animation: fadeUp .2s ease;
+}
+.bulk-bar.show { display: flex; }
+.bulk-info { font-size: 12px; font-weight: 600; color: var(--acc2); font-family: var(--font); }
+.bulk-del {
+  background: var(--red-g);
+  border: 1px solid rgba(244,63,94,.3);
+  color: var(--red);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 7px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all .2s;
+}
+.bulk-del:hover { background: rgba(244,63,94,.25); }
+
+.empty { background: var(--s1); border: 1px solid var(--b1); border-radius: var(--r); padding: 52px 20px; text-align: center; }
+.empty i { font-size: 38px; color: var(--t4); margin-bottom: 13px; display: block; }
+.empty p { color: var(--t2); font-size: 13px; font-family: var(--body); }
+.empty small { color: var(--t3); font-size: 11px; }
+
+/* Pagination */
+.pager { display: flex; justify-content: center; gap: 7px; flex-wrap: wrap; margin-bottom: 14px; }
+.pg {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--s1);
+  border: 1px solid var(--b1);
+  color: var(--t2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  transition: all .2s;
+}
+.pg.on { background: linear-gradient(135deg, var(--acc), var(--pur)); border: none; color: #fff; box-shadow: 0 4px 14px var(--acc-g); }
+.pg:not(.on):hover { background: var(--s2); }
+
+/* ═══════════════════════════════════════════
+   TOOLS
+═══════════════════════════════════════════ */
+.act-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin-bottom: 14px; }
+.act-chip {
+  background: rgba(12,22,40,.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--b1);
+  border-radius: 16px;
+  padding: 16px 6px;
+  cursor: pointer;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transition: all .2s;
+  font-family: var(--font);
+}
+.act-chip:active { background: var(--s2); transform: scale(.96); }
+.act-chip:hover { border-color: var(--b3); }
+.act-chip i { font-size: 18px; color: var(--acc2); }
+.act-chip span { font-size: 10px; font-weight: 600; color: var(--t2); text-transform: uppercase; letter-spacing: .4px; }
+.act-chip.danger i { color: var(--red); }
+.act-chip.report i { color: var(--grn); }
+.act-chip.pur i { color: var(--pur2); }
+
+/* Budget card */
+.budget-section { margin-bottom: 14px; }
+
+/* Footer */
+.footer {
+  background: rgba(12,22,40,.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--b1);
+  border-radius: 20px;
+  padding: 20px;
+  text-align: center;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.footer::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--b3), transparent);
+}
+.footer-name { font-family: var(--font); font-size: 15px; font-weight: 700; color: var(--acc2); margin-bottom: 2px; }
+.footer-rank { font-size: 11px; color: var(--t3); margin-bottom: 12px; font-family: var(--body); }
+.footer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(59,130,246,.08);
+  border: 1px solid rgba(59,130,246,.18);
+  padding: 6px 16px;
+  border-radius: 40px;
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--acc2);
+}
+
+/* ═══════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════ */
+.toast-wrap {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  width: calc(100% - 32px);
+  max-width: 380px;
+}
+.toast {
+  background: rgba(9,16,34,.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--b2);
+  border-radius: 14px;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--t1);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.5);
+  animation: toastIn .35s cubic-bezier(.34,1.56,.64,1);
+  transition: opacity .3s, transform .3s;
+  pointer-events: auto;
+  width: 100%;
+  font-family: var(--body);
+}
+@keyframes toastIn { from { opacity: 0; transform: translateY(12px) scale(.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.toast.out { opacity: 0; transform: translateY(6px) scale(.97); }
+.tdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.toast.ok .tdot { background: var(--grn); box-shadow: 0 0 6px var(--grn); }
+.toast.err .tdot { background: var(--red); box-shadow: 0 0 6px var(--red); }
+.toast.nfo .tdot { background: var(--acc); box-shadow: 0 0 6px var(--acc); }
+.tcls { margin-left: auto; color: var(--t3); cursor: pointer; font-size: 11px; padding: 2px 4px; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════
+   OVERLAYS / MODALS
+═══════════════════════════════════════════ */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.78);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 8000;
+  padding: 16px;
+}
+.overlay.show { display: flex; }
+.modal {
+  background: rgba(12,22,40,.97);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid var(--b2);
+  border-radius: 26px;
+  max-width: 460px;
+  width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 26px;
+  animation: modalIn .35s cubic-bezier(.34,1.56,.64,1);
+  position: relative;
+}
+.modal::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--b3), transparent);
+}
+@keyframes modalIn { from { opacity: 0; transform: scale(.93) translateY(16px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.modal-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+.modal-ttl { font-family: var(--font); font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
+.modal-cls {
+  background: var(--s2);
+  border: 1px solid var(--b1);
+  color: var(--t2);
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all .2s;
+}
+.modal-cls:active { background: var(--s3); }
+
+/* Security modal */
+.sec-ico { font-size: 48px; text-align: center; margin-bottom: 12px; }
+.sec-ttl { font-family: var(--font); font-size: 18px; font-weight: 800; text-align: center; margin-bottom: 5px; }
+.sec-sub { font-size: 12px; color: var(--t2); text-align: center; margin-bottom: 22px; line-height: 1.5; font-family: var(--body); }
+.sec-pass { text-align: center; font-family: var(--mono); font-size: 24px; letter-spacing: 8px; margin-bottom: 16px; }
+.sec-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.btn-cancel {
+  background: var(--s2);
+  border: 1px solid var(--b1);
+  color: var(--t2);
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 13px;
+  border-radius: var(--r2);
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn-cancel:active { background: var(--s3); }
+
+/* Analytics */
+.an-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 16px; }
+.an-chip { background: var(--s2); border: 1px solid var(--b1); border-radius: 14px; padding: 14px; }
+.an-val { font-family: var(--mono); font-size: 15px; font-weight: 700; margin-bottom: 3px; }
+.an-lbl { font-family: var(--font); font-size: 10px; color: var(--t3); text-transform: uppercase; letter-spacing: .7px; font-weight: 600; }
+.monthly-list { margin-top: 8px; }
+.mo-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--b1); font-size: 13px; font-family: var(--body); }
+.mo-row:last-child { border-bottom: none; }
+
+/* Report */
+.rpt-section { margin-bottom: 16px; }
+.rpt-ttl { font-family: var(--font); font-size: 11px; font-weight: 700; color: var(--t3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+.date-range { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+
+/* Budget modal */
+.budget-info { background: var(--s2); border: 1px solid var(--b1); border-radius: 14px; padding: 14px; margin-top: 12px; }
+
+/* Emergency console */
+.emergency-console {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 99999;
+  display: none;
+  flex-direction: column;
+  padding: 24px;
+  overflow-y: auto;
+  font-family: var(--mono);
+}
+.emergency-console.show { display: flex; }
+.ec-title { color: var(--red); font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+.ec-data {
+  background: #0a0a0a;
+  border: 1px solid #333;
+  border-radius: 10px;
+  padding: 16px;
+  color: #00ff41;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+.ec-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+.ec-btn {
+  background: #111;
+  border: 1px solid #333;
+  color: #00ff41;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .2s;
+}
+.ec-btn:hover { background: #1a1a1a; }
+.ec-btn.red { color: var(--red); border-color: var(--red); }
+.ec-btn.blue { color: var(--acc2); border-color: var(--acc); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--s4); border-radius: 4px; }
+
+/* Number counter animation */
+@keyframes countUp { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+.count-animate { animation: countUp .4s ease; }
+
+/* Slot machine number animation */
+.slot-num { display: inline-block; }
+@keyframes slotSpin {
+  0% { transform: translateY(-6px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.slot-animate { animation: slotSpin .35s cubic-bezier(.22,1,.36,1); }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- HEADER -->
+<div class="app-header">
+  <div class="app-logo">
+    <div class="logo-icon" id="logoBtn">💳</div>
+    <div class="logo-text">
+      <div class="title">Düzgün Ekonomi</div>
+      <div class="sub">Pro v4.0 · Finans Yöneticisi</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="hdr-chip" id="hdrDate">—</span>
+    <div class="hdr-online" title="Çevrimiçi"></div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tab-bar">
+  <button class="tab active" id="tab-btn-dashboard" onclick="switchTab('dashboard')"><i class="fas fa-gauge-high"></i> Pano</button>
+  <button class="tab" id="tab-btn-add" onclick="switchTab('add')"><i class="fas fa-plus"></i> Ekle</button>
+  <button class="tab" id="tab-btn-history" onclick="switchTab('history')"><i class="fas fa-list"></i> Geçmiş</button>
+  <button class="tab" id="tab-btn-tools" onclick="switchTab('tools')"><i class="fas fa-tools"></i> Araçlar</button>
+</div>
+
+<!-- ══════════════════════════════
+     TAB: DASHBOARD
+══════════════════════════════ -->
+<div id="tab-dashboard">
+
+  <!-- Hero Balance -->
+  <div class="hero">
+    <div class="hero-top">
+      <span class="hero-label">Net Bakiye</span>
+      <div class="hero-tag">
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--grn);box-shadow:0 0 6px var(--grn)"></span>
+        ₺ TRY
+      </div>
+    </div>
+    <div id="heroBal" class="hero-amount zero">₺0,00</div>
+    <div class="hero-row">
+      <div class="hero-stat">
+        <div class="hero-stat-dot g"></div>
+        <div class="hero-stat-lbl">Toplam Gelir</div>
+        <div id="hInc" class="hero-stat-val g">₺0,00</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-dot r"></div>
+        <div class="hero-stat-lbl">Toplam Gider</div>
+        <div id="hExp" class="hero-stat-val r">₺0,00</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alerts -->
+  <div id="alertDeficit" class="alert alert-deficit">
+    <div class="alert-title"><i class="fas fa-triangle-exclamation"></i> Bütçe Açığı</div>
+    <div id="alertDeficitBody" class="alert-body"></div>
+    <ul id="alertDeficitTips" class="alert-tips"></ul>
+  </div>
+  <div id="alertAnomaly" class="alert alert-anomaly">
+    <div class="alert-title"><i class="fas fa-chart-bar"></i> Anomali Tespit Edildi</div>
+    <div id="alertAnomalyBody" class="alert-body"></div>
+  </div>
+  <div id="alertForecast" class="alert alert-forecast">
+    <div class="alert-title"><i class="fas fa-crystal-ball"></i> Harcama Tahmini</div>
+    <div id="alertForecastBody" class="alert-body"></div>
+  </div>
+
+  <!-- GAUGE -->
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-hdr-left">Bütçe Kullanım Göstergesi</div>
+      <span style="font-size:10px;color:var(--t3)" id="gaugeMonthLabel">Bu Ay</span>
+    </div>
+    <div class="gauge-wrap">
+      <canvas id="gaugeChart" class="gauge-canvas"></canvas>
+      <div class="gauge-label">
+        <div id="gaugePct" class="gauge-pct" style="color:var(--grn)">0%</div>
+        <div class="gauge-sub">Kullanım</div>
+      </div>
+    </div>
+    <div id="gaugeForecast" class="gauge-forecast"></div>
+  </div>
+
+  <!-- Metrics Grid -->
+  <div class="section-label">Finansal Göstergeler</div>
+  <div class="metrics-grid">
+    <div class="metric">
+      <div class="metric-glow" style="background:var(--acc)"></div>
+      <div class="metric-icon">📊</div>
+      <div id="mTxCount" class="metric-val" style="color:var(--acc2)">0</div>
+      <div class="metric-lbl">Toplam İşlem</div>
+      <div id="mTxSub" class="metric-sub">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-glow" style="background:var(--grn)"></div>
+      <div class="metric-icon">💹</div>
+      <div id="mSavRate" class="metric-val" style="color:var(--grn)">%0</div>
+      <div class="metric-lbl">Tasarruf Oranı</div>
+      <div id="mSavBadge" class="metric-badge badge-nt">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-glow" style="background:var(--amb)"></div>
+      <div class="metric-icon">📉</div>
+      <div id="mAvgExp" class="metric-val" style="color:var(--amb)">₺0</div>
+      <div class="metric-lbl">Ort. Gider/İşlem</div>
+      <div id="mAvgSub" class="metric-sub">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-glow" style="background:var(--red)"></div>
+      <div class="metric-icon">🔥</div>
+      <div id="mBurnRate" class="metric-val" style="color:var(--red)">₺0</div>
+      <div class="metric-lbl">Günlük Harcama</div>
+      <div id="mBurnSub" class="metric-sub">son 30 gün</div>
+    </div>
+    <div class="metric">
+      <div class="metric-glow" style="background:var(--pur)"></div>
+      <div class="metric-icon">📅</div>
+      <div id="mMonthExp" class="metric-val" style="color:var(--pur2)">₺0</div>
+      <div class="metric-lbl">Bu Ay Gider</div>
+      <div id="mMonthSub" class="metric-sub">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-glow" style="background:var(--acc)"></div>
+      <div class="metric-icon">⚖️</div>
+      <div id="mExpRatio" class="metric-val" style="color:var(--acc2)">%0</div>
+      <div class="metric-lbl">Gider/Gelir Oranı</div>
+      <div class="hbar-bg"><div id="mExpRatioBar" class="hbar safe" style="width:0%"></div></div>
+    </div>
+    <div class="metric">
+      <div class="metric-glow" style="background:var(--grn)"></div>
+      <div class="metric-icon">🏆</div>
+      <div id="mTopCat" class="metric-val" style="color:var(--grn);font-size:13px">—</div>
+      <div class="metric-lbl">En Çok Gider</div>
+      <div id="mTopCatVal" class="metric-sub">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-glow" style="background:var(--cyn)"></div>
+      <div class="metric-icon">🔮</div>
+      <div id="mForecast" class="metric-val" style="color:var(--cyn);font-size:13px">₺0</div>
+      <div class="metric-lbl">Ay Sonu Tahmini</div>
+      <div id="mForecastSub" class="metric-sub">regresyon</div>
+    </div>
+  </div>
+
+  <!-- Monthly Trend Chart -->
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-hdr-left">Aylık Trend</div>
+      <span style="font-size:10px;color:var(--t3)">Son 6 ay</span>
+    </div>
+    <div class="chart-mini"><canvas id="trendChart"></canvas></div>
+  </div>
+
+  <!-- Income vs Expense Donut -->
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-hdr-left">Gelir / Gider Dağılımı</div>
+    </div>
+    <div style="max-width:200px;margin:0 auto"><canvas id="donutChart"></canvas></div>
+    <div style="display:flex;justify-content:center;gap:22px;margin-top:14px;font-size:12px;font-weight:600;font-family:var(--font)">
+      <span style="color:var(--grn)">● Gelir</span>
+      <span style="color:var(--red)">● Gider</span>
+    </div>
+  </div>
+
+  <!-- Category Breakdown with Sparklines -->
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-hdr-left">Kategori Dağılımı</div>
+      <span style="font-size:10px;color:var(--t3)">Giderler + Sparkline</span>
+    </div>
+    <div id="dashCatBreakdown"></div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════
+     TAB: ADD
+══════════════════════════════ -->
+<div id="tab-add" style="display:none">
+  <div class="form-card">
+    <div class="section-label" style="margin-bottom:18px">Yeni İşlem Ekle</div>
+
+    <!-- OCR Photo -->
+    <div class="photo-row">
+      <button class="photo-btn" onclick="triggerCamera()"><i class="fas fa-camera"></i> Fotoğraf Çek</button>
+      <button class="photo-btn" onclick="triggerGallery()"><i class="fas fa-image"></i> Galeriden Seç</button>
+    </div>
+    <input type="file" id="camInput" accept="image/*" capture="environment" style="display:none">
+    <input type="file" id="galInput" accept="image/*" style="display:none">
+
+    <div id="ocrSpin" class="ocr-spin">
+      <i class="fas fa-circle-notch fa-spin-fast" style="font-size:26px;display:block;margin-bottom:10px;color:var(--acc2)"></i>
+      Fatura AI ile analiz ediliyor…
+    </div>
+    <div id="ocrPreview" class="ocr-preview">
+      <img id="ocrImg" src="" alt="Fatura">
+      <div id="ocrResult"></div>
+    </div>
+
+    <div class="f-group">
+      <div class="f-label"><i class="fas fa-pen"></i> Açıklama</div>
+      <input type="text" class="f-ctrl" id="fdesc" placeholder="Örn: Starbucks, Maaş, A101…" autocomplete="off">
+    </div>
+    <div class="f-row2">
+      <div class="f-group">
+        <div class="f-label"><i class="fas fa-calendar"></i> Tarih</div>
+        <input type="date" class="f-ctrl" id="fdate">
+      </div>
+      <div class="f-group">
+        <div class="f-label"><i class="fas fa-coins"></i> Tutar</div>
+        <div class="amt-wrap">
+          <span class="amt-sym">₺</span>
+          <input type="text" class="f-ctrl" id="famount" placeholder="0,00" inputmode="decimal">
+        </div>
+      </div>
+    </div>
+    <div class="f-group">
+      <div class="f-label"><i class="fas fa-tag"></i> Kategori</div>
+      <select class="f-ctrl" id="fcat"></select>
+    </div>
+    <div class="type-row">
+      <button class="type-btn active-exp" id="btnExp" onclick="setType('minus')">
+        <i class="fas fa-arrow-trend-up"></i> Gider
+      </button>
+      <button class="type-btn" id="btnInc" onclick="setType('plus')">
+        <i class="fas fa-arrow-trend-down"></i> Gelir
+      </button>
+    </div>
+    <button class="btn-save" id="saveBtn"><i class="fas fa-plus-circle"></i> İşlemi Kaydet</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     TAB: HISTORY
+══════════════════════════════ -->
+<div id="tab-history" style="display:none">
+  <div class="filter-card">
+    <div class="srch-wrap">
+      <i class="fas fa-magnifying-glass"></i>
+      <input type="text" class="f-ctrl" id="fsearch" placeholder="Açıklama veya kategori ara…">
+    </div>
+    <!-- Period quick filters -->
+    <div class="period-btns">
+      <button class="period-btn active" data-period="all" onclick="setPeriod('all',this)">Tümü</button>
+      <button class="period-btn" data-period="today" onclick="setPeriod('today',this)">Bugün</button>
+      <button class="period-btn" data-period="week" onclick="setPeriod('week',this)">Bu Hafta</button>
+      <button class="period-btn" data-period="month" onclick="setPeriod('month',this)">Bu Ay</button>
+      <button class="period-btn" data-period="last" onclick="setPeriod('last',this)">Geçen Ay</button>
+    </div>
+    <div class="f-row3">
+      <div class="f-group">
+        <select class="f-ctrl" id="ffilterCat"></select>
+      </div>
+      <div class="f-group">
+        <select class="f-ctrl" id="ffilterType">
+          <option value="all">Tümü</option>
+          <option value="minus">Giderler</option>
+          <option value="plus">Gelirler</option>
+        </select>
+      </div>
+      <button class="btn-ghost" id="clearBtn"><i class="fas fa-xmark"></i></button>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <span class="section-label" style="margin-bottom:0">İşlem Geçmişi</span>
+    <span id="listCount" style="font-size:11px;color:var(--t3);font-family:var(--mono)">0 kayıt</span>
+  </div>
+
+  <!-- Bulk action bar -->
+  <div id="bulkBar" class="bulk-bar">
+    <span id="bulkInfo" class="bulk-info">0 seçili</span>
+    <div style="display:flex;gap:8px">
+      <button class="btn-ghost" onclick="selectAll()" style="font-size:11px;padding:7px 12px">Tümünü Seç</button>
+      <button class="bulk-del" onclick="secureOpen('bulkDelete')"><i class="fas fa-trash"></i> Sil</button>
+    </div>
+  </div>
+
+  <div id="txList" class="tx-list"></div>
+  <div id="pager" class="pager"></div>
+</div>
+
+<!-- ══════════════════════════════
+     TAB: TOOLS
+══════════════════════════════ -->
+<div id="tab-tools" style="display:none">
+  <div class="section-label">Araçlar & Yönetim</div>
+  <div class="act-row">
+    <div class="act-chip" onclick="openAnalytics()"><i class="fas fa-chart-pie"></i><span>Analiz</span></div>
+    <div class="act-chip report" onclick="openReportModal()"><i class="fas fa-file-chart-column"></i><span>Rapor</span></div>
+    <div class="act-chip" onclick="secureOpen('export')"><i class="fas fa-cloud-arrow-up"></i><span>Yedekle</span></div>
+    <div class="act-chip" onclick="document.getElementById('importFile').click()"><i class="fas fa-cloud-arrow-down"></i><span>Yükle</span></div>
+  </div>
+  <div class="act-row" style="grid-template-columns:1fr 1fr 1fr">
+    <div class="act-chip danger" onclick="secureOpen('reset')"><i class="fas fa-trash-can"></i><span>Sıfırla</span></div>
+    <div class="act-chip pur" onclick="openBudgetModal()"><i class="fas fa-bullseye"></i><span>Bütçe</span></div>
+    <div class="act-chip" onclick="showCheckpoints()"><i class="fas fa-history"></i><span>Yedekler</span></div>
+  </div>
+  <input type="file" id="importFile" accept=".json,.backup" style="display:none">
+
+  <!-- Budget status card -->
+  <div id="budgetCard" class="card" style="display:none">
+    <div class="card-hdr"><div class="card-hdr-left">Bütçe Takibi</div></div>
+    <div id="budgetBody"></div>
+  </div>
+
+  <!-- Checkpoint list -->
+  <div id="checkpointCard" class="card" style="display:none">
+    <div class="card-hdr"><div class="card-hdr-left">Otomatik Yedekler</div>
+    <span style="font-size:10px;color:var(--t3)">Son 5</span></div>
+    <div id="checkpointList"></div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="footer-name">Ahmet Düzgün</div>
+    <div class="footer-rank">Bakım Astsubay Üstçavuş</div>
+    <div class="footer-badge"><i class="fas fa-microchip"></i> Düzgün Ekonomi Pro v4.0</div>
+  </div>
+</div>
+
+</div><!-- /shell -->
+
+<!-- ══════════════════════════════
+     ANALYTICS MODAL
+══════════════════════════════ -->
+<div id="analyticsOverlay" class="overlay">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-ttl">📊 Detaylı Analiz</div>
+      <button class="modal-cls" onclick="closeModal('analyticsOverlay')"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div style="max-width:220px;margin:0 auto 16px"><canvas id="analyticsChart"></canvas></div>
+    <div id="anStats" class="an-grid"></div>
+    <div class="section-label" style="margin-bottom:10px">Kategori Giderleri</div>
+    <div id="anCats"></div>
+    <div class="section-label" style="margin:16px 0 10px">Aylık Özet</div>
+    <div id="anMonthly" class="monthly-list"></div>
+    <button class="btn-save" style="margin-top:20px" onclick="closeModal('analyticsOverlay')"><i class="fas fa-check"></i> Kapat</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     REPORT MODAL
+══════════════════════════════ -->
+<div id="reportOverlay" class="overlay">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-ttl">📋 Rapor Oluştur</div>
+      <button class="modal-cls" onclick="closeModal('reportOverlay')"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="rpt-section">
+      <div class="rpt-ttl">Tarih Aralığı</div>
+      <div class="date-range">
+        <div class="f-group" style="margin:0"><div class="f-label">Başlangıç</div><input type="date" class="f-ctrl" id="rptFrom"></div>
+        <div class="f-group" style="margin:0"><div class="f-label">Bitiş</div><input type="date" class="f-ctrl" id="rptTo"></div>
+      </div>
+    </div>
+    <div class="rpt-section">
+      <div class="rpt-ttl">Filtreler</div>
+      <div class="f-group"><div class="f-label"><i class="fas fa-tag"></i> Kategori</div><select class="f-ctrl" id="rptCat"></select></div>
+      <div class="f-group"><div class="f-label"><i class="fas fa-chart-simple"></i> Tip</div>
+        <select class="f-ctrl" id="rptType">
+          <option value="all">Tümü</option>
+          <option value="minus">Sadece Giderler</option>
+          <option value="plus">Sadece Gelirler</option>
+        </select>
+      </div>
+    </div>
+    <div class="rpt-section">
+      <div class="rpt-ttl">Format</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="type-btn active-inc" id="fmtHtml" onclick="setRptFmt('html')"><i class="fas fa-globe"></i> HTML</button>
+        <button class="type-btn" id="fmtCsv" onclick="setRptFmt('csv')"><i class="fas fa-table"></i> CSV</button>
+      </div>
+    </div>
+    <button class="btn-save" onclick="secureOpen('report')"><i class="fas fa-file-export"></i> Raporu Oluştur & İndir</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     BUDGET MODAL
+══════════════════════════════ -->
+<div id="budgetOverlay" class="overlay">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-hdr">
+      <div class="modal-ttl">🎯 Aylık Bütçe Hedefi</div>
+      <button class="modal-cls" onclick="closeModal('budgetOverlay')"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="f-group">
+      <div class="f-label"><i class="fas fa-coins"></i> Aylık Bütçe Limiti (₺)</div>
+      <div class="amt-wrap"><span class="amt-sym">₺</span>
+        <input type="text" class="f-ctrl" id="budgetInput" placeholder="0,00" inputmode="decimal">
+      </div>
+    </div>
+    <button class="btn-save" onclick="saveBudget()"><i class="fas fa-save"></i> Kaydet</button>
+    <div class="budget-info" id="budgetInfoBlock" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     SECURITY MODAL
+══════════════════════════════ -->
+<div id="secOverlay" class="overlay">
+  <div class="modal" style="max-width:340px">
+    <div class="sec-ico">🔐</div>
+    <div class="sec-ttl">Yetkilendirme</div>
+    <div id="secSubText" class="sec-sub">Bu işlem şifre gerektiriyor</div>
+    <div class="f-group">
+      <input type="password" class="f-ctrl sec-pass" id="secPass" placeholder="••••••" maxlength="10">
+    </div>
+    <div class="sec-btns">
+      <button class="btn-cancel" onclick="closeModal('secOverlay');pendingAction=null">İptal</button>
+      <button class="btn-save" onclick="secureConfirm()"><i class="fas fa-check"></i> Doğrula</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toastWrap" class="toast-wrap"></div>
+
+<!-- EMERGENCY CONSOLE -->
+<div id="emergencyConsole" class="emergency-console">
+  <div class="ec-title">⚠ ACİL DURUM KONSOLU — Düzgün Ekonomi Pro</div>
+  <div id="ecData" class="ec-data">Yükleniyor...</div>
+  <div class="ec-btns">
+    <button class="ec-btn blue" onclick="ecExport()">📥 JSON İndir</button>
+    <button class="ec-btn blue" onclick="ecRestore()">♻ Son Yedeği Yükle</button>
+    <button class="ec-btn red" onclick="ecClear()">🗑 Veriyi Temizle</button>
+    <button class="ec-btn" onclick="document.getElementById('emergencyConsole').classList.remove('show')">✕ Kapat</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     SCRIPT
+══════════════════════════════ -->
+<script>
+/* ══════════════════════════════════
+   CONSTANTS & CONFIG
+══════════════════════════════════ */
+const PASS = "940302";
+const PER = 8;
+const SK = "de_pro_v4";
+const ENC_KEY = "DuzgunEkonomiAES256SecretKey2024";
+const CHECKPOINT_KEY = "de_checkpoints";
+const BUDGET_KEY = "de_budget";
+
+/* ══════════════════════════════════
+   CATEGORIES
+══════════════════════════════════ */
+const CATS = [
+  {e:"🛒",n:"Market",t:"minus"},{e:"🏠",n:"Kira",t:"minus"},
+  {e:"⚡",n:"Fatura",t:"minus"},{e:"⛽",n:"Akaryakıt",t:"minus"},
+  {e:"🍽️",n:"Restoran",t:"minus"},{e:"🎮",n:"Eğlence",t:"minus"},
+  {e:"💊",n:"Sağlık",t:"minus"},{e:"👕",n:"Moda",t:"minus"},
+  {e:"✈️",n:"Seyahat",t:"minus"},{e:"📚",n:"Eğitim",t:"minus"},
+  {e:"🏥",n:"Hastane",t:"minus"},{e:"🏋️",n:"Spor",t:"minus"},
+  {e:"📱",n:"Teknoloji",t:"minus"},{e:"🚌",n:"Ulaşım",t:"minus"},
+  {e:"🏦",n:"Banka/Kredi",t:"minus"},{e:"🐾",n:"Evcil Hayvan",t:"minus"},
+  {e:"🚗",n:"Araç Bakım",t:"minus"},{e:"🍔",n:"Fast Food",t:"minus"},
+  {e:"💰",n:"Maaş",t:"plus"},{e:"💼",n:"Serbest İş",t:"plus"},
+  {e:"📈",n:"Yatırım/Temettü",t:"plus"},{e:"🎁",n:"Hediye/Prim",t:"plus"},
+  {e:"🏦",n:"Banka Faizi",t:"plus"},{e:"🏘️",n:"Kira Geliri",t:"plus"},
+  {e:"✨",n:"Diğer",t:"minus"}
+];
+
+// RegEx auto-categorization rules
+const AUTO_CATS = [
+  {re:/bora|parça|yağ\s*değişim|lastik|oto\s*sanayi|tampon|kaporta|araç/i, cat:"🚗 Araç Bakım"},
+  {re:/migros|a101|bim|şok|carrefour|market|manav|kasap/i, cat:"🛒 Market"},
+  {re:/kfc|mcdonald|burger|pizza|döner|fast\s*food/i, cat:"🍔 Fast Food"},
+  {re:/starbucks|cafe|restoran|lokanta|yemek/i, cat:"🍽️ Restoran"},
+  {re:/akaryakıt|benzin|motorin|opet|petrol\s*ofisi|shell|bp/i, cat:"⛽ Akaryakıt"},
+  {re:/elektrik|doğalgaz|su\s*fatura|internet|telefon\s*fatura/i, cat:"⚡ Fatura"},
+  {re:/eczane|ilaç|hap|vitamin|sağlık/i, cat:"💊 Sağlık"},
+  {re:/hastane|klinik|doktor|muayene/i, cat:"🏥 Hastane"},
+  {re:/maaş|ücret|banka\s*öde/i, cat:"💰 Maaş"},
+  {re:/steam|netflix|spotify|oyun|sinema|eğlence/i, cat:"🎮 Eğlence"},
+  {re:/zara|h&m|lcw|pantolon|gömlek|ayakkabı/i, cat:"👕 Moda"},
+  {re:/kira\s*geliri/i, cat:"🏘️ Kira Geliri"},
+  {re:/kira\s*öde|ev\s*kirası/i, cat:"🏠 Kira"},
+];
+
+/* ══════════════════════════════════
+   STATE
+══════════════════════════════════ */
+let TXS = [];
+let curPage = 1;
+let curType = "minus";
+let pendingAction = null;
+let pendingPayload = null;
+let trendChartInst = null;
+let donutChartInst = null;
+let anChartInst = null;
+let gaugeChartInst = null;
+let sparkInstances = {};
+let rptFmtSelected = "html";
+let budget = 0;
+let filterPeriod = "all";
+let selectedTxIds = new Set();
+let logoClickCount = 0;
+let logoClickTimer = null;
+
+/* ══════════════════════════════════
+   AES ENCRYPTED STORAGE
+══════════════════════════════════ */
+function encrypt(data) {
+  try {
+    return CryptoJS.AES.encrypt(JSON.stringify(data), ENC_KEY).toString();
+  } catch(e) {
+    return JSON.stringify(data);
+  }
+}
+function decrypt(str) {
+  try {
+    const bytes = CryptoJS.AES.decrypt(str, ENC_KEY);
+    return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+  } catch(e) {
+    try { return JSON.parse(str); } catch { return null; }
+  }
+}
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(SK);
+    if (!raw) { TXS = []; return; }
+    const decrypted = decrypt(raw);
+    TXS = Array.isArray(decrypted) ? decrypted : [];
+  } catch(e) { TXS = []; }
+  budget = parseFloat(localStorage.getItem(BUDGET_KEY) || 0);
+}
+
+function saveData() {
+  try {
+    localStorage.setItem(SK, encrypt(TXS));
+    localStorage.setItem(BUDGET_KEY, budget);
+  } catch(e) { console.error("Save failed:", e); }
+  saveCheckpoint();
+}
+
+/* ══════════════════════════════════
+   CHECKPOINT SYSTEM
+══════════════════════════════════ */
+function saveCheckpoint() {
+  try {
+    const checkpoints = JSON.parse(localStorage.getItem(CHECKPOINT_KEY) || '[]');
+    checkpoints.unshift({
+      ts: Date.now(),
+      label: new Date().toLocaleString('tr-TR'),
+      count: TXS.length,
+      data: encrypt(TXS)
+    });
+    // Keep last 5
+    checkpoints.splice(5);
+    localStorage.setItem(CHECKPOINT_KEY, JSON.stringify(checkpoints));
+  } catch(e) {}
+}
+
+function getCheckpoints() {
+  try { return JSON.parse(localStorage.getItem(CHECKPOINT_KEY) || '[]'); } catch { return []; }
+}
+
+function restoreCheckpoint(idx) {
+  const cps = getCheckpoints();
+  if (!cps[idx]) return;
+  const restored = decrypt(cps[idx].data);
+  if (Array.isArray(restored)) {
+    TXS = restored;
+    saveData();
+    renderDashboard();
+    renderHistory();
+    toast(`Yedek #${idx+1} geri yüklendi — ${restored.length} kayıt`, 'ok');
+  }
+}
+
+function showCheckpoints() {
+  const card = document.getElementById('checkpointCard');
+  const list = document.getElementById('checkpointList');
+  const cps = getCheckpoints();
+  card.style.display = cps.length ? 'block' : 'none';
+  if (!cps.length) { toast('Henüz otomatik yedek yok', 'nfo'); return; }
+  list.innerHTML = cps.map((cp, i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--b1)">
+      <div>
+        <div style="font-size:12px;font-weight:600">${cp.label}</div>
+        <div style="font-size:11px;color:var(--t3)">${cp.count} kayıt</div>
+      </div>
+      <button onclick="secureOpen('restoreChk',${i})" style="background:var(--acc-g);border:1px solid var(--acc);color:var(--acc2);font-family:var(--font);font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;">Yükle</button>
+    </div>`).join('');
+  switchTab('tools');
+}
+
+/* ══════════════════════════════════
+   FORMAT HELPERS
+══════════════════════════════════ */
+const fmt = v => new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY',minimumFractionDigits:2}).format(v);
+const fmtS = v => {
+  if(v >= 1e6) return '₺'+(v/1e6).toFixed(1)+'M';
+  if(v >= 1e3) return '₺'+(v/1e3).toFixed(1)+'K';
+  return '₺'+v.toFixed(0);
+};
+const fmtD = d => new Date(d).toLocaleDateString('tr-TR',{day:'2-digit',month:'short',year:'numeric'});
+const esc = s => s ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) : '';
+
+function fmtAmt(inp) {
+  let r = inp.value.replace(/\D/g,'');
+  if(!r){inp.value='';return;}
+  let n = (parseInt(r)/100).toFixed(2);
+  let [i,d] = n.split('.');
+  i = i.replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+  inp.value = i+','+d;
+}
+
+/* ══════════════════════════════════
+   TOAST
+══════════════════════════════════ */
+function toast(msg, type='nfo') {
+  const w = document.getElementById('toastWrap');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span class="tdot"></span><span>${msg}</span><span class="tcls" onclick="this.parentElement.remove()"><i class="fas fa-xmark"></i></span>`;
+  w.appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 350); }, 3500);
+}
+
+/* ══════════════════════════════════
+   TABS
+══════════════════════════════════ */
+const TABS = ['dashboard','add','history','tools'];
+function switchTab(name) {
+  TABS.forEach(t => {
+    document.getElementById('tab-'+t).style.display = t === name ? '' : 'none';
+    document.getElementById('tab-btn-'+t).classList.toggle('active', t === name);
+  });
+  if(name === 'dashboard') renderDashboard();
+  if(name === 'history') renderHistory();
+}
+
+/* ══════════════════════════════════
+   TYPE & CATEGORY
+══════════════════════════════════ */
+function setType(v) {
+  curType = v;
+  document.getElementById('btnExp').className = 'type-btn' + (v==='minus' ? ' active-exp' : '');
+  document.getElementById('btnInc').className = 'type-btn' + (v==='plus' ? ' active-inc' : '');
+}
+
+function autoType() {
+  const sel = document.getElementById('fcat');
+  const opt = sel.options[sel.selectedIndex];
+  const t = opt.getAttribute('data-t');
+  if(t) setType(t);
+}
+
+function autoCategory(desc) {
+  if(!desc) return null;
+  for(const rule of AUTO_CATS) {
+    if(rule.re.test(desc)) return rule.cat;
+  }
+  return null;
+}
+
+function buildSelects() {
+  const opts = CATS.map(c => `<option value="${c.e} ${c.n}" data-t="${c.t}">${c.e} ${c.n}</option>`).join('');
+  document.getElementById('fcat').innerHTML = opts;
+  const allOpt = '<option value="all">📊 Tüm Kategoriler</option>' + opts;
+  document.getElementById('ffilterCat').innerHTML = allOpt;
+  document.getElementById('rptCat').innerHTML = allOpt;
+}
+
+/* ══════════════════════════════════
+   SORTED / STATS
+══════════════════════════════════ */
+const sorted = () => [...TXS].sort((a,b) => a.dt === b.dt ? b.id - a.id : new Date(b.dt) - new Date(a.dt));
+
+function computeStats() {
+  let inc=0, exp=0;
+  TXS.forEach(t => t.t === 'plus' ? inc+=t.a : exp+=t.a);
+  const net = inc - exp;
+  const savRate = inc > 0 ? (net/inc)*100 : 0;
+  const expTxs = TXS.filter(t => t.t === 'minus');
+  const avgExp = expTxs.length ? exp/expTxs.length : 0;
+
+  // Burn rate (last 30 days)
+  const d30 = new Date(); d30.setDate(d30.getDate()-30);
+  const exp30 = TXS.filter(t => t.t === 'minus' && new Date(t.dt) >= d30).reduce((s,t) => s+t.a, 0);
+  const burnRate = exp30/30;
+
+  // This month
+  const now = new Date();
+  const thisMonth = TXS.filter(t => {
+    const d = new Date(t.dt);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+  const monthExp = thisMonth.filter(t => t.t === 'minus').reduce((s,t) => s+t.a, 0);
+  const monthInc = thisMonth.filter(t => t.t === 'plus').reduce((s,t) => s+t.a, 0);
+
+  // Top category
+  const cats = {};
+  expTxs.forEach(t => { cats[t.c] = (cats[t.c]||0) + t.a; });
+  const topCat = Object.entries(cats).sort((a,b) => b[1]-a[1])[0];
+
+  // Streak
+  const days = [...new Set(TXS.map(t => t.dt))].sort((a,b) => new Date(b)-new Date(a));
+  let streak = 0; let prev = null;
+  for(const d of days){
+    if(!prev){streak=1;prev=d;continue;}
+    const diff = (new Date(prev)-new Date(d))/864e5;
+    if(diff===1){streak++;prev=d;}else break;
+  }
+
+  return {inc,exp,net,savRate,avgExp,burnRate,monthExp,monthInc,topCat,streak,
+    expRatio: inc>0 ? exp/inc*100 : 0};
+}
+
+/* ══════════════════════════════════
+   LINEAR REGRESSION FORECAST
+══════════════════════════════════ */
+function computeForecast() {
+  const now = new Date();
+  const months = [];
+  for(let i=2; i>=0; i--){
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    months.push(d);
+  }
+  const monthlyExp = months.map(m => {
+    return TXS.filter(t => {
+      const d = new Date(t.dt);
+      return t.t==='minus' && d.getMonth()===m.getMonth() && d.getFullYear()===m.getFullYear();
+    }).reduce((s,t) => s+t.a, 0);
+  });
+
+  // Simple linear regression
+  const n = monthlyExp.length;
+  const sumX = n*(n-1)/2;
+  const sumY = monthlyExp.reduce((a,b) => a+b, 0);
+  const sumXX = monthlyExp.reduce((_,__,i) => _+i*i, 0);
+  const sumXY = monthlyExp.reduce((s,y,i) => s+i*y, 0);
+  const slope = (n*sumXY - sumX*sumY) / (n*sumXX - sumX*sumX);
+  const intercept = (sumY - slope*sumX) / n;
+  const forecast = intercept + slope*n;
+
+  // Days in month projection
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  const dayOfMonth = now.getDate();
+
+  // Current month spending so far
+  const curMonthExp = TXS.filter(t => {
+    const d = new Date(t.dt);
+    return t.t==='minus' && d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+  }).reduce((s,t) => s+t.a, 0);
+
+  // Projection: current pace × days remaining
+  const dailyRate = dayOfMonth > 0 ? curMonthExp / dayOfMonth : 0;
+  const projection = dailyRate * daysInMonth;
+
+  return { forecast: Math.max(forecast, 0), projection, dailyRate, dayOfMonth, daysInMonth };
+}
+
+/* ══════════════════════════════════
+   ANOMALY DETECTION
+══════════════════════════════════ */
+function detectAnomalies() {
+  const now = new Date();
+  const anomalies = [];
+
+  // Get category averages from past 3 months (excluding current)
+  const catAvgs = {};
+  for(let i=1; i<=3; i++){
+    const m = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    TXS.filter(t => {
+      const d = new Date(t.dt);
+      return t.t==='minus' && d.getMonth()===m.getMonth() && d.getFullYear()===m.getFullYear();
+    }).forEach(t => {
+      if(!catAvgs[t.c]) catAvgs[t.c] = {sum:0, months:new Set()};
+      catAvgs[t.c].sum += t.a;
+      catAvgs[t.c].months.add(`${m.getMonth()}-${m.getFullYear()}`);
+    });
+  }
+
+  // Current month per category
+  const catCurrent = {};
+  TXS.filter(t => {
+    const d = new Date(t.dt);
+    return t.t==='minus' && d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+  }).forEach(t => { catCurrent[t.c] = (catCurrent[t.c]||0) + t.a; });
+
+  for(const [cat, current] of Object.entries(catCurrent)){
+    if(!catAvgs[cat]) continue;
+    const avg = catAvgs[cat].sum / 3;
+    if(avg > 100 && current > avg * 1.3){
+      anomalies.push({cat, current, avg, pct: ((current/avg-1)*100).toFixed(0)});
+    }
+  }
+  return anomalies;
+}
+
+/* ══════════════════════════════════
+   DYNAMIC THEMING
+══════════════════════════════════ */
+function updateTheme(budgetPct) {
+  document.body.classList.remove('theme-warning','theme-danger');
+  if(budgetPct >= 100) document.body.classList.add('theme-danger');
+  else if(budgetPct >= 80) document.body.classList.add('theme-warning');
+}
+
+/* ══════════════════════════════════
+   DASHBOARD RENDER
+══════════════════════════════════ */
+function renderDashboard() {
+  const s = computeStats();
+  const fc = computeForecast();
+  const anomalies = detectAnomalies();
+
+  // Hero
+  const bEl = document.getElementById('heroBal');
+  bEl.textContent = fmt(s.net);
+  bEl.className = 'hero-amount ' + (s.net > 0 ? 'pos' : s.net < 0 ? 'neg' : 'zero');
+  document.getElementById('hInc').textContent = fmt(s.inc);
+  document.getElementById('hExp').textContent = fmt(s.exp);
+
+  // Deficit alert
+  const da = document.getElementById('alertDeficit');
+  if(s.net < 0){
+    da.classList.add('show');
+    document.getElementById('alertDeficitBody').innerHTML =
+      `Net bakiyeniz <strong>${fmt(Math.abs(s.net))}</strong> açıkta. Giderleriniz gelirinizi aşıyor.`;
+    document.getElementById('alertDeficitTips').innerHTML = `
+      <li>Tasarruf oranı: <strong>${s.savRate.toFixed(1)}%</strong> (hedef: min %20)</li>
+      <li>Günlük harcama: <strong>${fmt(s.burnRate)}</strong> — aylık projeksiyon: <strong>${fmt(s.burnRate*30)}</strong></li>
+      <li>En yüksek gider: <strong>${s.topCat ? s.topCat[0] : '—'}</strong></li>
+      <li>Gereksiz abonelikleri ve anlık harcamaları gözden geçirin</li>`;
+  } else da.classList.remove('show');
+
+  // Anomaly alert
+  const aa = document.getElementById('alertAnomaly');
+  if(anomalies.length > 0){
+    aa.classList.add('show');
+    const lines = anomalies.map(a => `<strong>${a.cat}</strong> harcamalarınız bu ay %${a.pct} artış gösterdi (Normal: ${fmt(a.avg)} → Şu an: ${fmt(a.current)})`).join('<br>');
+    document.getElementById('alertAnomalyBody').innerHTML = lines;
+  } else aa.classList.remove('show');
+
+  // Forecast alert
+  const fa = document.getElementById('alertForecast');
+  if(fc.dailyRate > 0 && fc.projection > 0){
+    fa.classList.add('show');
+    const daysLeft = fc.daysInMonth - fc.dayOfMonth;
+    const remaining = Math.max(fc.projection - (s.monthExp || 0), 0);
+    document.getElementById('alertForecastBody').innerHTML =
+      `Bu hızla devam ederseniz ay sonunda toplam <strong>~${fmt(fc.projection)}</strong> harcamış olacaksınız. ` +
+      `Kalan ${daysLeft} günde tahmini: <strong>${fmt(remaining)}</strong>`;
+  } else fa.classList.remove('show');
+
+  // Gauge Chart
+  buildGaugeChart(s.monthExp, fc);
+
+  // Dynamic theme
+  if(budget > 0) updateTheme(s.monthExp/budget*100);
+  else updateTheme(s.expRatio);
+
+  // Metrics
+  document.getElementById('mTxCount').textContent = TXS.length;
+  document.getElementById('mTxSub').textContent = `${TXS.filter(t=>t.t==='minus').length} gider · ${TXS.filter(t=>t.t==='plus').length} gelir`;
+  document.getElementById('mSavRate').textContent = `%${s.savRate.toFixed(1)}`;
+  const badge = document.getElementById('mSavBadge');
+  if(s.savRate >= 20){ badge.className='metric-badge badge-up'; badge.innerHTML='<i class="fas fa-arrow-up"></i> Sağlıklı'; }
+  else if(s.savRate >= 0){ badge.className='metric-badge badge-nt'; badge.innerHTML='<i class="fas fa-minus"></i> Düşük'; }
+  else{ badge.className='metric-badge badge-dn'; badge.innerHTML='<i class="fas fa-arrow-down"></i> Açık'; }
+  document.getElementById('mAvgExp').textContent = fmtS(s.avgExp);
+  document.getElementById('mAvgSub').textContent = `${TXS.filter(t=>t.t==='minus').length} gider`;
+  document.getElementById('mBurnRate').textContent = fmtS(s.burnRate);
+  document.getElementById('mMonthExp').textContent = fmtS(s.monthExp);
+  document.getElementById('mMonthSub').textContent = `Gelir: ${fmtS(s.monthInc)}`;
+  const ratio = s.expRatio;
+  document.getElementById('mExpRatio').textContent = `%${ratio.toFixed(1)}`;
+  const barEl = document.getElementById('mExpRatioBar');
+  barEl.style.width = Math.min(ratio, 100) + '%';
+  barEl.className = 'hbar ' + (ratio < 70 ? 'safe' : ratio < 100 ? 'warn' : 'danger');
+  document.getElementById('mTopCat').textContent = s.topCat ? s.topCat[0] : 'Henüz yok';
+  document.getElementById('mTopCatVal').textContent = s.topCat ? fmt(s.topCat[1]) : '';
+  document.getElementById('mForecast').textContent = fmtS(fc.projection || 0);
+  document.getElementById('mForecastSub').textContent = fc.dailyRate > 0 ? `${fmt(fc.dailyRate)}/gün` : 'veri yok';
+
+  // Budget card (also in tools tab)
+  if(budget > 0){
+    document.getElementById('budgetCard').style.display = 'block';
+    const pct = Math.min(s.monthExp/budget*100, 100);
+    const rem = Math.max(budget - s.monthExp, 0);
+    document.getElementById('budgetBody').innerHTML = `
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;font-family:var(--body)">
+        <span>Bu ay harcandı</span><strong>${fmt(s.monthExp)} / ${fmt(budget)}</strong>
+      </div>
+      <div class="hbar-bg"><div class="hbar ${pct<70?'safe':pct<90?'warn':'danger'}" style="width:${pct}%"></div></div>
+      <div style="font-size:12px;color:var(--t2);margin-top:10px;font-family:var(--body)">
+        Kalan bütçe: <strong style="color:${rem>0?'var(--grn)':'var(--red)'}">${fmt(rem)}</strong>
+        &nbsp;·&nbsp; %${pct.toFixed(1)} kullanıldı
+      </div>`;
+  }
+
+  buildTrendChart();
+  buildDonutChart();
+  buildDashCatBreakdown();
+}
+
+/* ══════════════════════════════════
+   GAUGE CHART
+══════════════════════════════════ */
+function buildGaugeChart(monthExp, fc) {
+  const ctx = document.getElementById('gaugeChart').getContext('2d');
+  if(gaugeChartInst) gaugeChartInst.destroy();
+
+  const pct = budget > 0 ? Math.min(monthExp/budget, 1) : Math.min(fc.dailyRate*30 / Math.max(monthExp*1.5,1), 1);
+  const pctDisplay = budget > 0 ? (monthExp/budget*100).toFixed(1) : (pct*100).toFixed(0);
+  const color = pct < 0.5 ? '#10d9a0' : pct < 0.8 ? '#f59e0b' : '#f43f5e';
+
+  document.getElementById('gaugePct').textContent = pctDisplay + '%';
+  document.getElementById('gaugePct').style.color = color;
+
+  const daysIn = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate();
+  const dayOf = new Date().getDate();
+
+  if(fc.dailyRate > 0){
+    const daysLeft = daysIn - dayOf;
+    const totalProjection = fc.projection;
+    const fEl = document.getElementById('gaugeForecast');
+    fEl.className = 'gauge-forecast' + (pct >= 0.85 ? ' danger' : '');
+    if(budget > 0 && totalProjection > budget) {
+      const daysToEmpty = (budget - monthExp) / fc.dailyRate;
+      fEl.innerHTML = `⚠ Mevcut hızla bütçe <strong>${Math.max(0,daysToEmpty).toFixed(0)} gün</strong> içinde tükenecek`;
+    } else {
+      fEl.innerHTML = `Ay sonunda tahmini toplam harcama: <strong>${fmt(totalProjection)}</strong>`;
+    }
+  } else {
+    document.getElementById('gaugeForecast').innerHTML = budget > 0 ? `Bütçe: ${fmt(budget)}` : 'Bütçe hedefi ayarlanmamış';
+  }
+
+  gaugeChartInst = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [pct, 1-pct],
+        backgroundColor: [color, 'rgba(255,255,255,.05)'],
+        borderWidth: 0,
+        circumference: 180,
+        rotation: -90
+      }]
+    },
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      cutout: '72%',
+      plugins: { legend: {display:false}, tooltip: {enabled:false} }
+    }
+  });
+}
+
+/* ══════════════════════════════════
+   TREND CHART
+══════════════════════════════════ */
+function buildTrendChart() {
+  const months = [], labels = [], incData = [], expData = [];
+  for(let i=5; i>=0; i--){
+    const d = new Date(); d.setMonth(d.getMonth()-i); months.push(d);
+    labels.push(d.toLocaleDateString('tr-TR',{month:'short',year:'2-digit'}));
+  }
+  months.forEach(m => {
+    const mi = TXS.filter(t => {
+      const d = new Date(t.dt);
+      return d.getMonth()===m.getMonth() && d.getFullYear()===m.getFullYear();
+    });
+    incData.push(mi.filter(t=>t.t==='plus').reduce((s,t)=>s+t.a,0));
+    expData.push(mi.filter(t=>t.t==='minus').reduce((s,t)=>s+t.a,0));
+  });
+
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  if(trendChartInst) trendChartInst.destroy();
+  trendChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [
+      {label:'Gelir',data:incData,backgroundColor:'rgba(16,217,160,.45)',borderColor:'#10d9a0',borderWidth:2,borderRadius:7,borderSkipped:false},
+      {label:'Gider',data:expData,backgroundColor:'rgba(244,63,94,.4)',borderColor:'#f43f5e',borderWidth:2,borderRadius:7,borderSkipped:false}
+    ]},
+    options: {
+      responsive:true, maintainAspectRatio:true,
+      plugins:{legend:{labels:{color:'#8ba0c8',font:{size:10,family:'Syne'},boxWidth:10}},
+        tooltip:{callbacks:{label:c=>' '+fmt(c.raw)},backgroundColor:'rgba(9,16,34,.95)',borderColor:'rgba(255,255,255,.1)',borderWidth:1}},
+      scales:{
+        x:{ticks:{color:'#4a5e82',font:{size:10}},grid:{display:false}},
+        y:{ticks:{color:'#4a5e82',font:{size:9},callback:v=>fmtS(v)},grid:{color:'rgba(255,255,255,.04)'}}
+      }
+    }
+  });
+}
+
+/* ══════════════════════════════════
+   DONUT CHART
+══════════════════════════════════ */
+function buildDonutChart() {
+  const s = computeStats();
+  const ctx = document.getElementById('donutChart').getContext('2d');
+  if(donutChartInst) donutChartInst.destroy();
+  if(!s.inc && !s.exp) return;
+  donutChartInst = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Gelir','Gider'],
+      datasets: [{data:[s.inc,s.exp],backgroundColor:['rgba(16,217,160,.7)','rgba(244,63,94,.7)'],borderWidth:0,hoverOffset:8}]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:true, cutout:'68%',
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+fmt(c.raw)},backgroundColor:'rgba(9,16,34,.95)',borderColor:'rgba(255,255,255,.1)',borderWidth:1}}
+    }
+  });
+}
+
+/* ══════════════════════════════════
+   CAT BREAKDOWN WITH SPARKLINES
+══════════════════════════════════ */
+function buildDashCatBreakdown() {
+  const cats = {};
+  TXS.filter(t => t.t === 'minus').forEach(t => { cats[t.c] = (cats[t.c]||0) + t.a; });
+  const total = Object.values(cats).reduce((a,b) => a+b, 0) || 1;
+  const sortedC = Object.entries(cats).sort((a,b) => b[1]-a[1]).slice(0,7);
+  const el = document.getElementById('dashCatBreakdown');
+
+  if(!sortedC.length){
+    el.innerHTML = '<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Henüz gider kaydı yok</div>';
+    return;
+  }
+
+  el.innerHTML = sortedC.map(([c,a], idx) => {
+    const pct = (a/total*100).toFixed(1);
+    return `<div class="cat-item">
+      <div class="cat-row-top">
+        <span class="cat-nm">${c}</span>
+        <span class="cat-vl">${fmt(a)}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="pbar-bg"><div class="pbar" style="width:${pct}%"></div></div>
+        <span style="font-size:10px;color:var(--t3);font-family:var(--mono);width:32px;text-align:right">${pct}%</span>
+        <canvas id="spark-${idx}" class="cat-spark" width="60" height="28"></canvas>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Build sparklines after DOM insertion
+  sortedC.forEach(([c], idx) => {
+    setTimeout(() => buildSparkline(`spark-${idx}`, c), 50);
+  });
+}
+
+function buildSparkline(canvasId, catName) {
+  const canvas = document.getElementById(canvasId);
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const now = new Date();
+  const data = [];
+  for(let i=6; i>=0; i--){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const dateStr = d.toISOString().slice(0,10);
+    const total = TXS.filter(t => t.t==='minus' && t.c===catName && t.dt===dateStr).reduce((s,t)=>s+t.a,0);
+    data.push(total);
+  }
+
+  const instKey = canvasId;
+  if(sparkInstances[instKey]) { sparkInstances[instKey].destroy(); }
+
+  sparkInstances[instKey] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.map((_,i) => i),
+      datasets: [{data, borderColor:'rgba(59,130,246,.7)', borderWidth:1.5, fill:true,
+        backgroundColor:'rgba(59,130,246,.08)', tension:.4, pointRadius:0}]
+    },
+    options: {
+      responsive:false, maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{enabled:false}},
+      scales:{x:{display:false},y:{display:false}}
+    }
+  });
+}
+
+/* ══════════════════════════════════
+   SAVE TRANSACTION
+══════════════════════════════════ */
+function saveTx() {
+  const d = document.getElementById('fdesc').value.trim();
+  const raw = document.getElementById('famount').value;
+  const dt = document.getElementById('fdate').value;
+  let c = document.getElementById('fcat').value;
+
+  if(!d){ toast('Açıklama girin','err'); return; }
+  if(!raw){ toast('Tutar girin','err'); return; }
+  if(!dt){ toast('Tarih seçin','err'); return; }
+
+  const a = parseFloat(raw.replace(/\./g,'').replace(',','.'));
+  if(isNaN(a) || a <= 0){ toast('Geçerli tutar girin','err'); return; }
+
+  // Auto-categorize by RegEx
+  const autoCat = autoCategory(d);
+  if(autoCat && autoCat !== c){
+    c = autoCat;
+    toast(`Kategori otomatik: ${autoCat}`, 'nfo');
+  }
+
+  // Auto-type from category
+  const catObj = CATS.find(cat => `${cat.e} ${cat.n}` === c);
+  if(catObj) curType = catObj.t;
+
+  TXS.unshift({id: Date.now(), d, dt, a, c, t: curType});
+  saveData();
+
+  document.getElementById('fdesc').value = '';
+  document.getElementById('famount').value = '';
+  document.getElementById('fdate').valueAsDate = new Date();
+  renderDashboard();
+  toast(`Kaydedildi — ${fmt(a)}`, 'ok');
+  document.activeElement?.blur();
+}
+
+/* ══════════════════════════════════
+   PERIOD FILTER
+══════════════════════════════════ */
+function setPeriod(period, btn) {
+  filterPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderHistory(1);
+}
+
+function filterByPeriod(txs) {
+  const now = new Date();
+  const today = now.toISOString().slice(0,10);
+  if(filterPeriod === 'today') return txs.filter(t => t.dt === today);
+  if(filterPeriod === 'week'){
+    const wStart = new Date(now); wStart.setDate(now.getDate() - now.getDay() + 1);
+    return txs.filter(t => new Date(t.dt) >= wStart);
+  }
+  if(filterPeriod === 'month'){
+    return txs.filter(t => {
+      const d = new Date(t.dt);
+      return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+    });
+  }
+  if(filterPeriod === 'last'){
+    const lm = new Date(now.getFullYear(), now.getMonth()-1, 1);
+    return txs.filter(t => {
+      const d = new Date(t.dt);
+      return d.getMonth()===lm.getMonth() && d.getFullYear()===lm.getFullYear();
+    });
+  }
+  return txs;
+}
+
+/* ══════════════════════════════════
+   HISTORY RENDER
+══════════════════════════════════ */
+function renderHistory(page=1) {
+  curPage = page;
+  const q = document.getElementById('fsearch').value.toLowerCase();
+  const fc = document.getElementById('ffilterCat').value;
+  const ft = document.getElementById('ffilterType').value;
+
+  let list = sorted().filter(t => {
+    const ms = t.d.toLowerCase().includes(q) || t.c.toLowerCase().includes(q);
+    const mc = fc === 'all' || t.c === fc;
+    const mt = ft === 'all' || t.t === ft;
+    return ms && mc && mt;
+  });
+  list = filterByPeriod(list);
+
+  document.getElementById('listCount').textContent = `${list.length} kayıt`;
+  const pages = Math.ceil(list.length/PER) || 1;
+  if(curPage > pages) curPage = pages;
+  const slice = list.slice((curPage-1)*PER, curPage*PER);
+  const el = document.getElementById('txList');
+
+  // Bulk bar
+  const bulkBar = document.getElementById('bulkBar');
+  if(selectedTxIds.size > 0){
+    bulkBar.classList.add('show');
+    document.getElementById('bulkInfo').textContent = `${selectedTxIds.size} kayıt seçildi`;
+  } else {
+    bulkBar.classList.remove('show');
+  }
+
+  if(!slice.length){
+    el.innerHTML = `<div class="empty"><i class="fas fa-receipt"></i><p>İşlem bulunamadı</p><small>Arama kriterlerinizi değiştirin</small></div>`;
+  } else {
+    el.innerHTML = slice.map(t => {
+      const ico = t.c.split(' ')[0] || '💳';
+      const cn = t.c.split(' ').slice(1).join(' ');
+      const sign = t.t==='plus' ? '+' : '-';
+      const ac = t.t==='plus' ? 'g' : 'r';
+      const bg = t.t==='plus' ? 'rgba(16,217,160,.1)' : 'rgba(244,63,94,.1)';
+      const sel = selectedTxIds.has(t.id);
+      return `<div class="tx ${sel?'selected':''}" data-id="${t.id}">
+        <div class="tx-chk" onclick="toggleSelect(${t.id},event)"><i class="fas fa-check" style="font-size:9px"></i></div>
+        <div class="tx-ico" style="background:${bg}">${ico}</div>
+        <div class="tx-body">
+          <div class="tx-ttl">${esc(t.d)}</div>
+          <div class="tx-meta"><i class="far fa-calendar"></i> ${fmtD(t.dt)} · ${cn}</div>
+        </div>
+        <div class="tx-right">
+          <div class="tx-amt ${ac}">${sign}${fmt(t.a)}</div>
+          <button class="del-btn" data-id="${t.id}"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>`;
+    }).join('');
+
+    el.querySelectorAll('.del-btn').forEach(b => b.addEventListener('click', e => {
+      e.stopPropagation();
+      secureOpen('delete', +b.dataset.id);
+    }));
+  }
+
+  // Pagination
+  const pg = document.getElementById('pager');
+  pg.innerHTML = pages > 1 ? Array.from({length:pages}, (_,i) =>
+    `<button class="pg ${i+1===curPage?'on':''}" data-p="${i+1}">${i+1}</button>`
+  ).join('') : '';
+  pg.querySelectorAll('.pg').forEach(b => b.addEventListener('click', () => renderHistory(+b.dataset.p)));
+}
+
+/* ══════════════════════════════════
+   BULK SELECT
+══════════════════════════════════ */
+function toggleSelect(id, e) {
+  e.stopPropagation();
+  if(selectedTxIds.has(id)) selectedTxIds.delete(id);
+  else selectedTxIds.add(id);
+  renderHistory(curPage);
+}
+
+function selectAll() {
+  const q = document.getElementById('fsearch').value.toLowerCase();
+  const fc = document.getElementById('ffilterCat').value;
+  const ft = document.getElementById('ffilterType').value;
+  let list = sorted().filter(t => {
+    const ms = t.d.toLowerCase().includes(q) || t.c.toLowerCase().includes(q);
+    const mc = fc==='all' || t.c===fc;
+    const mt = ft==='all' || t.t===ft;
+    return ms && mc && mt;
+  });
+  list = filterByPeriod(list);
+  list.forEach(t => selectedTxIds.add(t.id));
+  renderHistory(curPage);
+}
+
+/* ══════════════════════════════════
+   SECURITY
+══════════════════════════════════ */
+function secureOpen(action, payload=null) {
+  pendingAction = action;
+  pendingPayload = payload;
+  const texts = {
+    delete: 'Bu kaydı silmek için şifre girin',
+    bulkDelete: `${selectedTxIds.size} kaydı silmek için şifre girin`,
+    export: 'Verileri yedeklemek için şifre girin',
+    reset: 'TÜM VERİLERİ SİLMEK için yönetici şifresi girin',
+    report: 'Rapor oluşturmak için şifre girin',
+    restoreChk: 'Yedeği geri yüklemek için şifre girin'
+  };
+  document.getElementById('secSubText').textContent = texts[action] || 'Devam etmek için şifre girin';
+  document.getElementById('secPass').value = '';
+  document.getElementById('secOverlay').classList.add('show');
+  setTimeout(() => document.getElementById('secPass').focus(), 200);
+}
+
+function secureConfirm() {
+  if(document.getElementById('secPass').value !== PASS){
+    toast('Hatalı şifre','err');
+    document.getElementById('secPass').value = '';
+    document.getElementById('secPass').style.borderColor = 'var(--red)';
+    setTimeout(() => document.getElementById('secPass').style.borderColor = '', 800);
+    return;
+  }
+  closeModal('secOverlay');
+  if(pendingAction === 'delete'){
+    TXS = TXS.filter(t => t.id !== pendingPayload);
+    saveData(); renderHistory(curPage); renderDashboard();
+    toast('Kayıt silindi','ok');
+  } else if(pendingAction === 'bulkDelete'){
+    const count = selectedTxIds.size;
+    TXS = TXS.filter(t => !selectedTxIds.has(t.id));
+    selectedTxIds.clear();
+    saveData(); renderHistory(1); renderDashboard();
+    toast(`${count} kayıt silindi`,'ok');
+  } else if(pendingAction === 'export'){
+    doExport();
+  } else if(pendingAction === 'reset'){
+    TXS = []; saveData(); renderDashboard(); renderHistory();
+    toast('Tüm veriler silindi','ok');
+  } else if(pendingAction === 'report'){
+    generateReport();
+  } else if(pendingAction === 'restoreChk'){
+    restoreCheckpoint(pendingPayload);
+  }
+  pendingAction = null; pendingPayload = null;
+}
+
+/* ══════════════════════════════════
+   EXPORT (Timestamped .backup)
+══════════════════════════════════ */
+function doExport() {
+  const ts = new Date().toISOString().slice(0,19).replace(/:/g,'-');
+  const payload = {
+    version: 4,
+    exportedAt: new Date().toISOString(),
+    app: 'Düzgün Ekonomi Pro',
+    count: TXS.length,
+    data: TXS
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `de_yedek_${ts}.backup`;
+  a.click(); URL.revokeObjectURL(url);
+  toast('Yedek dosyası indirildi (.backup)','ok');
+}
+
+/* ══════════════════════════════════
+   IMPORT
+══════════════════════════════════ */
+function doImport(file) {
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      let data;
+      if(Array.isArray(parsed)) data = parsed;
+      else if(parsed.data && Array.isArray(parsed.data)) data = parsed.data;
+      else throw new Error('Invalid format');
+      TXS = data; saveData(); renderDashboard(); renderHistory();
+      toast(`${data.length} kayıt yüklendi`, 'ok');
+    } catch { toast('Geçersiz dosya formatı', 'err'); }
+  };
+  r.readAsText(file);
+}
+
+/* ══════════════════════════════════
+   MODAL HELPERS
+══════════════════════════════════ */
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){
+  document.getElementById(id).classList.remove('show');
+  if(id === 'analyticsOverlay' && anChartInst){ anChartInst.destroy(); anChartInst = null; }
+}
+
+/* ══════════════════════════════════
+   ANALYTICS MODAL
+══════════════════════════════════ */
+function openAnalytics() {
+  const s = computeStats();
+  document.getElementById('anStats').innerHTML = `
+    <div class="an-chip"><div class="an-val" style="color:var(--grn)">${fmt(s.inc)}</div><div class="an-lbl">Toplam Gelir</div></div>
+    <div class="an-chip"><div class="an-val" style="color:var(--red)">${fmt(s.exp)}</div><div class="an-lbl">Toplam Gider</div></div>
+    <div class="an-chip"><div class="an-val" style="color:${s.net>=0?'var(--grn)':'var(--red)'}">${fmt(s.net)}</div><div class="an-lbl">Net Bakiye</div></div>
+    <div class="an-chip"><div class="an-val" style="color:var(--amb)">${s.savRate.toFixed(1)}%</div><div class="an-lbl">Tasarruf Oranı</div></div>
+    <div class="an-chip"><div class="an-val" style="color:var(--pur2)">${fmt(s.burnRate)}</div><div class="an-lbl">Günlük Harcama</div></div>
+    <div class="an-chip"><div class="an-val" style="color:var(--acc2)">${fmt(s.avgExp)}</div><div class="an-lbl">Ort. Gider</div></div>`;
+
+  const cats = {};
+  TXS.filter(t => t.t==='minus').forEach(t => { cats[t.c] = (cats[t.c]||0)+t.a; });
+  const total = Object.values(cats).reduce((a,b) => a+b, 0) || 1;
+  const sc = Object.entries(cats).sort((a,b) => b[1]-a[1]);
+
+  document.getElementById('anCats').innerHTML = sc.slice(0,8).map(([c,a]) => {
+    const pct = (a/total*100).toFixed(1);
+    return `<div class="cat-item">
+      <div class="cat-row-top"><span class="cat-nm">${c}</span><span class="cat-vl">${fmt(a)}</span></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="pbar-bg"><div class="pbar" style="width:${pct}%"></div></div>
+        <span style="font-size:10px;color:var(--t3);font-family:var(--mono);width:32px;text-align:right">${pct}%</span>
+      </div>
+    </div>`;
+  }).join('') || '<div style="color:var(--t3);font-size:12px;padding:12px 0">Gider kaydı yok</div>';
+
+  const months = [];
+  for(let i=5; i>=0; i--){ const d = new Date(); d.setMonth(d.getMonth()-i); months.push(d); }
+  document.getElementById('anMonthly').innerHTML = months.map(m => {
+    const lbl = m.toLocaleDateString('tr-TR',{month:'long',year:'numeric'});
+    const mi = TXS.filter(t => { const d = new Date(t.dt); return d.getMonth()===m.getMonth()&&d.getFullYear()===m.getFullYear(); });
+    const inc = mi.filter(t=>t.t==='plus').reduce((s,t)=>s+t.a,0);
+    const exp = mi.filter(t=>t.t==='minus').reduce((s,t)=>s+t.a,0);
+    return `<div class="mo-row">
+      <span>${lbl}</span>
+      <div style="text-align:right">
+        <div style="color:var(--grn);font-family:var(--mono);font-size:12px">+${fmt(inc)}</div>
+        <div style="color:var(--red);font-family:var(--mono);font-size:12px">-${fmt(exp)}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const ctx = document.getElementById('analyticsChart').getContext('2d');
+  if(anChartInst) anChartInst.destroy();
+  if(sc.length){
+    anChartInst = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: sc.slice(0,7).map(c=>c[0]),
+        datasets: [{data:sc.slice(0,7).map(c=>c[1]),backgroundColor:['#3b82f6','#a855f7','#10d9a0','#f43f5e','#f59e0b','#ec4899','#06b6d4'],borderWidth:0,hoverOffset:6}]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:true, cutout:'62%',
+        plugins:{
+          legend:{position:'bottom',labels:{color:'#8ba0c8',font:{size:10,family:'Syne'},padding:10,boxWidth:9}},
+          tooltip:{callbacks:{label:c=>' '+fmt(c.raw)}}
+        }
+      }
+    });
+  }
+  openModal('analyticsOverlay');
+}
+
+/* ══════════════════════════════════
+   REPORT
+══════════════════════════════════ */
+function setRptFmt(f) {
+  rptFmtSelected = f;
+  document.getElementById('fmtHtml').className = 'type-btn' + (f==='html'?' active-inc':'');
+  document.getElementById('fmtCsv').className = 'type-btn' + (f==='csv'?' active-inc':'');
+}
+
+function openReportModal() {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), 1);
+  document.getElementById('rptFrom').value = from.toISOString().slice(0,10);
+  document.getElementById('rptTo').value = now.toISOString().slice(0,10);
+  openModal('reportOverlay');
+}
+
+function generateReport() {
+  const from = new Date(document.getElementById('rptFrom').value);
+  const to = new Date(document.getElementById('rptTo').value);
+  to.setHours(23,59,59);
+  const rcat = document.getElementById('rptCat').value;
+  const rtype = document.getElementById('rptType').value;
+
+  let data = TXS.filter(t => {
+    const d = new Date(t.dt);
+    return d>=from && d<=to && (rcat==='all'||t.c===rcat) && (rtype==='all'||t.t===rtype);
+  }).sort((a,b) => new Date(a.dt)-new Date(b.dt));
+
+  if(!data.length){ toast('Koşullara uygun kayıt yok','err'); return; }
+
+  const totalInc = data.filter(t=>t.t==='plus').reduce((s,t)=>s+t.a,0);
+  const totalExp = data.filter(t=>t.t==='minus').reduce((s,t)=>s+t.a,0);
+  const net = totalInc - totalExp;
+  const fromStr = from.toLocaleDateString('tr-TR',{day:'2-digit',month:'long',year:'numeric'});
+  const toStr = to.toLocaleDateString('tr-TR',{day:'2-digit',month:'long',year:'numeric'});
+
+  if(rptFmtSelected === 'csv'){
+    const rows = data.map(t => `${t.dt},"${t.d.replace(/"/g,'""')}","${t.c}",${t.t==='plus'?'Gelir':'Gider'},${t.a.toFixed(2)}`);
+    const blob = new Blob(['\uFEFF' + 'Tarih,Açıklama,Kategori,Tip,Tutar\n' + rows.join('\n')], {type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url;
+    a.download = `de_rapor_${from.toISOString().slice(0,10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+    toast('CSV raporu indirildi','ok');
+    closeModal('reportOverlay'); return;
+  }
+
+  const cats = {};
+  data.filter(t=>t.t==='minus').forEach(t => { cats[t.c]=(cats[t.c]||0)+t.a; });
+  const catRows = Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([c,a]) =>
+    `<tr><td>${c}</td><td style="text-align:right;color:#ef4444">${fmt(a)}</td><td style="text-align:right;color:#94a3b8">${totalExp>0?(a/totalExp*100).toFixed(1):'0'}%</td></tr>`).join('');
+  const txRows = data.map(t =>
+    `<tr><td>${t.dt}</td><td>${esc(t.d)}</td><td>${t.c}</td>
+    <td style="text-align:center">${t.t==='plus'?'<span style="color:#10d9a0">Gelir</span>':'<span style="color:#ef4444">Gider</span>'}</td>
+    <td style="text-align:right;font-weight:700;color:${t.t==='plus'?'#10d9a0':'#ef4444'}">${t.t==='plus'?'+':'-'}${fmt(t.a)}</td></tr>`).join('');
+
+  const html = `<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><title>Düzgün Ekonomi Rapor</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',system-ui,sans-serif;background:#f8fafc;color:#1e293b;padding:40px 20px}
+.wrap{max-width:900px;margin:0 auto}
+.hdr{background:linear-gradient(135deg,#1e3a8a,#312e81);color:#fff;border-radius:16px;padding:32px;margin-bottom:24px}
+.hdr h1{font-size:22px;font-weight:800;margin-bottom:6px}.hdr p{font-size:12px;opacity:.7}
+.sum{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px}
+.sc{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px}
+.sc-v{font-size:22px;font-weight:800;margin-bottom:4px}.sc-l{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.8px;font-weight:600}
+.sec{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:22px;margin-bottom:18px}
+.sec h2{font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid #f1f5f9}
+table{width:100%;border-collapse:collapse}th{text-align:left;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;padding:8px 10px;border-bottom:2px solid #f1f5f9}
+td{padding:9px 10px;font-size:12px;border-bottom:1px solid #f8fafc}tr:hover td{background:#f8fafc}
+.ft{text-align:center;margin-top:20px;font-size:11px;color:#94a3b8}
+</style></head><body><div class="wrap">
+<div class="hdr"><h1>💳 Düzgün Ekonomi Pro — Finansal Rapor</h1>
+<p>${fromStr} – ${toStr} &nbsp;|&nbsp; ${new Date().toLocaleDateString('tr-TR',{day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})} &nbsp;|&nbsp; Ahmet Düzgün</p></div>
+<div class="sum">
+  <div class="sc"><div class="sc-v" style="color:#10d9a0">${fmt(totalInc)}</div><div class="sc-l">Toplam Gelir</div></div>
+  <div class="sc"><div class="sc-v" style="color:#ef4444">${fmt(totalExp)}</div><div class="sc-l">Toplam Gider</div></div>
+  <div class="sc"><div class="sc-v" style="color:${net>=0?'#10d9a0':'#ef4444'}">${fmt(net)}</div><div class="sc-l">Net Bakiye</div></div>
+</div>
+<div class="sec"><h2>Kategori Dağılımı</h2><table><thead><tr><th>Kategori</th><th style="text-align:right">Tutar</th><th style="text-align:right">Oran</th></tr></thead><tbody>${catRows||'<tr><td colspan="3" style="text-align:center;color:#94a3b8">Gider kaydı yok</td></tr>'}</tbody></table></div>
+<div class="sec"><h2>Tüm İşlemler (${data.length} adet)</h2><table><thead><tr><th>Tarih</th><th>Açıklama</th><th>Kategori</th><th style="text-align:center">Tip</th><th style="text-align:right">Tutar</th></tr></thead><tbody>${txRows}</tbody></table></div>
+<div class="ft">Düzgün Ekonomi Pro v4.0 · Ahmet Düzgün · Bakım Astsubay Üstçavuş · Gizlidir</div>
+</div></body></html>`;
+
+  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url;
+  a.download = `de_rapor_${from.toISOString().slice(0,10)}.html`;
+  a.click(); URL.revokeObjectURL(url);
+  toast('HTML raporu indirildi','ok');
+  closeModal('reportOverlay');
+}
+
+/* ══════════════════════════════════
+   BUDGET
+══════════════════════════════════ */
+function openBudgetModal() {
+  if(budget > 0){
+    let r = budget.toFixed(2).replace('.',',');
+    let [i,d] = r.split(',');
+    i = i.replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+    document.getElementById('budgetInput').value = i+','+d;
+  }
+  const infoBlock = document.getElementById('budgetInfoBlock');
+  if(budget > 0){
+    const s = computeStats();
+    infoBlock.style.display = 'block';
+    infoBlock.innerHTML = `<div style="font-size:12px;color:var(--t2);font-family:var(--body)">
+      Mevcut bütçe: <strong style="color:var(--acc2)">${fmt(budget)}</strong><br>
+      Bu ay harcanan: <strong style="color:var(--red)">${fmt(s.monthExp)}</strong><br>
+      Kalan: <strong style="color:${s.monthExp<budget?'var(--grn)':'var(--red)'}">${fmt(Math.max(budget-s.monthExp,0))}</strong>
+    </div>`;
+  }
+  openModal('budgetOverlay');
+}
+
+function saveBudget() {
+  const raw = document.getElementById('budgetInput').value;
+  const v = parseFloat(raw.replace(/\./g,'').replace(',','.'));
+  if(isNaN(v) || v < 0){ toast('Geçerli miktar girin','err'); return; }
+  budget = v;
+  saveData();
+  closeModal('budgetOverlay');
+  renderDashboard();
+  toast(`Bütçe hedefi: ${fmt(v)}`,'ok');
+}
+
+/* ══════════════════════════════════
+   OCR / AI PHOTO ANALYSIS
+══════════════════════════════════ */
+function triggerCamera(){ document.getElementById('camInput').click(); }
+function triggerGallery(){ document.getElementById('galInput').click(); }
+
+function handleImageFile(file) {
+  if(!file) return;
+  const spin = document.getElementById('ocrSpin');
+  const prev = document.getElementById('ocrPreview');
+  const img = document.getElementById('ocrImg');
+  const result = document.getElementById('ocrResult');
+  spin.classList.add('show');
+  prev.classList.remove('show');
+  const reader = new FileReader();
+  reader.onload = e => {
+    img.src = e.target.result;
+    analyzeReceiptWithAI(e.target.result, file.type || 'image/jpeg', spin, prev, result);
+  };
+  reader.readAsDataURL(file);
+}
+
+async function analyzeReceiptWithAI(dataUrl, mimeType, spinEl, prevEl, resultEl) {
+  const base64 = dataUrl.split(',')[1];
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 500,
+        messages: [{role:'user', content: [
+          {type:'image', source:{type:'base64', media_type:mimeType, data:base64}},
+          {type:'text', text:`Bu fiş/fatura görseli. Alanları JSON olarak çıkar, başka bir şey yazma:
+{"desc":"işyeri adı","amount":"tutar_sayı","date":"YYYY-MM-DD","category":"kategori"}
+Kategori: Market, Restoran, Akaryakıt, Fatura, Teknoloji, Sağlık, Moda, Eğlence, Ulaşım, Araç Bakım, Diğer.
+Tarih fişten oku, yoksa bugün. Tutar sadece rakam (örn:125.50). Tanımlayamazsan boş string.`}
+        ]}]
+      })
+    });
+    const data = await resp.json();
+    const text = data.content?.map(i=>i.text||'').join('').trim();
+    let parsed = {};
+    try { parsed = JSON.parse(text.replace(/```json|```/g,'').trim()); } catch {}
+    spinEl.classList.remove('show');
+    prevEl.classList.add('show');
+
+    if(parsed.desc) document.getElementById('fdesc').value = parsed.desc;
+    if(parsed.amount){ const a = parseFloat(parsed.amount); if(!isNaN(a)){ let r=a.toFixed(2).replace('.',','); let[i,d]=r.split(','); i=i.replace(/\B(?=(\d{3})+(?!\d))/g,'.'); document.getElementById('famount').value=i+','+d; } }
+    if(parsed.date) document.getElementById('fdate').value = parsed.date;
+    if(parsed.category){ const cat = CATS.find(c=>c.n.toLowerCase().includes(parsed.category.toLowerCase())); if(cat){document.getElementById('fcat').value=`${cat.e} ${cat.n}`;setType(cat.t);} }
+
+    resultEl.innerHTML = `<span class="ocr-badge"><i class="fas fa-check-circle"></i> AI analizi tamamlandı</span>`;
+    toast('Fatura analiz edildi, alanlar dolduruldu','ok');
+  } catch(err) {
+    spinEl.classList.remove('show');
+    prevEl.classList.add('show');
+    resultEl.innerHTML = `<span style="color:var(--red);font-size:12px"><i class="fas fa-triangle-exclamation"></i> Analiz başarısız</span>`;
+    toast('OCR başarısız, manuel girin','err');
+  }
+}
+
+/* ══════════════════════════════════
+   EMERGENCY CONSOLE
+══════════════════════════════════ */
+function openEmergencyConsole() {
+  const ec = document.getElementById('emergencyConsole');
+  const ecData = document.getElementById('ecData');
+  ec.classList.add('show');
+  try {
+    const raw = localStorage.getItem(SK);
+    if(!raw){ ecData.textContent = 'Veri bulunamadı.'; return; }
+    const decrypted = decrypt(raw);
+    ecData.textContent = JSON.stringify(decrypted, null, 2);
+  } catch(e) {
+    ecData.textContent = 'Veri okunamadı. Ham:\n' + (localStorage.getItem(SK) || 'boş');
+  }
+}
+
+function ecExport() {
+  try {
+    const raw = decrypt(localStorage.getItem(SK) || '[]');
+    const blob = new Blob([JSON.stringify(raw||[], null,2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url;
+    a.download = `de_acil_${Date.now()}.json`;
+    a.click(); URL.revokeObjectURL(url);
+  } catch(e) { alert('Export başarısız: '+e.message); }
+}
+
+function ecRestore() {
+  const cps = getCheckpoints();
+  if(!cps.length){ alert('Yedek bulunamadı'); return; }
+  const restored = decrypt(cps[0].data);
+  if(Array.isArray(restored)){
+    TXS = restored; saveData();
+    document.getElementById('emergencyConsole').classList.remove('show');
+    renderDashboard(); renderHistory();
+    toast('Son yedek geri yüklendi','ok');
+  }
+}
+
+function ecClear() {
+  if(confirm('TÜM VERİ SİLİNECEK. Emin misiniz?')){
+    localStorage.clear();
+    location.reload();
+  }
+}
+
+/* ══════════════════════════════════
+   LOGO CLICK — EMERGENCY TRIGGER
+══════════════════════════════════ */
+document.getElementById('logoBtn').addEventListener('click', () => {
+  logoClickCount++;
+  clearTimeout(logoClickTimer);
+  logoClickTimer = setTimeout(() => { logoClickCount = 0; }, 2000);
+  if(logoClickCount >= 5){
+    logoClickCount = 0;
+    openEmergencyConsole();
+  }
+});
+
+/* ══════════════════════════════════
+   INIT
+══════════════════════════════════ */
+function init() {
+  loadData();
+  buildSelects();
+  document.getElementById('hdrDate').textContent = new Date().toLocaleDateString('tr-TR',{day:'2-digit',month:'short',year:'numeric'});
+  document.getElementById('fdate').valueAsDate = new Date();
+
+  // Events
+  document.getElementById('saveBtn').addEventListener('click', saveTx);
+  document.getElementById('famount').addEventListener('input', function(){ fmtAmt(this); });
+  document.getElementById('budgetInput').addEventListener('input', function(){ fmtAmt(this); });
+  document.getElementById('fcat').addEventListener('change', autoType);
+  document.getElementById('fdesc').addEventListener('input', function(){
+    const autoCat = autoCategory(this.value);
+    if(autoCat){
+      const catSel = document.getElementById('fcat');
+      for(let i=0; i<catSel.options.length; i++){
+        if(catSel.options[i].value === autoCat){
+          catSel.selectedIndex = i;
+          autoType(); break;
+        }
+      }
+    }
+  });
+  document.getElementById('fsearch').addEventListener('input', () => renderHistory(1));
+  document.getElementById('ffilterCat').addEventListener('change', () => renderHistory(1));
+  document.getElementById('ffilterType').addEventListener('change', () => renderHistory(1));
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    document.getElementById('fsearch').value = '';
+    document.getElementById('ffilterCat').value = 'all';
+    document.getElementById('ffilterType').value = 'all';
+    filterPeriod = 'all';
+    document.querySelectorAll('.period-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+    renderHistory(1); toast('Filtreler temizlendi','nfo');
+  });
+  document.getElementById('importFile').addEventListener('change', e => {
+    const f = e.target.files[0]; if(!f) return; e.target.value = ''; doImport(f);
+  });
+  document.getElementById('camInput').addEventListener('change', e => handleImageFile(e.target.files[0]));
+  document.getElementById('galInput').addEventListener('change', e => handleImageFile(e.target.files[0]));
+  document.getElementById('secPass').addEventListener('keydown', e => { if(e.key==='Enter') secureConfirm(); });
+
+  // Overlay bg close
+  ['analyticsOverlay','reportOverlay','budgetOverlay'].forEach(id => {
+    document.getElementById(id).addEventListener('click', e => {
+      if(e.target === e.currentTarget) closeModal(id);
+    });
+  });
+
+  renderDashboard();
+  setTimeout(() => toast('Düzgün Ekonomi Pro v4.0 hazır 🔒 AES-256', 'nfo'), 600);
+}
+
+// Error boundary
+window.addEventListener('error', (e) => {
+  console.error('App error:', e.error);
+});
+
+init();
+</script>
+
+</body>
+</html>
