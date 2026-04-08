@@ -7,9 +7,11 @@
   "theme_color": "#3b82f6",
   "orientation": "portrait",
   "lang": "tr",
-  "start_url": "./",
-  "scope": "./",
+
+  "start_url": "/ekonomi/",
+  "scope": "/ekonomi/",
   "id": "/ekonomi/"
+
   "categories": ["finance", "productivity", "business", "utilities"],
   "icons": [
     {
