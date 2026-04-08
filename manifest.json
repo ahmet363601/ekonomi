@@ -3,7 +3,7 @@
   "short_name": "Düzgün Ekonomi",
   "description": "Gelişmiş Kişisel Finans Yöneticisi - AES-256 Şifreli | Cihaz Yetkilendirme Sistemi",
   "start_url": "/ekonomi/index.html",
-  "display": "standalone",
+  "display": "browser",
   "background_color": "#f0f4f8",
   "theme_color": "#3b82f6",
   "orientation": "portrait",
