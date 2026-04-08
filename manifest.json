@@ -8,9 +8,11 @@
   "orientation": "portrait",
   "lang": "tr",
 
-  "start_url": "/ekonomi/",
+
+  "start_url": "/ekonomi/?utm_source=homescreen",
   "scope": "/ekonomi/",
   "id": "/ekonomi/"
+
 
   "categories": ["finance", "productivity", "business", "utilities"],
   "icons": [
