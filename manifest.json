@@ -9,9 +9,10 @@
   "lang": "tr",
 
 
-  "start_url": "/ekonomi/?utm_source=homescreen",
-  "scope": "/ekonomi/",
-  "id": "/ekonomi/"
+
+  "start_url": "/",
+  "scope": "/",
+  "id": "/",
 
 
   "categories": ["finance", "productivity", "business", "utilities"],
