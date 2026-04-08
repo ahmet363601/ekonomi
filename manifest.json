@@ -8,12 +8,12 @@
   "orientation": "portrait",
   "lang": "tr",
 
-
+}{
 
   "start_url": "/",
   "scope": "/",
-  "id": "/",
-
+  "id": "/"
+}{
 
   "categories": ["finance", "productivity", "business", "utilities"],
   "icons": [
