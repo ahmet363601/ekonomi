@@ -2,14 +2,14 @@
   "name": "Düzgün Ekonomi Pro",
   "short_name": "Düzgün Ekonomi",
   "description": "Gelişmiş Kişisel Finans Yöneticisi - AES-256 Şifreli | Cihaz Yetkilendirme Sistemi",
-  "start_url": "/ekonomi/",
   "display": "standalone",
   "background_color": "#f0f4f8",
   "theme_color": "#3b82f6",
   "orientation": "portrait",
   "lang": "tr",
-  "scope": "/ekonomi/",
-  "id": "/ekonomi/",
+  "start_url": "./",
+  "scope": "./",
+  "id": "/ekonomi/"
   "categories": ["finance", "productivity", "business", "utilities"],
   "icons": [
     {
