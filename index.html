@@ -9,6 +9,16 @@
     <meta name="theme-color" content="#3b82f6">
     <meta name="description" content="Düzgün Ekonomi Pro v6.0 - Gelişmiş Kişisel Finans Yöneticisi">
     <meta name="format-detection" content="telephone=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="msapplication-TileImage" content="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 144 144'%3E%3Crect width='144' height='144' rx='32' fill='%233b82f6'/%3E%3Ctext x='72' y='98' font-size='70' text-anchor='middle' fill='white'%3E💳%3C/text%3E%3C/svg%3E">
+    <meta name="msapplication-TileColor" content="#3b82f6">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- iOS için apple-touch-icon -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%233b82f6'/%3E%3Ctext x='90' y='120' font-size='85' text-anchor='middle' fill='white'%3E💳%3C/text%3E%3C/svg%3E">
+    
     <title>Düzgün Ekonomi Pro v6.0</title>
 
     <!-- Dexie.js CDN -->
@@ -444,6 +454,15 @@
 <input type="file" id="importFileInput" accept=".json" style="display: none;">
 
 <script>
+    // ======================= PWA Service Worker =======================
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').then(reg => {
+            console.log('✅ Service Worker kaydedildi:', reg);
+        }).catch(err => {
+            console.log('❌ Service Worker hatası:', err);
+        });
+    }
+
     // ======================= DATABASE =======================
     const db = new Dexie('DuzgunEkonomiDB');
     db.version(1).stores({ transactions: '++id, date, type, category, month', archives: '++id, monthKey, year, month', logs: '++id, timestamp', metadata: 'key' });
@@ -464,7 +483,6 @@
 
     function formatCurrency(amount) { return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 2 }).format(amount || 0); }
     function formatDate(date) { return new Intl.DateTimeFormat('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(date)); }
-    function formatDateInput(date) { return new Date(date).toISOString().split('T')[0]; }
     function formatTimeInput(date) { return new Date(date).toTimeString().slice(0,5); }
     function getCurrentMonth() { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
     function toast(msg, type='info') { const c=document.getElementById('toastContainer'); const el=document.createElement('div'); el.className=`toast ${type}`; el.innerHTML=`<span>${type==='success'?'✓':type==='error'?'✕':'ℹ'}</span><span>${msg}</span>`; c.appendChild(el); setTimeout(()=>el.remove(),3000); }
@@ -486,7 +504,7 @@
     async function checkAutoArchive() {
         const now = new Date();
         const currentYear = now.getFullYear(), currentMonth = now.getMonth(), day = now.getDate();
-        if(day === 14) {  // SADECE 14'ÜNDE BİR KEZ
+        if(day === 14) {
             const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
             const lastYear = currentMonth === 0 ? currentYear - 1 : currentYear;
             const monthKey = `${lastYear}-${String(lastMonth+1).padStart(2,'0')}`;
@@ -501,7 +519,7 @@
         setTimeout(async () => { await checkAutoArchive(); scheduleMidnightArchive(); }, timeToMidnight);
     }
 
-    // ======================= TREND CHART FIXED (ALL DB) =======================
+    // ======================= TREND CHART FIXED =======================
     async function updateTrendChart() {
         const allTxs = await db.transactions.toArray();
         const months = []; const incomeData = []; const expenseData = [];
@@ -652,11 +670,24 @@
     }
 
     function setupCategorySelects() {
-        ['addCategory','filterCategory'].forEach(id=>{ const s=document.getElementById(id); s.innerHTML=id==='filterCategory'?'<option value="">Tüm Kategoriler</option>:''; CATEGORIES.forEach(c=>{ const opt=document.createElement('option'); opt.value=c.name; opt.textContent=`${c.icon} ${c.name}`; s.appendChild(opt); }); });
+        ['addCategory','filterCategory'].forEach(id=>{ const s=document.getElementById(id); s.innerHTML=id==='filterCategory'?'<option value="">Tüm Kategoriler</option>':''; CATEGORIES.forEach(c=>{ const opt=document.createElement('option'); opt.value=c.name; opt.textContent=`${c.icon} ${c.name}`; s.appendChild(opt); }); });
     }
     function updateTypeButtons() { document.getElementById('typeExpense').className = currentType==='expense'?'btn btn-danger':'btn btn-secondary'; document.getElementById('typeIncome').className = currentType==='income'?'btn btn-success':'btn btn-secondary'; }
 
+    // ======================= URL PARAMETER HANDLING =======================
+    function handleURLParams() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabParam = urlParams.get('tab');
+        if (tabParam && ['dashboard', 'add', 'history', 'archive', 'tools'].includes(tabParam)) {
+            switchTab(tabParam);
+        }
+    }
+
     async function switchTab(tabName) {
+        const url = new URL(window.location);
+        url.searchParams.set('tab', tabName);
+        window.history.pushState({}, '', url);
+        
         document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tabName));
         document.querySelectorAll('.tab-content').forEach(c=>c.classList.toggle('active', c.id===`tab-${tabName}`));
         if(tabName==='dashboard') await renderDashboard();
@@ -665,6 +696,8 @@
         else if(tabName==='add') updateTypeButtons();
         else if(tabName==='tools') await renderAnalytics();
     }
+
+    window.addEventListener('popstate', () => { handleURLParams(); });
 
     document.addEventListener('DOMContentLoaded', async () => {
         setupCategorySelects();
@@ -688,6 +721,7 @@
         await renderDashboard(); await renderHistory(); await renderArchive();
         await checkAutoArchive();
         scheduleMidnightArchive();
+        handleURLParams();
     });
 </script>
 </body>
