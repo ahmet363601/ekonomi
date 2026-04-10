@@ -984,7 +984,43 @@ let logoClickCount = 0, logoClickTimer = null;
 /* ═══════════════════════════════════
    AES ENCRYPTION
 ═══════════════════════════════════ */
-const enc  = d => { try { return CryptoJS.AES.encrypt(JSON.stringify(d), ENC_KEY).toString(); } catch { return JSON.stringify(d); } };
+const enc = (d) => {
+  try {
+    if (typeof CryptoJS !== 'undefined' && CryptoJS.AES) {
+      return CryptoJS.AES.encrypt(JSON.stringify(d), ENC_KEY).toString();
+    }
+    return JSON.stringify(d); // fallback
+  } catch {
+    return JSON.stringify(d);
+  }
+};
+
+const dec = (s) => {
+  try {
+    if (typeof CryptoJS !== 'undefined' && CryptoJS.AES) {
+      const decrypted = CryptoJS.AES.decrypt(s, ENC_KEY).toString(CryptoJS.enc.Utf8);
+      if (decrypted) return JSON.parse(decrypted);
+    }
+    return JSON.parse(s); // fallback
+  } catch {
+    try {
+      return JSON.parse(s);
+    } catch {
+      return null;
+    }
+  }
+};
+
+const sGet = (k) => {
+  try {
+    const r = localStorage.getItem(k);
+    if (!r) return null;
+    return dec(r);
+  } catch (e) {
+    console.warn(`sGet hatası (${k}):`, e);
+    return null;
+  }
+};
 const dec  = s => { try { return JSON.parse(CryptoJS.AES.decrypt(s, ENC_KEY).toString(CryptoJS.enc.Utf8)); } catch { try { return JSON.parse(s); } catch { return null; } } };
 const sGet = k => { try { const r = localStorage.getItem(k); return r ? dec(r) : null; } catch { return null; } };
 const sSet = (k,v) => { try { localStorage.setItem(k, enc(v)); } catch {} };
@@ -993,10 +1029,35 @@ const sSet = (k,v) => { try { localStorage.setItem(k, enc(v)); } catch {} };
    DATA LOAD / SAVE
 ═══════════════════════════════════ */
 function loadData() {
-  const d = sGet(SK);  TXS     = Array.isArray(d) ? d : [];
-  const l = sGet(LOG_KEY); LOGS = Array.isArray(l) ? l : [];
-  const a = sGet(ARCHIVE_KEY); ARCHIVES = Array.isArray(a) ? a : [];
-  budget = parseFloat(localStorage.getItem(BUDGET_KEY) || 0);
+  try {
+    const d = sGet(SK);
+    TXS = (d && Array.isArray(d)) ? d : [];
+    
+    const l = sGet(LOG_KEY);
+    LOGS = (l && Array.isArray(l)) ? l : [];
+    
+    const a = sGet(ARCHIVE_KEY);
+    ARCHIVES = (a && Array.isArray(a)) ? a : [];
+    
+    const b = localStorage.getItem(BUDGET_KEY);
+    budget = (b && !isNaN(parseFloat(b))) ? parseFloat(b) : 0;
+    
+    // VERİ BÜTÜNLÜĞÜ — her işlemin geçerli alanlara sahip olduğundan emin ol
+    TXS = TXS.filter(t => t && typeof t === 'object' && t.id && typeof t.a === 'number');
+    
+    // Eğer TXS boş değilse ama budget 0 ise, kullanıcıya toast göster
+    if (TXS.length > 0 && budget === 0) {
+      console.log('[loadData] Veri var ama bütçe 0, sorun değil');
+    }
+    
+    console.log(`[loadData] ${TXS.length} işlem, ${LOGS.length} log, ${ARCHIVES.length} arşiv yüklendi`);
+  } catch (e) {
+    console.error('loadData hatası:', e);
+    TXS = [];
+    LOGS = [];
+    ARCHIVES = [];
+    budget = 0;
+  }
 }
 function saveData() {
   sSet(SK, TXS); sSet(LOG_KEY, LOGS); sSet(ARCHIVE_KEY, ARCHIVES);
@@ -1170,11 +1231,27 @@ function showApp() {
    AUTO ARCHIVE
 ═══════════════════════════════════ */
 function checkAutoArchive() {
-  const now = new Date(), key = `de_archived_${now.getFullYear()}_${now.getMonth()}`;
-  if (now.getDate() >= 14 && !localStorage.getItem(key)) {
-    const prev = new Date(now.getFullYear(), now.getMonth()-1, 1);
-    const pKey = `${prev.getFullYear()}-${String(prev.getMonth()+1).padStart(2,'0')}`;
-    if (!ARCHIVES.find(a => a.key === pKey)) { archiveMonth(prev); localStorage.setItem(key,'1'); }
+  try {
+    const now = new Date();
+    const key = `de_archived_${now.getFullYear()}_${now.getMonth()}`;
+    
+    // SADECE ayın 20'sinden sonra ve daha önce arşivlenmemişse
+    if (now.getDate() >= 20 && !localStorage.getItem(key)) {
+      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const pKey = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+      
+      // Bu ay zaten arşivlenmiş mi kontrol et
+      const alreadyArchived = ARCHIVES.some(a => a.key === pKey);
+      
+      if (!alreadyArchived && TXS.length > 0) {
+        console.log('[AutoArchive] Arşivleniyor:', pKey);
+        archiveMonth(prev);
+        localStorage.setItem(key, '1');
+        saveData(); // HEMEN KAYDET
+      }
+    }
+  } catch (e) {
+    console.error('checkAutoArchive hatası:', e);
   }
 }
 function archiveMonth(monthDate) {
@@ -1777,6 +1854,38 @@ function init() {
 }
 
 window.addEventListener('error', e=>console.error('App error:',e.error));
+// VERİ KURTARMA — eğer TXS boşsa ama localStorage'da ham veri varsa
+function attemptDataRecovery() {
+  try {
+    const raw = localStorage.getItem(SK);
+    if (raw && (!TXS || TXS.length === 0)) {
+      console.log('[Recovery] Ham veri bulundu, kurtarılıyor...');
+      let recovered = null;
+      try {
+        recovered = JSON.parse(raw);
+      } catch {
+        if (raw.startsWith('U2FsdGVkX1')) {
+          // AES şifreli, CryptoJS hazır değilse bekle
+          if (typeof CryptoJS !== 'undefined') {
+            recovered = JSON.parse(CryptoJS.AES.decrypt(raw, ENC_KEY).toString(CryptoJS.enc.Utf8));
+          }
+        }
+      }
+      if (recovered && Array.isArray(recovered)) {
+        TXS = recovered;
+        saveData();
+        toast(`${TXS.length} kayıt kurtarıldı!`, 'ok');
+        renderDashboard();
+        renderHistory();
+      }
+    }
+  } catch (e) {
+    console.error('Kurtarma hatası:', e);
+  }
+}
+
+// 1 saniye sonra dene (CryptoJS yüklenmesi için)
+setTimeout(attemptDataRecovery, 1000);
 init();
 </script>
 </body>
