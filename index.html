@@ -1021,6 +1021,33 @@ const sGet = (k) => {
     return null;
   }
 };
+
+const dec = (s) => {
+  try {
+    if (typeof CryptoJS !== 'undefined' && CryptoJS.AES) {
+      const decrypted = CryptoJS.AES.decrypt(s, ENC_KEY).toString(CryptoJS.enc.Utf8);
+      if (decrypted) return JSON.parse(decrypted);
+    }
+    return JSON.parse(s); // fallback
+  } catch {
+    try {
+      return JSON.parse(s);
+    } catch {
+      return null;
+    }
+  }
+};
+
+const sGet = (k) => {
+  try {
+    const r = localStorage.getItem(k);
+    if (!r) return null;
+    return dec(r);
+  } catch (e) {
+    console.warn(`sGet hatası (${k}):`, e);
+    return null;
+  }
+};
 const dec  = s => { try { return JSON.parse(CryptoJS.AES.decrypt(s, ENC_KEY).toString(CryptoJS.enc.Utf8)); } catch { try { return JSON.parse(s); } catch { return null; } } };
 const sGet = k => { try { const r = localStorage.getItem(k); return r ? dec(r) : null; } catch { return null; } };
 const sSet = (k,v) => { try { localStorage.setItem(k, enc(v)); } catch {} };
@@ -1029,10 +1056,35 @@ const sSet = (k,v) => { try { localStorage.setItem(k, enc(v)); } catch {} };
    DATA LOAD / SAVE
 ═══════════════════════════════════ */
 function loadData() {
-  const d = sGet(SK);  TXS     = Array.isArray(d) ? d : [];
-  const l = sGet(LOG_KEY); LOGS = Array.isArray(l) ? l : [];
-  const a = sGet(ARCHIVE_KEY); ARCHIVES = Array.isArray(a) ? a : [];
-  budget = parseFloat(localStorage.getItem(BUDGET_KEY) || 0);
+  try {
+    const d = sGet(SK);
+    TXS = (d && Array.isArray(d)) ? d : [];
+    
+    const l = sGet(LOG_KEY);
+    LOGS = (l && Array.isArray(l)) ? l : [];
+    
+    const a = sGet(ARCHIVE_KEY);
+    ARCHIVES = (a && Array.isArray(a)) ? a : [];
+    
+    const b = localStorage.getItem(BUDGET_KEY);
+    budget = (b && !isNaN(parseFloat(b))) ? parseFloat(b) : 0;
+    
+    // VERİ BÜTÜNLÜĞÜ — her işlemin geçerli alanlara sahip olduğundan emin ol
+    TXS = TXS.filter(t => t && typeof t === 'object' && t.id && typeof t.a === 'number');
+    
+    // Eğer TXS boş değilse ama budget 0 ise, kullanıcıya toast göster
+    if (TXS.length > 0 && budget === 0) {
+      console.log('[loadData] Veri var ama bütçe 0, sorun değil');
+    }
+    
+    console.log(`[loadData] ${TXS.length} işlem, ${LOGS.length} log, ${ARCHIVES.length} arşiv yüklendi`);
+  } catch (e) {
+    console.error('loadData hatası:', e);
+    TXS = [];
+    LOGS = [];
+    ARCHIVES = [];
+    budget = 0;
+  }
 }
 function saveData() {
   sSet(SK, TXS); sSet(LOG_KEY, LOGS); sSet(ARCHIVE_KEY, ARCHIVES);
