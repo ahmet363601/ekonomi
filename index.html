@@ -1029,35 +1029,10 @@ const sSet = (k,v) => { try { localStorage.setItem(k, enc(v)); } catch {} };
    DATA LOAD / SAVE
 ═══════════════════════════════════ */
 function loadData() {
-  try {
-    const d = sGet(SK);
-    TXS = (d && Array.isArray(d)) ? d : [];
-    
-    const l = sGet(LOG_KEY);
-    LOGS = (l && Array.isArray(l)) ? l : [];
-    
-    const a = sGet(ARCHIVE_KEY);
-    ARCHIVES = (a && Array.isArray(a)) ? a : [];
-    
-    const b = localStorage.getItem(BUDGET_KEY);
-    budget = (b && !isNaN(parseFloat(b))) ? parseFloat(b) : 0;
-    
-    // VERİ BÜTÜNLÜĞÜ — her işlemin geçerli alanlara sahip olduğundan emin ol
-    TXS = TXS.filter(t => t && typeof t === 'object' && t.id && typeof t.a === 'number');
-    
-    // Eğer TXS boş değilse ama budget 0 ise, kullanıcıya toast göster
-    if (TXS.length > 0 && budget === 0) {
-      console.log('[loadData] Veri var ama bütçe 0, sorun değil');
-    }
-    
-    console.log(`[loadData] ${TXS.length} işlem, ${LOGS.length} log, ${ARCHIVES.length} arşiv yüklendi`);
-  } catch (e) {
-    console.error('loadData hatası:', e);
-    TXS = [];
-    LOGS = [];
-    ARCHIVES = [];
-    budget = 0;
-  }
+  const d = sGet(SK);  TXS     = Array.isArray(d) ? d : [];
+  const l = sGet(LOG_KEY); LOGS = Array.isArray(l) ? l : [];
+  const a = sGet(ARCHIVE_KEY); ARCHIVES = Array.isArray(a) ? a : [];
+  budget = parseFloat(localStorage.getItem(BUDGET_KEY) || 0);
 }
 function saveData() {
   sSet(SK, TXS); sSet(LOG_KEY, LOGS); sSet(ARCHIVE_KEY, ARCHIVES);
