@@ -1,182 +1,66 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-Düzgün Ekonomi Pro v6.0 - Service Worker
-PWA Offline Support & Caching Strategy
-═══════════════════════════════════════════════════════════════════════════ */
-
-const CACHE_NAME = ‘de-pro-v6-0’;
-const STATIC_CACHE = ‘de-pro-static-v6’;
-const DYNAMIC_CACHE = ‘de-pro-dynamic-v6’;
-
-// Pre-cache resources
-const STATIC_ASSETS = [
-‘/’,
-‘/index.html’,
-‘/manifest.json’
-];
-
-const EXTERNAL_URLS = [
-‘https://cdn.jsdelivr.net/npm/dexie@3/dist/dexie.min.js’,
-‘https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js’,
-‘https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css’,
-‘https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap’
-];
-
-/* ═════════════════════════════════════════════════════════════════════
-INSTALL EVENT - Cache static assets
-═════════════════════════════════════════════════════════════════════ */
-self.addEventListener(‘install’, event => {
-console.log(’[SW v6.0] Installing…’);
-
-event.waitUntil(
-Promise.all([
-// Cache HTML & JSON
-caches.open(CACHE_NAME).then(cache => {
-return cache.addAll(STATIC_ASSETS).catch(err => {
-console.warn(’[SW] Static cache error:’, err);
-});
-}),
-// Cache external libraries
-caches.open(STATIC_CACHE).then(cache => {
-return cache.addAll(
-EXTERNAL_URLS.map(url => new Request(url, { mode: ‘no-cors’ }))
-).catch(err => {
-console.warn(’[SW] External cache error:’, err);
-});
-})
-]).then(() => {
-return self.skipWaiting();
-})
-);
-});
-
-/* ═════════════════════════════════════════════════════════════════════
-ACTIVATE EVENT - Clean old caches
-═════════════════════════════════════════════════════════════════════ */
-self.addEventListener(‘activate’, event => {
-console.log(’[SW v6.0] Activating…’);
-
-event.waitUntil(
-caches.keys().then(keys => {
-return Promise.all(
-keys
-.filter(key => !key.includes(‘v6-0’) && !key.includes(‘v6’))
-.map(key => {
-console.log(’[SW] Deleting old cache:’, key);
-return caches.delete(key);
-})
-);
-}).then(() => {
-return self.clients.claim();
-})
-);
-});
-
-/* ═════════════════════════════════════════════════════════════════════
-FETCH EVENT - Serving strategy
-═════════════════════════════════════════════════════════════════════ */
-self.addEventListener(‘fetch’, event => {
-const url = new URL(event.request.url);
-
-// Skip API requests (IndexedDB is local)
-if (event.request.url.includes(‘api.’)) {
-return;
+{
+  "name": "Düzgün Ekonomi Pro v6.0",
+  "short_name": "Düzgün Ekonomi",
+  "description": "Gelişmiş Kişisel Finans Yöneticisi - IndexedDB Tabanlı",
+  "start_url": "/ekonomi/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "lang": "tr-TR",
+  "scope": "/ekonomi/",
+  "id": "/ekonomi/",
+  "categories": ["finance", "productivity", "business"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='44' fill='%233b82f6'/%3E%3Ctext x='96' y='130' font-size='90' text-anchor='middle' fill='white'%3E💳%3C/text%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='110' fill='%233b82f6'/%3E%3Ctext x='256' y='360' font-size='240' text-anchor='middle' fill='white'%3E💳%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 540 720'%3E%3Crect width='540' height='720' fill='%23f2f2f7'/%3E%3Ctext x='270' y='360' font-size='100' text-anchor='middle' fill='%233b82f6'%3E💳 Finansal Yönetim%3C/text%3E%3C/svg%3E",
+      "sizes": "540x720",
+      "type": "image/svg+xml",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Yeni İşlem Ekle",
+      "short_name": "Ekle",
+      "description": "Hızlı işlem ekleme",
+      "url": "/ekonomi/?tab=add",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='20' fill='%2334C759'/%3E%3Ctext x='48' y='65' font-size='50' text-anchor='middle' fill='white'%3E➕%3C/text%3E%3C/svg%3E",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "İşlem Geçmişi",
+      "short_name": "Geçmiş",
+      "description": "Tüm işlemleri görüntüle",
+      "url": "/ekonomi/?tab=history",
+      "icons": []
+    },
+    {
+      "name": "Finansal Pano",
+      "short_name": "Pano",
+      "description": "Ana görünüm",
+      "url": "/ekonomi/?tab=dashboard",
+      "icons": []
+    }
+  ]
 }
-
-// HTML pages - Network first with cache fallback
-if (event.request.mode === ‘navigate’ || url.pathname.endsWith(’.html’)) {
-event.respondWith(
-fetch(event.request)
-.then(response => {
-// Update cache with new version
-if (response && response.status === 200) {
-const clone = response.clone();
-caches.open(CACHE_NAME).then(cache => {
-cache.put(event.request, clone);
-});
-}
-return response;
-})
-.catch(() => {
-// Offline: serve from cache
-return caches.match(event.request)
-.then(cached => cached || caches.match(’/index.html’));
-})
-);
-return;
-}
-
-// Static assets - Cache first with network fallback
-if (
-event.request.destination === ‘style’ ||
-event.request.destination === ‘script’ ||
-event.request.destination === ‘font’ ||
-event.request.destination === ‘image’
-) {
-event.respondWith(
-caches.match(event.request)
-.then(cached => {
-if (cached) return cached;
-
-```
-      return fetch(event.request)
-        .then(response => {
-          if (!response || response.status !== 200) return response;
-
-          const clone = response.clone();
-          caches.open(DYNAMIC_CACHE).then(cache => {
-            cache.put(event.request, clone);
-          });
-          return response;
-        })
-        .catch(() => {
-          // Offline fallback for images
-          if (event.request.destination === 'image') {
-            return new Response(null, { status: 204 });
-          }
-          return new Response('Resource not available offline', {
-            status: 503,
-            statusText: 'Service Unavailable'
-          });
-        });
-    })
-);
-return;
-```
-
-}
-
-// Default - Network first
-event.respondWith(
-fetch(event.request)
-.then(response => {
-if (response && response.status === 200) {
-const clone = response.clone();
-caches.open(DYNAMIC_CACHE).then(cache => {
-cache.put(event.request, clone);
-});
-}
-return response;
-})
-.catch(() => {
-return caches.match(event.request)
-.then(cached => cached || new Response(‘Offline’, { status: 503 }));
-})
-);
-});
-
-/* ═════════════════════════════════════════════════════════════════════
-MESSAGE HANDLING
-═════════════════════════════════════════════════════════════════════ */
-self.addEventListener(‘message’, event => {
-if (event.data && event.data.type === ‘SKIP_WAITING’) {
-self.skipWaiting();
-}
-
-if (event.data && event.data.type === ‘CLEAR_CACHE’) {
-caches.delete(DYNAMIC_CACHE).then(() => {
-event.source.postMessage({ type: ‘CACHE_CLEARED’ });
-});
-}
-});
-
-console.log(’[SW] Service Worker v6.0 loaded’);
