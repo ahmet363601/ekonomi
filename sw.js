@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════
-   Düzgün Ekonomi Pro v5.1 - Service Worker
+   Düzgün Ekonomi Pro v5.1 - Service Worker.
    PWA Offline Support | Cihaz Yetkilendirme Uyumlu
 ═══════════════════════════════════ */
 
