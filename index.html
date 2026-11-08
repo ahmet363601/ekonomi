@@ -984,6 +984,26 @@ button, input, select, textarea {
 'use strict';
 
 /* ─────────────────────────────────────────────
+   🛡️ CDN GUARD — kütüphaneler yüklenmeden koda geçme
+───────────────────────────────────────────── */
+if (typeof dayjs === 'undefined' || typeof Swal === 'undefined' || typeof Chart === 'undefined') {
+  document.addEventListener('DOMContentLoaded', () => {
+    const v = document.getElementById('view');
+    if (v) v.innerHTML = `
+      <div class="empty-state" style="padding:60px 20px;">
+        <i class="fas fa-wifi" style="color:var(--danger);font-size:40px;"></i>
+        <p style="margin-top:12px;"><strong>Gerekli kütüphaneler yüklenemedi</strong></p>
+        <p style="font-size:11px;opacity:.6;margin-top:6px;">
+          dayjs: ${typeof dayjs} · Swal: ${typeof Swal} · Chart: ${typeof Chart}
+        </p>
+        <p style="font-size:11px;opacity:.6;">İnternet bağlantınızı kontrol edip yenileyin.</p>
+        <button class="btn btn-primary" style="margin-top:16px;" onclick="location.reload(true)">Yenile</button>
+      </div>`;
+  });
+  throw new Error('CDN libraries failed to load — aborting script execution');
+}
+
+/* ─────────────────────────────────────────────
    SERVICE WORKER (optional)
 ───────────────────────────────────────────── */
 if ('serviceWorker' in navigator) {
@@ -1016,10 +1036,16 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
 let db = null;
 function openDB() {
   return new Promise((resolve, reject) => {
+    /* 🛡️ 8 saniye timeout — askıda kalmasın */
+    const timeout = setTimeout(() => {
+      reject(new Error('DB açma zaman aşımı — başka sekmede açık olabilir'));
+    }, 8000);
+
     let req;
     try {
       req = indexedDB.open(DB_NAME, DB_VERSION);
     } catch (e) {
+      clearTimeout(timeout);
       console.error('[DB] indexedDB.open hatası:', e);
       return reject(e);
     }
@@ -1030,10 +1056,12 @@ function openDB() {
     };
 
     req.onblocked = () => {
+      clearTimeout(timeout);
       console.warn('[DB] Başka sekmede açık. Diğer sekmeleri kapatın.');
+      reject(new Error('Veritabanı başka sekmede kilitli'));
     };
-
     req.onsuccess = () => {
+      clearTimeout(timeout);
       db = req.result;
       db.onversionchange = () => { db.close(); db = null; };
       db.onclose = async () => {
