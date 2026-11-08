@@ -2321,9 +2321,7 @@ const App = {
       if (this.currentPage === 'dashboard') await this.renderRecentList();
     }
   },
-
-
-    async deleteArchive(key) {
+  async deleteArchive(key) {
     const archive = state.archives[key];
     if (!archive) { showToast('⚠️ Arşiv bulunamadı'); return; }
 
@@ -2354,36 +2352,74 @@ const App = {
       width: Math.min(520, window.innerWidth - 24)
     });
 
+    /* İptal → hiçbir şey yapma */
     if (result.isDismissed) return;
 
     const isRestore = result.isDenied;
+    let geriYuklenenGelir = 0;
+    let geriYuklenenGider = 0;
+    let geriYuklenenLog   = 0;
 
+    /* ═══════════════════════════════════════
+       GERİ YÜKLEME — ID çakışması korumalı
+       ═══════════════════════════════════════ */
     if (isRestore) {
-      /* Aynı ID'ler zaten varsa atla (çift kayıt koruması) */
       const gIds = new Set(state.gelirler.map(g => g.id));
       const dIds = new Set(state.giderler.map(g => g.id));
       const lIds = new Set(state.logs.map(l => l.id));
-      aGelirler.forEach(g => { if (!gIds.has(g.id)) state.gelirler.push(g); });
-      aGiderler.forEach(g => { if (!dIds.has(g.id)) state.giderler.push(g); });
-      aLoglar.forEach(l   => { if (!lIds.has(l.id)) state.logs.push(l); });
+
+      aGelirler.forEach(g => {
+        if (!gIds.has(g.id)) { state.gelirler.push(g); geriYuklenenGelir++; }
+      });
+      aGiderler.forEach(g => {
+        if (!dIds.has(g.id)) { state.giderler.push(g); geriYuklenenGider++; }
+      });
+      aLoglar.forEach(l => {
+        if (!lIds.has(l.id)) { state.logs.push(l); geriYuklenenLog++; }
+      });
+
       state.logs.sort((a, b) => b.timestamp > a.timestamp ? 1 : -1);
+
+      /* Sadece geri yükleme durumunda ana store'ları yaz.
+         Kalıcı silmede bu üçü zaten değişmedi — gereksiz IO. */
+      await saveGelirler();
+      await saveGiderler();
+      await saveLogs();
     }
 
+    /* ═══════════════════════════════════════
+       ARŞİVİ KALDIR (her iki durumda da)
+       ═══════════════════════════════════════ */
     delete state.archives[key];
-    await saveGelirler();
-    await saveGiderler();
-    await saveLogs();
     await saveArchives();
 
+    /* Log kaydı — addLog zaten saveLogs() çağırıyor */
     await addLog(isRestore ? 'arsiv_geri_yukle' : 'arsiv_sil',
       SalaryMonth.label(key),
-      { month: key, gelirCount: aGelirler.length, giderCount: aGiderler.length, logCount: aLoglar.length });
+      { month: key,
+        gelirCount: aGelirler.length,
+        giderCount: aGiderler.length,
+        logCount:   aLoglar.length });
+
     await createAutoBackup();
 
-    showToast(isRestore ? '↩️ Arşiv geri yüklendi' : '🗑️ Arşiv silindi');
+    /* ═══════════════════════════════════════
+       KULLANICI GERİ BİLDİRİMİ
+       ═══════════════════════════════════════ */
+    if (isRestore) {
+      const eklenen = geriYuklenenGelir + geriYuklenenGider;
+      const toplam  = aGelirler.length + aGiderler.length;
+      const atlanan = toplam - eklenen;
+      const ekBilgi = atlanan > 0
+        ? ` (${atlanan} kayıt zaten mevcuttu)`
+        : '';
+      showToast(`↩️ ${eklenen} işlem geri yüklendi${ekBilgi}`);
+    } else {
+      showToast('🗑️ Arşiv kalıcı olarak silindi');
+    }
+
     await this.renderArsiv();
   },
-
 
   
   /* ══════════════════════════════════════
