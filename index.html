@@ -1013,22 +1013,31 @@ const PARA       = 'TL';
 let db = null;
 function openDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    let req;
+    try {
+      req = indexedDB.open(DB_NAME, DB_VERSION);
+    } catch (e) {
+      console.error('[DB] indexedDB.open hatası:', e);
+      return reject(e);
+    }
 
-    req.onerror = (event) => {
-      console.error('IndexedDB açılamadı:', req.error);
+    req.onerror = () => {
+      console.error('[DB] Açılamadı:', req.error);
       reject(req.error);
     };
 
-    req.onblocked = (event) => {
-      console.warn('IndexedDB başka bir sekmede açık. Lütfen diğer sekmeleri kapatın.');
-      // İsteğe bağlı: kullanıcıya bilgi ver
+    req.onblocked = () => {
+      console.warn('[DB] Başka sekmede açık. Diğer sekmeleri kapatın.');
     };
 
     req.onsuccess = () => {
       db = req.result;
-      // Bağlantı koptuğunda otomatik yeniden bağlanma (opsiyonel)
-      db.onclose = () => { console.warn('DB bağlantısı kapandı, yeniden açılıyor...'); openDB(); };
+      db.onversionchange = () => { db.close(); db = null; };
+      db.onclose = async () => {
+        console.warn('[DB] Bağlantı kapandı, yeniden açılıyor...');
+        try { db = await openDB(); }
+        catch (e) { console.error('[DB] Yeniden bağlanamadı:', e); }
+      };
       resolve(db);
     };
 
@@ -1125,37 +1134,77 @@ async function loadAllData() {
     state.backups = backs.sort((a, b) => b.createdAt > a.createdAt ? 1 : -1);
   } catch(e) { console.error('Veri yükleme:', e); }
 }
+/* ═══════════════════════════════════════════════════════════════
+   ATOMİK & SIRALI KAYIT KATMANI
+   ─────────────────────────────────────────────────────────────
+   Sorun: Eski saveAllData() her çağrıda tüm store'ları siliyordu.
+   Bir gider eklediğinizde bile gelirler/arşiv/loglar sıfırlanıp
+   yeniden yazılıyordu. Sayfa kapanırsa veri yarıda kalıyordu.
 
-async function saveAllData() {
-  try {
-    await dbClear('gelirler');
-    await dbClear('giderler');
-    await dbClear('borcalacaklar');
-    for (const g of state.gelirler) await dbPut('gelirler', g);
-    for (const g of state.giderler) await dbPut('giderler', g);
-    for (const b of state.borcalacaklar) await dbPut('borcalacaklar', b);
+   Çözüm:
+   1) saveStore()  → tek transaction'da temizle + yaz (atomik)
+   2) queueSave()  → mutex kuyruğu (eşzamanlı yazma = veri kaybı)
+   3) Store bazlı fonksiyonlar → sadece değişeni yaz
+   4) saveAllData() → geriye uyumluluk için tüm store'ları kuyruğa alır
+   ═══════════════════════════════════════════════════════════════ */
 
-    await dbClear('kategoriler');
-    await dbPut('kategoriler', { tip: 'gelir', kategoriler: state.kategoriler.gelir });
-    await dbPut('kategoriler', { tip: 'gider', kategoriler: state.kategoriler.gider });
+/* Yazma mutex kuyruğu — aynı anda 2 yazma asla çalışmaz */
+/* ═══════════════════════════════════════════════════════════════
+   ATOMİK & SIRALI KAYIT KATMANI
+   ═══════════════════════════════════════════════════════════════ */
 
-    await dbClear('limitler');
-    for (const [k, v] of Object.entries(state.limitler)) await dbPut('limitler', { kategori: k, limit: v });
-
-    await dbClear('ayarlar');
-    await dbPut('ayarlar', { id: 'settings', ...state.ayarlar });
-
-    await dbClear('archives');
-    for (const [m, d] of Object.entries(state.archives)) await dbPut('archives', { month: m, data: d });
-
-    await dbClear('logs');
-    for (const l of state.logs) await dbPut('logs', l);
-
-    await dbClear('backups');
-    for (const b of state.backups) await dbPut('backups', b);
-  } catch(e) { console.error('Veri kaydetme:', e); }
+/* Yazma mutex kuyruğu — eşzamanlı yazma = veri kaybı */
+let _saveChain = Promise.resolve();
+function queueSave(fn) {
+  _saveChain = _saveChain.then(fn).catch(e => console.error('[Queue] Kayıt hatası:', e));
+  return _saveChain;
 }
 
+/* Tek store, tek transaction — ya hep ya hiç */
+function saveStore(storeName, items) {
+  return new Promise((resolve, reject) => {
+    if (!db) return reject(new Error('DB açık değil'));
+    let tx;
+    try { tx = db.transaction(storeName, 'readwrite'); }
+    catch (e) { return reject(e); }
+    const store = tx.objectStore(storeName);
+    try {
+      store.clear();
+      for (const item of items) { if (item != null) store.put(item); }
+    } catch (e) { return reject(e); }
+    tx.oncomplete = () => resolve();
+    tx.onerror    = () => reject(tx.error);
+    tx.onabort    = () => reject(tx.error || new Error('Transaction aborted'));
+  });
+}
+
+/* Store bazlı kayıt fonksiyonları (CRUD bunları kullanacak) */
+const saveGelirler    = () => queueSave(() => saveStore('gelirler',    state.gelirler));
+const saveGiderler    = () => queueSave(() => saveStore('giderler',    state.giderler));
+const saveBorclar     = () => queueSave(() => saveStore('borcalacaklar', state.borcalacaklar));
+const saveLimitler    = () => queueSave(() => saveStore('limitler', Object.entries(state.limitler).map(([kategori, limit]) => ({ kategori, limit }))));
+const saveAyarlar     = () => queueSave(() => saveStore('ayarlar',  [{ id: 'settings', varsayilanRaporAraligi: state.ayarlar.varsayilanRaporAraligi }]));
+const saveArchives    = () => queueSave(() => saveStore('archives', Object.entries(state.archives).map(([month, data]) => ({ month, data }))));
+const saveLogs        = () => queueSave(() => saveStore('logs', state.logs));
+const saveBackups     = () => queueSave(() => saveStore('backups', state.backups));
+const saveKategoriler = () => queueSave(() => saveStore('kategoriler', [
+  { tip: 'gelir', kategoriler: state.kategoriler.gelir },
+  { tip: 'gider', kategoriler: state.kategoriler.gider }
+]));
+
+/* Tüm store'ları yaz — sadece resetAll/import gibi nadir durumlarda */
+async function saveAllData() {
+  try {
+    await Promise.all([
+      saveGelirler(), saveGiderler(), saveBorclar(),
+      saveKategoriler(), saveLimitler(), saveAyarlar(),
+      saveArchives(), saveLogs(), saveBackups()
+    ]);
+  } catch (e) {
+    console.error('[saveAllData] Kayıt hatası:', e);
+    throw e;
+  }
+}
 /* ─────────────────────────────────────────────
    LOGLAMA
 ───────────────────────────────────────────── */
@@ -1165,11 +1214,11 @@ async function addLog(action, details = '') {
     timestamp: new Date().toISOString(),
     action,
     details,
-    page: App ? App.currentPage : 'init'
+    page: (typeof App !== 'undefined' && App) ? App.currentPage : 'init'
   };
   state.logs.unshift(log);
   if (state.logs.length > 500) state.logs = state.logs.slice(0, 500);
-  await saveAllData();
+  await saveLogs();   // Sadece logs yaz — diğer store'lara dokunma
 }
 
 /* ─────────────────────────────────────────────
@@ -1185,18 +1234,21 @@ async function createAutoBackup() {
       giderler:     [...state.giderler],
       borcalacaklar:[...state.borcalacaklar],
       kategoriler:  JSON.parse(JSON.stringify(state.kategoriler)),
-      limitler:     {...state.limitler},
+      limitler:     { ...state.limitler },
       archives:     JSON.parse(JSON.stringify(state.archives))
     },
     stats: {
-      toplamGelir:  state.gelirler.reduce((s, g) => s + g.miktar, 0),
-      toplamGider:  state.giderler.reduce((s, g) => s + g.miktar, 0),
-      islemSayisi:  state.gelirler.length + state.giderler.length + state.borcalacaklar.length
+      toplamGelir: state.gelirler.reduce((s, g) => s + (Number(g.miktar) || 0), 0),
+      toplamGider: state.giderler.reduce((s, g) => s + (Number(g.miktar) || 0), 0),
+      islemSayisi: state.gelirler.length + state.giderler.length + state.borcalacaklar.length
     }
   };
   state.backups.unshift(backup);
-  if (state.backups.length > 30) state.backups = state.backups.slice(0, 30);
-  await saveAllData();
+  // Son 3 otomatik yedek yeterli (önceden 30'du → IndexedDB şişiyordu)
+  const manualBackups = state.backups.filter(b => b.type === 'manual');
+  const autoBackups   = state.backups.filter(b => b.type === 'auto').slice(0, 3);
+  state.backups = [...manualBackups, ...autoBackups].slice(0, 10);
+  await saveBackups();
 }
 
 /* ─────────────────────────────────────────────
@@ -1209,15 +1261,15 @@ const Calc = {
   },
   toplamGelir(f = {}) {
     let d = state.gelirler;
-    if (f.start) d = d.filter(g => g.tarih >= f.start);
-    if (f.end)   d = d.filter(g => g.tarih <= f.end);
-    return d.reduce((s, g) => s + g.miktar, 0);
+    if (f.start) d = d.filter(g => g.tarih && g.tarih >= f.start);
+    if (f.end)   d = d.filter(g => g.tarih && g.tarih <= f.end);
+    return d.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
   },
   toplamGider(f = {}) {
     let d = state.giderler;
-    if (f.start) d = d.filter(g => g.tarih >= f.start);
-    if (f.end)   d = d.filter(g => g.tarih <= f.end);
-    return d.reduce((s, g) => s + g.miktar, 0);
+    if (f.start) d = d.filter(g => g.tarih && g.tarih >= f.start);
+    if (f.end)   d = d.filter(g => g.tarih && g.tarih <= f.end);
+    return d.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
   },
   bakiye(f = {}) { return this.toplamGelir(f) - this.toplamGider(f); },
   ayFilter() {
@@ -1227,13 +1279,20 @@ const Calc = {
   aktifBorcAlacak() {
     return state.borcalacaklar
       .filter(b => !b.odendiMi)
-      .reduce((s, b) => s + (b.miktar - (b.payments || []).reduce((p, pm) => p + pm.miktar, 0)), 0);
+      .reduce((s, b) => {
+        const paid = (b.payments || []).reduce((p, pm) => p + (Number(pm.miktar) || 0), 0);
+        return s + Math.max(0, (Number(b.miktar) || 0) - paid);
+      }, 0);
   },
   kategoriGiderler(f = {}) {
     let d = state.giderler;
-    if (f.start) d = d.filter(g => g.tarih >= f.start);
-    if (f.end)   d = d.filter(g => g.tarih <= f.end);
-    return d.reduce((map, g) => { map[g.kategori] = (map[g.kategori] || 0) + g.miktar; return map; }, {});
+    if (f.start) d = d.filter(g => g.tarih && g.tarih >= f.start);
+    if (f.end)   d = d.filter(g => g.tarih && g.tarih <= f.end);
+    return d.reduce((map, g) => {
+      const k = g.kategori || 'Diğer';
+      map[k] = (map[k] || 0) + (Number(g.miktar) || 0);
+      return map;
+    }, {});
   },
   aylikTrend(aySayisi = 6) {
     const now = dayjs();
@@ -1242,16 +1301,16 @@ const Calc = {
       const prefix = d.format('YYYY-MM');
       return {
         label: d.format('MMM YY'),
-        gelir: state.gelirler.filter(g => g.tarih.startsWith(prefix)).reduce((s, g) => s + g.miktar, 0),
-        gider: state.giderler.filter(g => g.tarih.startsWith(prefix)).reduce((s, g) => s + g.miktar, 0)
+        gelir: state.gelirler.filter(g => g.tarih && g.tarih.startsWith(prefix)).reduce((s, g) => s + (Number(g.miktar) || 0), 0),
+        gider: state.giderler.filter(g => g.tarih && g.tarih.startsWith(prefix)).reduce((s, g) => s + (Number(g.miktar) || 0), 0)
       };
     });
   },
   aylikGiderKategori(kategori) {
     const f = this.ayFilter();
     return state.giderler
-      .filter(g => g.kategori === kategori && g.tarih >= f.start && g.tarih <= f.end)
-      .reduce((s, g) => s + g.miktar, 0);
+      .filter(g => g.kategori === kategori && g.tarih && g.tarih >= f.start && g.tarih <= f.end)
+      .reduce((s, g) => s + (Number(g.miktar) || 0), 0);
   },
   sonIslemler() {
     return [
@@ -1268,15 +1327,17 @@ const Calc = {
 const CRUD = {
   async islemEkle(tip, miktar, kategori, tarih, aciklama) {
     const item = { id: Date.now(), miktar: parseFloat(miktar), kategori, tarih, aciklama: aciklama || '', createdAt: new Date().toISOString() };
-    if (tip === 'gelir') state.gelirler.push(item);
-    else {
+    if (tip === 'gelir') {
+      state.gelirler.push(item);
+      await saveGelirler();
+    } else {
       state.giderler.push(item);
+      await saveGiderler();
       const limit = state.limitler[kategori];
       if (limit && Calc.aylikGiderKategori(kategori) > limit) {
         Swal.fire({ icon: 'warning', title: '⚠️ Limit Aşımı!', text: `${kategori} için ${Calc.fmt(limit)} limiti aşıldı!`, timer: 2500, showConfirmButton: false });
       }
     }
-    await saveAllData();
     await addLog(`${tip}_ekle`, `${Calc.fmt(miktar)} · ${kategori}`);
     await createAutoBackup();
     return item;
@@ -1287,15 +1348,14 @@ const CRUD = {
     const idx = arr.findIndex(i => i.id == id);
     if (idx === -1) return false;
     arr[idx] = { ...arr[idx], ...guncelleme };
-    await saveAllData();
+    await (tip === 'gelir' ? saveGelirler() : saveGiderler());
     await addLog(`${tip}_guncelle`, `ID:${id}`);
     return true;
   },
 
   async islemSil(id, tip) {
-    if (tip === 'gelir') state.gelirler = state.gelirler.filter(g => g.id != id);
-    else state.giderler = state.giderler.filter(g => g.id != id);
-    await saveAllData();
+    if (tip === 'gelir') { state.gelirler = state.gelirler.filter(g => g.id != id); await saveGelirler(); }
+    else                 { state.giderler = state.giderler.filter(g => g.id != id); await saveGiderler(); }
     await addLog(`${tip}_sil`, `ID:${id}`);
     await createAutoBackup();
   },
@@ -1303,7 +1363,7 @@ const CRUD = {
   async borcEkle(tip, kisiAdi, miktar, tarih, aciklama) {
     const item = { id: Date.now(), tip, kisiAdi, miktar: parseFloat(miktar), tarih, aciklama: aciklama || '', payments: [], odendiMi: false, createdAt: new Date().toISOString() };
     state.borcalacaklar.push(item);
-    await saveAllData();
+    await saveBorclar();
     await addLog(`borc_ekle_${tip}`, `${kisiAdi} · ${Calc.fmt(miktar)}`);
     await createAutoBackup();
     return item;
@@ -1311,7 +1371,7 @@ const CRUD = {
 
   async borcSil(id) {
     state.borcalacaklar = state.borcalacaklar.filter(b => b.id != id);
-    await saveAllData();
+    await saveBorclar();
     await addLog('borc_sil', `ID:${id}`);
     await createAutoBackup();
   },
@@ -1320,7 +1380,7 @@ const CRUD = {
     const item = state.borcalacaklar.find(b => b.id == id);
     if (!item) return false;
     item.odendiMi = true;
-    await saveAllData();
+    await saveBorclar();
     await addLog('borc_tam_odendi', item.kisiAdi);
     await createAutoBackup();
     return true;
@@ -1333,7 +1393,7 @@ const CRUD = {
     item.payments.push({ id: Date.now(), miktar: parseFloat(miktar), tarih, aciklama: aciklama || '' });
     const odenen = item.payments.reduce((s, p) => s + p.miktar, 0);
     if (odenen >= item.miktar) item.odendiMi = true;
-    await saveAllData();
+    await saveBorclar();
     await addLog('ara_odeme', `${item.kisiAdi} · ${Calc.fmt(miktar)}`);
     await createAutoBackup();
     return true;
@@ -1342,26 +1402,26 @@ const CRUD = {
   async kategoriEkle(tip, ad) {
     if (!ad || state.kategoriler[tip].includes(ad)) return false;
     state.kategoriler[tip].push(ad);
-    await saveAllData();
+    await saveKategoriler();
     await addLog('kategori_ekle', `${tip} · ${ad}`);
     return true;
   },
 
   async kategoriSil(tip, ad) {
     state.kategoriler[tip] = state.kategoriler[tip].filter(k => k !== ad);
-    await saveAllData();
+    await saveKategoriler();
     await addLog('kategori_sil', `${tip} · ${ad}`);
   },
 
   async limitEkle(kategori, limit) {
     if (!limit || isNaN(parseFloat(limit))) return;
     state.limitler[kategori] = parseFloat(limit);
-    await saveAllData();
+    await saveLimitler();
   },
 
   async limitSil(kategori) {
     delete state.limitler[kategori];
-    await saveAllData();
+    await saveLimitler();
     await addLog('limit_sil', kategori);
   },
 
@@ -1370,22 +1430,22 @@ const CRUD = {
       Swal.fire({ icon: 'warning', title: 'Uyarı', text: `${monthKey} ayı zaten arşivlenmiş!` });
       return false;
     }
-    const aGelir = state.gelirler.filter(g => g.tarih.startsWith(monthKey));
-    const aGider = state.giderler.filter(g => g.tarih.startsWith(monthKey));
+    const aGelir = state.gelirler.filter(g => g.tarih && g.tarih.startsWith(monthKey));
+    const aGider = state.giderler.filter(g => g.tarih && g.tarih.startsWith(monthKey));
     const aBorc  = state.borcalacaklar.filter(b => b.tarih && b.tarih.startsWith(monthKey));
     if (!aGelir.length && !aGider.length && !aBorc.length) {
       Swal.fire({ icon: 'info', title: 'Bilgi', text: `${monthKey} ayına ait veri bulunamadı.` });
       return false;
     }
     state.archives[monthKey] = {
-      gelirler: aGelir,
-      giderler: aGider,
-      borcalacaklar: aBorc,
+      gelirler: aGelir, giderler: aGider, borcalacaklar: aBorc,
       archivedAt: new Date().toISOString()
     };
-    state.gelirler = state.gelirler.filter(g => !g.tarih.startsWith(monthKey));
-    state.giderler = state.giderler.filter(g => !g.tarih.startsWith(monthKey));
-    await saveAllData();
+    state.gelirler = state.gelirler.filter(g => !g.tarih || !g.tarih.startsWith(monthKey));
+    state.giderler = state.giderler.filter(g => !g.tarih || !g.tarih.startsWith(monthKey));
+    await saveGelirler();
+    await saveGiderler();
+    await saveArchives();
     await addLog('manuel_arsiv', `${monthKey} arşivlendi`);
     await createAutoBackup();
     Swal.fire({ icon: 'success', title: 'Arşivlendi!', text: 'Borç verileriniz korundu.', timer: 1800, showConfirmButton: false });
@@ -1588,20 +1648,30 @@ const App = {
 
   /* ── PAGE LOADER ── */
   async loadPage(name) {
-    this.currentPage = name;
-    const titles = { dashboard:'Dashboard', islemler:'İşlemler', borcalacak:'Borç & Alacak', rapor:'Rapor', arsiv:'Arşiv' };
-    document.getElementById('page-title').textContent = titles[name] || name;
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === name));
-    document.getElementById('view').innerHTML = '<div class="spinner-wrap"><div class="spinner"></div></div>';
+  this.currentPage = name;
+  const titles = { dashboard: 'Dashboard', islemler: 'İşlemler', borcalacak: 'Borç & Alacak', rapor: 'Rapor', arsiv: 'Arşiv' };
+  document.getElementById('page-title').textContent = titles[name] || name;
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === name));
+  document.getElementById('view').innerHTML = '<div class="spinner-wrap"><div class="spinner"></div></div>';
 
-    if (name === 'dashboard')  await this.renderDashboard();
+  try {
+    if (name === 'dashboard')       await this.renderDashboard();
     else if (name === 'islemler')   await this.renderIslemler();
     else if (name === 'borcalacak') await this.renderBorcalacak();
     else if (name === 'rapor')      await this.renderRapor();
     else if (name === 'arsiv')      await this.renderArsiv();
-
     await addLog('sayfa', name);
-  },
+  } catch (e) {
+    console.error(`[loadPage] ${name} hatası:`, e);
+    document.getElementById('view').innerHTML = `
+      <div class="empty-state" style="padding:60px 20px;">
+        <i class="fas fa-exclamation-triangle" style="color:var(--danger);font-size:40px;"></i>
+        <p style="margin-top:12px;"><strong>Bu sayfa yüklenemedi</strong></p>
+        <p style="font-size:11px;opacity:.6;margin-top:6px;">${UI.escHtml(e.message || 'Bilinmeyen hata')}</p>
+        <button class="btn btn-primary" onclick="location.reload()" style="margin-top:16px;">Yenile</button>
+      </div>`;
+  }
+},
 
   /* ══════════════════════════════════════
      DASHBOARD
@@ -2256,55 +2326,67 @@ const App = {
   },
 
   async showArchiveDetail(key) {
-    const a = state.archives[key];
-    if (!a) return;
-    const gelir  = a.gelirler.reduce((s,g)=>s+g.miktar,0);
-    const gider  = a.giderler.reduce((s,g)=>s+g.miktar,0);
-    const net    = gelir - gider;
-    const borcs  = (a.borcalacaklar||[]);
-    const bToplam= borcs.filter(b=>b.tip==='borc'&&!b.odendiMi).reduce((s,b)=>s+(b.miktar-(b.payments||[]).reduce((p,pm)=>p+pm.miktar,0)),0);
-    const aToplam= borcs.filter(b=>b.tip==='alacak'&&!b.odendiMi).reduce((s,b)=>s+(b.miktar-(b.payments||[]).reduce((p,pm)=>p+pm.miktar,0)),0);
-    const katG   = a.giderler.reduce((m,g)=>{ m[g.kategori]=(m[g.kategori]||0)+g.miktar; return m; },{});
-    const topKat = Object.entries(katG).sort((x,y)=>y[1]-x[1])[0];
-    const allTx  = [
-      ...a.gelirler.map(g=>({...g,_tip:'gelir'})),
-      ...a.giderler.map(g=>({...g,_tip:'gider'})),
-      ...borcs.map(b=>({...b,_tip:b.tip}))
-    ].sort((x,y)=>y.tarih>x.tarih?1:-1);
+  const a = state.archives[key];
+  if (!a) return;
 
-    Swal.fire({
-      title: `${dayjs(key+'-01').format('MMMM YYYY')} — Detaylı Analiz`,
-      html: `<div style="text-align:left;max-height:480px;overflow-y:auto;">
-        <div class="archive-detail-stats">
-          <div class="archive-stat-card"><div class="archive-stat-label">Gelir</div><div class="archive-stat-value green">${Calc.fmt(gelir)}</div></div>
-          <div class="archive-stat-card"><div class="archive-stat-label">Gider</div><div class="archive-stat-value red">${Calc.fmt(gider)}</div></div>
-          <div class="archive-stat-card"><div class="archive-stat-label">Net</div><div class="archive-stat-value ${net>=0?'green':'red'}">${Calc.fmt(net)}</div></div>
-        </div>
-        <div class="archive-detail-stats">
-          <div class="archive-stat-card"><div class="archive-stat-label">Alacak</div><div class="archive-stat-value green">${Calc.fmt(aToplam)}</div></div>
-          <div class="archive-stat-card"><div class="archive-stat-label">Borç</div><div class="archive-stat-value red">${Calc.fmt(bToplam)}</div></div>
-          <div class="archive-stat-card"><div class="archive-stat-label">İşlemler</div><div class="archive-stat-value blue">${allTx.length}</div></div>
-        </div>
-        ${topKat?`<div class="card-sm" style="text-align:center;margin-bottom:10px;">
-          <div class="archive-stat-label">En Yüksek Gider Kategorisi</div>
-          <div style="font-family:'Plus Jakarta Sans';font-size:16px;font-weight:800;margin-top:4px;">${UI.escHtml(topKat[0])}</div>
-          <div style="font-size:13px;color:var(--danger);font-weight:700;">${Calc.fmt(topKat[1])}</div>
-        </div>`:''}
-        <div class="card-sm" style="margin-bottom:12px;">
-          <div class="archive-stat-label">Arşivlenme Tarihi</div>
-          <div style="font-size:12px;margin-top:3px;">${dayjs(a.archivedAt).format('DD MMMM YYYY HH:mm')}</div>
-        </div>
-        <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text);">İşlem Listesi (${allTx.length})</div>
-        <div style="max-height:220px;overflow-y:auto;">
-          ${allTx.slice(0,30).map(tx=>UI.txItem(tx)).join('')}
-          ${allTx.length>30?`<p style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0;">+${allTx.length-30} işlem daha</p>`:''}
-        </div>
-      </div>`,
-      width: Math.min(540, window.innerWidth - 24),
-      confirmButtonText: 'Kapat',
-      showCloseButton: true
-    });
-  },
+  const aGelirler = Array.isArray(a.gelirler) ? a.gelirler : [];
+  const aGiderler = Array.isArray(a.giderler) ? a.giderler : [];
+  const aBorclar  = Array.isArray(a.borcalacaklar) ? a.borcalacaklar : [];
+
+  const gelir  = aGelirler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+  const gider  = aGiderler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+  const net    = gelir - gider;
+  const bToplam = aBorclar.filter(b => b.tip === 'borc' && !b.odendiMi)
+    .reduce((s, b) => s + Math.max(0, (Number(b.miktar) || 0) - (b.payments || []).reduce((p, pm) => p + (Number(pm.miktar) || 0), 0)), 0);
+  const aToplam = aBorclar.filter(b => b.tip === 'alacak' && !b.odendiMi)
+    .reduce((s, b) => s + Math.max(0, (Number(b.miktar) || 0) - (b.payments || []).reduce((p, pm) => p + (Number(pm.miktar) || 0), 0)), 0);
+
+  const katG = aGiderler.reduce((m, g) => {
+    const k = g.kategori || 'Diğer';
+    m[k] = (m[k] || 0) + (Number(g.miktar) || 0);
+    return m;
+  }, {});
+  const topKat = Object.entries(katG).sort((x, y) => y[1] - x[1])[0];
+
+  const allTx = [
+    ...aGelirler.map(g => ({ ...g, _tip: 'gelir' })),
+    ...aGiderler.map(g => ({ ...g, _tip: 'gider' })),
+    ...aBorclar.map(b => ({ ...b, _tip: b.tip }))
+  ].sort((x, y) => (y.tarih || '') > (x.tarih || '') ? 1 : -1);
+
+  Swal.fire({
+    title: `${dayjs(key + '-01').format('MMMM YYYY')} — Detaylı Analiz`,
+    html: `<div style="text-align:left;max-height:480px;overflow-y:auto;">
+      <div class="archive-detail-stats">
+        <div class="archive-stat-card"><div class="archive-stat-label">Gelir</div><div class="archive-stat-value green">${Calc.fmt(gelir)}</div></div>
+        <div class="archive-stat-card"><div class="archive-stat-label">Gider</div><div class="archive-stat-value red">${Calc.fmt(gider)}</div></div>
+        <div class="archive-stat-card"><div class="archive-stat-label">Net</div><div class="archive-stat-value ${net>=0?'green':'red'}">${Calc.fmt(net)}</div></div>
+      </div>
+      <div class="archive-detail-stats">
+        <div class="archive-stat-card"><div class="archive-stat-label">Alacak</div><div class="archive-stat-value green">${Calc.fmt(aToplam)}</div></div>
+        <div class="archive-stat-card"><div class="archive-stat-label">Borç</div><div class="archive-stat-value red">${Calc.fmt(bToplam)}</div></div>
+        <div class="archive-stat-card"><div class="archive-stat-label">İşlemler</div><div class="archive-stat-value blue">${allTx.length}</div></div>
+      </div>
+      ${topKat ? `<div class="card-sm" style="text-align:center;margin-bottom:10px;">
+        <div class="archive-stat-label">En Yüksek Gider Kategorisi</div>
+        <div style="font-family:'Plus Jakarta Sans';font-size:16px;font-weight:800;margin-top:4px;">${UI.escHtml(topKat[0])}</div>
+        <div style="font-size:13px;color:var(--danger);font-weight:700;">${Calc.fmt(topKat[1])}</div>
+      </div>` : ''}
+      <div class="card-sm" style="margin-bottom:12px;">
+        <div class="archive-stat-label">Arşivlenme Tarihi</div>
+        <div style="font-size:12px;margin-top:3px;">${a.archivedAt ? dayjs(a.archivedAt).format('DD MMMM YYYY HH:mm') : '-'}</div>
+      </div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text);">İşlem Listesi (${allTx.length})</div>
+      <div style="max-height:220px;overflow-y:auto;">
+        ${allTx.slice(0, 30).map(tx => UI.txItem(tx)).join('')}
+        ${allTx.length > 30 ? `<p style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0;">+${allTx.length - 30} işlem daha</p>` : ''}
+      </div>
+    </div>`,
+    width: Math.min(540, window.innerWidth - 24),
+    confirmButtonText: 'Kapat',
+    showCloseButton: true
+  });
+},
 
   /* ══════════════════════════════════════
      İŞLEM DETAYI
@@ -2527,24 +2609,52 @@ const App = {
   },
 
   async resetAll() {
-    const r = await Swal.fire({
-      icon: 'warning',
-      title: 'Emin misiniz?',
-      text: 'TÜM veriler (gelir, gider, borç, arşiv, log) silinecek!',
-      showCancelButton: true,
-      confirmButtonColor: '#DC2626',
-      confirmButtonText: 'Evet, Her Şeyi Sil',
-      cancelButtonText: 'İptal'
-    });
-    if (r.isConfirmed) {
-      const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','ayarlar','archives','logs','backups'];
-      for (const s of stores) await dbClear(s);
-      await loadAllData();
-      Swal.close();
-      showToast('🗑️ Tüm veriler sıfırlandı');
-      await this.loadPage('dashboard');
+  const r = await Swal.fire({
+    icon: 'warning',
+    title: 'Emin misiniz?',
+    text: 'TÜM veriler (gelir, gider, borç, arşiv, log, yedek) silinecek! Bu işlem geri alınamaz.',
+    showCancelButton: true,
+    confirmButtonColor: '#DC2626',
+    confirmButtonText: 'Evet, Her Şeyi Sil',
+    cancelButtonText: 'İptal'
+  });
+  if (!r.isConfirmed) return;
+
+  const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','ayarlar','archives','logs','backups'];
+  try {
+    // Her store'u atomik olarak temizle (queueSave sırasına uy)
+    for (const s of stores) {
+      await queueSave(() => new Promise((res, rej) => {
+        const tx = db.transaction(s, 'readwrite');
+        tx.objectStore(s).clear();
+        tx.oncomplete = () => res();
+        tx.onerror    = () => rej(tx.error);
+      }));
     }
-  },
+    // State'i varsayılana döndür
+    state.gelirler = [];
+    state.giderler = [];
+    state.borcalacaklar = [];
+    state.archives = {};
+    state.logs = [];
+    state.backups = [];
+    state.limitler = {};
+    state.kategoriler = {
+      gelir: ['Maaş','Serbest Çalışma','Yatırım','Hediye','Kira Geliri','Diğer'],
+      gider: ['Market','Fatura','Eğlence','Ulaşım','Sağlık','Eğitim','Yemek','Alışveriş','Diğer']
+    };
+    state.ayarlar = { varsayilanRaporAraligi: 'ay' };
+    localStorage.removeItem('butcem_migrate_done');
+
+    Swal.close();
+    showToast('🗑️ Tüm veriler sıfırlandı');
+    await this.loadPage('dashboard');
+  } catch (e) {
+    console.error('[resetAll] Hata:', e);
+    Swal.close();
+    Swal.fire({ icon: 'error', title: 'Sıfırlama Hatası', text: e.message || 'Bilinmeyen hata' });
+  }
+},
 
   /* ══════════════════════════════════════
      EXPORT / IMPORT
@@ -2601,8 +2711,8 @@ const App = {
           if (y > 272) { doc.addPage(); y = 20; }
           doc.setFontSize(9); doc.setFont('helvetica','normal');
           doc.setTextColor(100,116,139); doc.text(item.tarih||'', 20, y);
-          doc.setTextColor(15,23,42); doc.text(UI.escHtml(item.kategori||item.kisiAdi||''), 46, y);
-          if (item.aciklama) doc.text(UI.escHtml(item.aciklama.substring(0,25)), 105, y);
+          doc.setTextColor(15,23,42); doc.text(String(item.kategori || item.kisiAdi || '').substring(0, 30), 46, y);
+if (item.aciklama) doc.text(String(item.aciklama).substring(0, 25), 105, y);
           const [r,g,b] = colorFn(item);
           doc.setTextColor(r,g,b);
           doc.text(amtFn(item), W-20, y, { align:'right' });
@@ -2711,30 +2821,50 @@ const App = {
 /* ─────────────────────────────────────────────
    MİGRASYON (Eski ayların otomatik arşivlenmesi)
 ───────────────────────────────────────────── */
-async function migrateOldData() {
+/* Geçmiş ay arşivleme — SADECE kullanıcı onayıyla, tek seferlik */
+async function migrateOldData(force = false) {
+  const seenKey = 'butcem_migrate_done';
+  if (!force && localStorage.getItem(seenKey) === '1') return;
+
   const currentMonth = dayjs().format('YYYY-MM');
-  const oldGelir = state.gelirler.filter(g => !g.tarih.startsWith(currentMonth));
-  const oldGider = state.giderler.filter(g => !g.tarih.startsWith(currentMonth));
-  if (!oldGelir.length && !oldGider.length) return;
+  const oldGelir = state.gelirler.filter(g => g.tarih && !g.tarih.startsWith(currentMonth));
+  const oldGider = state.giderler.filter(g => g.tarih && !g.tarih.startsWith(currentMonth));
 
-  const months = new Set([
-    ...oldGelir.map(g => g.tarih.substring(0,7)),
-    ...oldGider.map(g => g.tarih.substring(0,7))
-  ]);
+  if (oldGelir.length || oldGider.length) {
+    const { isConfirmed } = await Swal.fire({
+      icon: 'question',
+      title: 'Geçmiş Aylar Arşivlensin mi?',
+      html: `<p style="font-size:13px;">${oldGelir.length + oldGider.length} adet geçmiş tarihli kayıt bulundu.</p>
+             <p style="font-size:12px;color:#94A3B8;margin-top:6px;">"Arşivle" derseniz ana listeden kaldırılıp Arşiv sekmesine taşınır. "Vazgeç" derseniz her şey olduğu gibi kalır.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Arşivle',
+      cancelButtonText: 'Vazgeç'
+    });
 
-  for (const m of months) {
-    if (!state.archives[m]) {
-      state.archives[m] = {
-        gelirler:     oldGelir.filter(g => g.tarih.startsWith(m)),
-        giderler:     oldGider.filter(g => g.tarih.startsWith(m)),
-        borcalacaklar:[],
-        archivedAt:   new Date().toISOString()
-      };
+    if (isConfirmed) {
+      const months = new Set([
+        ...oldGelir.map(g => g.tarih.substring(0, 7)),
+        ...oldGider.map(g => g.tarih.substring(0, 7))
+      ]);
+      for (const m of months) {
+        if (!state.archives[m]) {
+          state.archives[m] = {
+            gelirler: oldGelir.filter(g => g.tarih.startsWith(m)),
+            giderler: oldGider.filter(g => g.tarih.startsWith(m)),
+            borcalacaklar: [],
+            archivedAt: new Date().toISOString()
+          };
+        }
+      }
+      state.gelirler = state.gelirler.filter(g => !g.tarih || g.tarih.startsWith(currentMonth));
+      state.giderler = state.giderler.filter(g => !g.tarih || g.tarih.startsWith(currentMonth));
+      await saveGelirler();
+      await saveGiderler();
+      await saveArchives();
     }
   }
-  state.gelirler = state.gelirler.filter(g => g.tarih.startsWith(currentMonth));
-  state.giderler = state.giderler.filter(g => g.tarih.startsWith(currentMonth));
-  await saveAllData();
+
+  localStorage.setItem(seenKey, '1');
 }
 
 /* ─────────────────────────────────────────────
@@ -2742,6 +2872,30 @@ async function migrateOldData() {
 ───────────────────────────────────────────── */
 window.App  = App;
 window.CRUD = CRUD;
+
+/* ───── PWA Install Prompt ───── */
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+});
+async function promptInstall() {
+  if (!deferredInstallPrompt) { showToast('Uygulama zaten yüklü ya da desteklenmiyor.'); return; }
+  deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  if (outcome === 'accepted') showToast('✅ Uygulama yüklendi!');
+}
+window.promptInstall = promptInstall;
+
+/* ───── Arka plana atılmadan önce bekleyen yazmayı flush et ───── */
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'hidden') {
+    try { await _saveChain; }
+    catch (e) { console.warn('[visibilitychange] Flush hatası:', e); }
+  }
+});
+  
 // Kalıcı depolama izni iste
 (async function requestPersistentStorage() {
     if (navigator.storage && navigator.storage.persist) {
