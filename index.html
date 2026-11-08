@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#1E40AF">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Bütçem Pro">
+  <meta name="apple-mobile-web-app-title" content="EBHA Mani">
   <meta name="format-detection" content="telephone=no">
-  <meta name="description" content="Bütçem Pro - Gelir, Gider ve Borç Takip Uygulaması">
-  <title>Bütçem Pro · Finans Takip</title>
+  <meta name="description" content="EBHA Mani - Gelir, Gider ve Borç Takip Uygulaması">
+  <title>EBHA Mani · Finans Takip</title>
   <link rel="manifest" href="/ekonomi/manifest.json">
   <meta name="theme-color" content="#3b82f6">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -3426,7 +3426,7 @@ const App = {
       doc.setFont(FONT, 'bold');
       doc.setFontSize(24);
       doc.setTextColor(255, 255, 255);
-      _txt(doc, 'BÜTÇEM PRO', M, 22, null, hasUni);
+      _txt(doc, 'EBHA MANİ', M, 22, null, hasUni);
 
       doc.setFont(FONT, 'normal');
       doc.setFontSize(10);
@@ -3614,7 +3614,7 @@ const App = {
         _footer(doc, i, total, hasUni, FONT);
       }
 
-      const fname = `butcem_rapor_${dayjs().format('YYYY-MM-DD_HHmm')}.pdf`;
+      const fname = `ebhamani_rapor_${dayjs().format('YYYY-MM-DD_HHmm')}.pdf`;
       doc.save(fname);
       Swal.close();
       showToast('📄 PDF indirildi!');
@@ -3650,7 +3650,7 @@ const App = {
           Aciklama: b.aciklama||''
         }))
       ), 'Borç_Alacak');
-      XLSX.writeFile(wb, `butcem_veri_${dayjs().format('YYYY-MM-DD_HHmm')}.xlsx`);
+      XLSX.writeFile(wb, `ebhamani_veri_${dayjs().format('YYYY-MM-DD_HHmm')}.xlsx`);
       showToast('📊 Excel indirildi!');
     } catch(e) {
       Swal.fire({ icon:'error', title:'Excel Hatası', text:'Dosya oluşturulamadı.' });
@@ -3670,7 +3670,7 @@ const App = {
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
     const url  = URL.createObjectURL(blob);
-    const a    = Object.assign(document.createElement('a'), { href:url, download:`butcem_yedek_${dayjs().format('YYYY-MM-DD_HHmm')}.json` });
+    const a    = Object.assign(document.createElement('a'), { href:url, download:`ebhamani_yedek_${dayjs().format('YYYY-MM-DD_HHmm')}.json` });
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
     localStorage.setItem('last_backup_date', new Date().toISOString());
@@ -3719,7 +3719,7 @@ const App = {
     if (!backup) return;
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type:'application/json' });
     const url  = URL.createObjectURL(blob);
-    const a    = Object.assign(document.createElement('a'), { href:url, download:`butcem_backup_${dayjs(backup.createdAt).format('YYYY-MM-DD_HHmm')}.json` });
+    const a    = Object.assign(document.createElement('a'), { href:url, download:`ebhamani_backup_${dayjs(backup.createdAt).format('YYYY-MM-DD_HHmm')}.json` });
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
@@ -3927,7 +3927,7 @@ function _footer(doc, pg, total, hasUni, FONT) {
   doc.setFont(FONT, 'normal');
   doc.setFontSize(7);
   doc.setTextColor(148,163,184);
-  _txt(doc, 'Butcem Pro  ·  Finansal Rapor', 20, H - 9.5, null, hasUni);
+  _txt(doc, 'EBHA Mani  ·  Finansal Rapor', 20, H - 9.5, null, hasUni);
   _txt(doc, `Sayfa ${pg} / ${total}`, W - 20, H - 9.5, { align: 'right' }, hasUni);
 }
 
