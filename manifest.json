@@ -1,16 +1,17 @@
 {
-{
   "name": "EBHA Mani",
   "short_name": "EBHA Mani",
-  "description": "Gelir, Gider ve Borç Takip Uygulaması",
-  "start_url": "/ekonomi/",
-  "display": "standalone",
-  "background_color": "#f0f4f8",
-  "theme_color": "#3b82f6",
-  "orientation": "portrait",
+  "description": "EBHA Mani — Gelir, Gider ve Borç Takip Uygulaması",
   "lang": "tr",
+  "dir": "ltr",
+  "start_url": "/ekonomi/",
   "scope": "/ekonomi/",
   "id": "/ekonomi/",
+  "display": "standalone",
+  "display_override": ["standalone", "window-controls-overlay"],
+  "orientation": "portrait",
+  "background_color": "#f0f4f8",
+  "theme_color": "#3b82f6",
   "categories": ["finance", "productivity", "business", "utilities"],
   "icons": [
     {
@@ -73,14 +74,14 @@
       "src": "https://ahmet363601.github.io/ekonomi/screenshots/home.png",
       "sizes": "1080x1920",
       "type": "image/png",
-      "form_factor": "wide",
+      "form_factor": "narrow",
       "label": "Ana Sayfa"
     },
     {
       "src": "https://ahmet363601.github.io/ekonomi/screenshots/add.png",
       "sizes": "1080x1920",
       "type": "image/png",
-      "form_factor": "wide",
+      "form_factor": "narrow",
       "label": "İşlem Ekleme"
     }
   ],
@@ -135,7 +136,6 @@
   ],
   "related_applications": [],
   "prefer_related_applications": false,
-  "display_override": ["standalone", "window-controls-overlay"],
   "launch_handler": {
     "client_mode": ["focus-existing", "auto"]
   },
