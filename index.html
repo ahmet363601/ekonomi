@@ -1510,17 +1510,30 @@ const CRUD = {
       return false;
     }
 
+    /* 🆕 O aya ait logları da arşive taşı */
+    const aLoglar = state.logs.filter(l => {
+      if (!l.timestamp) return false;
+      return l.timestamp.substring(0, 7) === monthKey;   // YYYY-MM
+    });
+
     state.archives[monthKey] = {
       gelirler: aGelir,
       giderler: aGider,
-      archivedAt: new Date().toISOString()
+      loglar:   aLoglar,                                // 🆕
+      archivedAt: new Date().toISOString(),
+      schemaVersion: 2                                  // 🆕
     };
 
     state.gelirler = state.gelirler.filter(g => !g.tarih || !g.tarih.startsWith(monthKey));
     state.giderler = state.giderler.filter(g => !g.tarih || !g.tarih.startsWith(monthKey));
+    state.logs     = state.logs.filter(l => {           // 🆕
+      if (!l.timestamp) return true;
+      return l.timestamp.substring(0, 7) !== monthKey;
+    });
 
     await saveGelirler();
     await saveGiderler();
+    await saveLogs();                                   // 🆕
     await saveArchives();
     await addLog('manuel_arsiv', `${monthKey} arşivlendi`);
     await createAutoBackup();
@@ -1528,9 +1541,9 @@ const CRUD = {
     Swal.fire({
       icon: 'success',
       title: 'Arşivlendi!',
-      html: `<p><strong>${aGelir.length}</strong> gelir + <strong>${aGider.length}</strong> gider arşive taşındı.</p>
+      html: `<p><strong>${aGelir.length}</strong> gelir + <strong>${aGider.length}</strong> gider + <strong>${aLoglar.length}</strong> log arşive taşındı.</p>
              <p style="font-size:12px;color:#94a3b8;margin-top:6px;">Borç/Alacak kayıtları ana listede kalmaya devam ediyor. Tamamlananlar otomatik olarak Arşiv sayfasında görünür.</p>`,
-      timer: 3000,
+      timer: 3200,
       showConfirmButton: false
     });
     return true;
@@ -2630,11 +2643,12 @@ const App = {
               const gelir = a.gelirler.reduce((s,g)=>s+g.miktar,0);
               const gider = a.giderler.reduce((s,g)=>s+g.miktar,0);
               const net   = gelir - gider;
+              const logCnt = Array.isArray(a.loglar) ? a.loglar.length : 0;   // 🆕
               const cnt   = a.gelirler.length + a.giderler.length + (a.borcalacaklar||[]).length;
               return `<div class="archive-card" onclick="App.showArchiveDetail('${k}')">
                 <div class="archive-month">${dayjs(k+'-01').format('MMMM YYYY')}</div>
                 <div class="archive-amount" style="color:${net>=0?'var(--accent)':'var(--danger)'};">${Calc.fmt(net)}</div>
-                <div class="archive-count">${cnt} işlem</div>
+                <div class="archive-count">${cnt} işlem${logCnt ? ` · ${logCnt} log` : ''}</div>
                 <div style="margin-top:6px;font-size:10px;display:flex;gap:8px;">
                   <span style="color:var(--accent);">↑ ${Calc.fmt(gelir)}</span>
                   <span style="color:var(--danger);">↓ ${Calc.fmt(gider)}</span>
@@ -2715,10 +2729,10 @@ const App = {
   async showArchiveDetail(key) {
   const a = state.archives[key];
   if (!a) return;
-
   const aGelirler = Array.isArray(a.gelirler) ? a.gelirler : [];
   const aGiderler = Array.isArray(a.giderler) ? a.giderler : [];
   const aBorclar  = Array.isArray(a.borcalacaklar) ? a.borcalacaklar : [];
+  const aLoglar   = Array.isArray(a.loglar) ? a.loglar : [];   // 🆕
 
   const gelir  = aGelirler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
   const gider  = aGiderler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
@@ -2768,6 +2782,25 @@ const App = {
         ${allTx.slice(0, 30).map(tx => UI.txItem(tx)).join('')}
         ${allTx.length > 30 ? `<p style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0;">+${allTx.length - 30} işlem daha</p>` : ''}
       </div>
+
+      ${aLoglar.length ? `
+        <div style="margin-top:16px;">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text);display:flex;justify-content:space-between;align-items:center;">
+            <span>📜 Arşiv Logları</span>
+            <span class="badge badge-blue" style="font-size:10px;">${aLoglar.length} kayıt</span>
+          </div>
+          <div style="max-height:240px;overflow-y:auto;">
+            ${aLoglar.slice(0, 40).map(l => `
+              <div class="log-item" style="margin-bottom:6px;">
+                <div class="log-action">${UI.escHtml(l.action)}</div>
+                ${l.details ? `<div class="log-details">${UI.escHtml(l.details)}</div>` : ''}
+                <div class="log-time"><i class="fas fa-clock"></i> ${dayjs(l.timestamp).format('DD MMM YYYY HH:mm:ss')}</div>
+              </div>
+            `).join('')}
+            ${aLoglar.length > 40 ? `<p style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0;">+${aLoglar.length - 40} log daha</p>` : ''}
+          </div>
+        </div>
+      ` : ''}
     </div>`,
     width: Math.min(540, window.innerWidth - 24),
     confirmButtonText: 'Kapat',
@@ -3445,18 +3478,31 @@ async function migrateOldData(force = false) {
       ]);
       for (const m of months) {
         if (!state.archives[m]) {
+          /* 🆕 O aya ait logları da topla */
+          const aLoglar = state.logs.filter(l => {
+            if (!l.timestamp) return false;
+            return l.timestamp.substring(0, 7) === m;
+          });
           state.archives[m] = {
             gelirler: oldGelir.filter(g => g.tarih.startsWith(m)),
             giderler: oldGider.filter(g => g.tarih.startsWith(m)),
             borcalacaklar: [],
-            archivedAt: new Date().toISOString()
+            loglar: aLoglar,
+            archivedAt: new Date().toISOString(),
+            schemaVersion: 2
           };
         }
       }
       state.gelirler = state.gelirler.filter(g => !g.tarih || g.tarih.startsWith(currentMonth));
       state.giderler = state.giderler.filter(g => !g.tarih || g.tarih.startsWith(currentMonth));
+      /* 🆕 Bu aya ait olmayan logları state.logs'tan çıkar */
+      state.logs = state.logs.filter(l => {
+        if (!l.timestamp) return true;
+        return l.timestamp.substring(0, 7) === currentMonth;
+      });
       await saveGelirler();
       await saveGiderler();
+      await saveLogs();   // 🆕
       await saveArchives();
     }
   }
