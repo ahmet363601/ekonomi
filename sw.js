@@ -181,8 +181,10 @@ self.addEventListener('fetch', event => {
 });
 
 // Background sync
+// Background sync
+// NOT: iOS Safari periodicsync desteklemez; sadece SyncManager olan tarayıcılarda çalışır.
 self.addEventListener('periodicsync', event => {
-  if (event.tag === 'archive-check') {
+  if (event.tag === 'archive-check' && 'SyncManager' in self) {
     event.waitUntil(checkAndArchive());
   }
 });
