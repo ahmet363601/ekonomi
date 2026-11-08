@@ -1,7 +1,8 @@
 {
-  "name": "Düzgün Ekonomi Pro1",
-  "short_name": "Düzgün Ekonomi",
-  "description": "Gelişmiş Kişisel Finans Yöneticisi - AES-256 Şifreli | Cihaz Yetkilendirme Sistemi",
+{
+  "name": "EBHA Mani",
+  "short_name": "EBHA Mani",
+  "description": "Gelir, Gider ve Borç Takip Uygulaması",
   "start_url": "/ekonomi/",
   "display": "standalone",
   "background_color": "#f0f4f8",
