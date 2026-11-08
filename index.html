@@ -381,10 +381,7 @@ button, input, select, textarea {
   height: 200px;
   position: relative;
 }
-.chart-wrap canvas {
-  width: 100% !important;
-  height: 100% !important;
-}
+
 
 /* ══════════════════════════════════════════
    CHIPS / TABS
@@ -1121,8 +1118,11 @@ async function loadAllData() {
     const limits = await dbGetAll('limitler');
     state.limitler = limits.reduce((acc, l) => { acc[l.kategori] = l.limit; return acc; }, {});
 
-    const ayars = await dbGetAll('ayarlar');
-    if (ayars.length) state.ayarlar = { ...state.ayarlar, ...ayars[0] };
+      const ayars = await dbGetAll('ayarlar');
+    if (ayars.length) {
+      const { id, ...rest } = ayars[0];
+      state.ayarlar = { ...state.ayarlar, ...rest };
+    }
 
     const archs = await dbGetAll('archives');
     state.archives = archs.reduce((acc, a) => { acc[a.month] = a.data; return acc; }, {});
@@ -1481,9 +1481,9 @@ const Charts = {
       type: 'doughnut',
       data: {
         labels: Object.keys(data),
-        datasets: [{
+          datasets: [{
           data: Object.values(data),
-          backgroundColor: this.palette.slice(0, Object.keys(data).length),
+          backgroundColor: Object.keys(data).map((_, i) => this.palette[i % this.palette.length]),
           borderWidth: 0,
           hoverOffset: 8
         }]
@@ -1562,8 +1562,18 @@ const UI = {
   },
 
   escHtml(str) {
-    if (!str) return '';
+    if (str == null) return '';
     return String(str).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+  },
+
+  jsEscape(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/"/g, '\\"')
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r');
   },
 
   txItem(item, clickCb) {
@@ -1627,6 +1637,8 @@ function showToast(msg) {
   if (existing) existing.remove();
   const t = document.createElement('div');
   t.className = 'toast';
+  t.setAttribute('role', 'status');
+  t.setAttribute('aria-live', 'polite');
   t.textContent = msg;
   document.body.appendChild(t);
   t.addEventListener('animationend', () => t.remove());
@@ -2518,7 +2530,7 @@ const App = {
       state.kategoriler[tip].map(k => `
         <span style="background:${bg};color:${color};padding:5px 10px;border-radius:99px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:6px;margin:3px;">
           ${UI.escHtml(k)}
-          <span onclick="CRUD.kategoriSil('${tip}','${k}').then(()=>App.openKategoriModal())" style="cursor:pointer;color:#EF4444;font-size:13px;font-weight:800;line-height:1;">×</span>
+          <span onclick="CRUD.kategoriSil('${tip}','${UI.jsEscape(k)}').then(()=>App.openKategoriModal())" style="cursor:pointer;color:#EF4444;font-size:13px;font-weight:800;line-height:1;">×</span>
         </span>`).join('');
 
     Swal.fire({
@@ -2562,10 +2574,10 @@ const App = {
       return `<div style="padding:8px;background:${exceeded?'#FEF2F2':'var(--surface2)'};border-radius:10px;border:1px solid ${exceeded?'#FCA5A5':'var(--border)'};margin-bottom:7px;">
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="flex:1;font-size:12px;font-weight:600;">${UI.escHtml(k)}</span>
-          <input type="number" step="0.01" placeholder="Limit…" value="${lim}" data-kat="${k}"
+            <input type="number" step="0.01" placeholder="Limit…" value="${lim}" data-kat="${UI.escHtml(k)}"
             style="width:100px;padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;"
-            oninput="CRUD.limitEkle('${k}',this.value)">
-          ${lim?`<button onclick="CRUD.limitSil('${k}').then(()=>App.openLimitModal())" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;">✕</button>`:''}
+            oninput="CRUD.limitEkle('${UI.jsEscape(k)}',this.value)">
+          ${lim?`<button onclick="CRUD.limitSil('${UI.jsEscape(k)}').then(()=>App.openLimitModal())" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;">✕</button>`:''}
         </div>
         ${exceeded?`<div style="font-size:10px;color:var(--danger);margin-top:4px;">⚠️ Aşım! ${Calc.fmt(cur)} / ${Calc.fmt(parseFloat(lim))}</div>`:''}
       </div>`;
@@ -2590,6 +2602,11 @@ const App = {
         <select id="sRa" class="swal2-select">
           ${[['bugun','Bugün'],['hafta','Bu Hafta'],['ay','Bu Ay'],['3ay','Son 3 Ay']].map(([v,l])=>`<option value="${v}"${v===state.ayarlar.varsayilanRaporAraligi?' selected':''}>${l}</option>`).join('')}
         </select>
+        <div style="margin-top:20px;padding:14px;background:var(--primary-light);border-radius:12px;border:1px solid #BFDBFE;">
+          <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;">📲 Uygulamayı Yükle</div>
+          <p style="font-size:11px;color:var(--text2);margin-bottom:10px;">Ana ekrana ekleyip çevrimdışı kullanın.</p>
+          <button onclick="App.promptInstall()" style="padding:8px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;">Ana Ekrana Ekle</button>
+        </div>
         <div style="margin-top:20px;padding:14px;background:var(--danger-light);border-radius:12px;border:1px solid #FCA5A5;">
           <div style="font-size:12px;font-weight:700;color:var(--danger);margin-bottom:8px;">⚠️ Tehlikeli Bölge</div>
           <p style="font-size:11px;color:var(--text2);margin-bottom:10px;">Tüm veriler kalıcı olarak silinir. Bu işlem geri alınamaz!</p>
@@ -2659,7 +2676,11 @@ const App = {
   /* ══════════════════════════════════════
      EXPORT / IMPORT
   ══════════════════════════════════════ */
-  async exportToPDF() {
+    async exportToPDF() {
+    if (typeof window.jspdf === 'undefined') {
+      showToast('❌ PDF motoru yüklenemedi. İnternet bağlantınızı kontrol edin.');
+      return;
+    }
     Swal.fire({ title: 'PDF oluşturuluyor…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
       const { jsPDF } = window.jspdf;
@@ -2738,7 +2759,11 @@ if (item.aciklama) doc.text(String(item.aciklama).substring(0, 25), 105, y);
     }
   },
 
-  async exportToExcel() {
+    async exportToExcel() {
+    if (typeof window.XLSX === 'undefined') {
+      showToast('❌ Excel motoru yüklenemedi. İnternet bağlantınızı kontrol edin.');
+      return;
+    }
     try {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
@@ -2784,24 +2809,38 @@ if (item.aciklama) doc.text(String(item.aciklama).substring(0, 25), 105, y);
     showToast('💾 Yedek alındı!');
   },
 
-  async importFromJSON(file) {
+    async importFromJSON(file) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async e => {
       try {
         const data = JSON.parse(e.target.result);
-        state.gelirler      = data.gelirler      || [];
-        state.giderler      = data.giderler      || [];
-        state.borcalacaklar = data.borcalacaklar || [];
-        if (data.kategoriler) state.kategoriler = data.kategoriler;
-        if (data.limitler)    state.limitler    = data.limitler;
-        if (data.archives)    state.archives    = data.archives;
+        const asArr = v => Array.isArray(v) ? v.filter(x => x && x.miktar != null) : [];
+
+        state.gelirler      = asArr(data.gelirler);
+        state.giderler      = asArr(data.giderler);
+        state.borcalacaklar = asArr(data.borcalacaklar);
+
+        if (data.kategoriler && data.kategoriler.gelir && data.kategoriler.gider) {
+          state.kategoriler = {
+            gelir: Array.isArray(data.kategoriler.gelir) ? data.kategoriler.gelir : state.kategoriler.gelir,
+            gider: Array.isArray(data.kategoriler.gider) ? data.kategoriler.gider : state.kategoriler.gider
+          };
+        }
+        if (data.limitler && typeof data.limitler === 'object' && !Array.isArray(data.limitler)) {
+          state.limitler = data.limitler;
+        }
+        if (data.archives && typeof data.archives === 'object' && !Array.isArray(data.archives)) {
+          state.archives = data.archives;
+        }
+
         await saveAllData();
-        await addLog('json_import', `${file.name}`);
+        await addLog('json_import', file.name);
         showToast('✅ Yedek başarıyla yüklendi!');
         await this.loadPage(this.currentPage);
-      } catch {
-        Swal.fire({ icon:'error', title:'Geçersiz Dosya', text:'JSON formatı hatalı.' });
+      } catch (err) {
+        console.error('[import] Hata:', err);
+        Swal.fire({ icon:'error', title:'Geçersiz Dosya', text:'JSON formatı hatalı veya eksik.' });
       }
     };
     reader.readAsText(file);
@@ -2916,6 +2955,17 @@ document.addEventListener('visibilitychange', async () => {
    INIT
 ───────────────────────────────────────────── */
 (async function init() {
+  // CDN kontrolü — dayjs veya Swal yüklenmezse uygulama donar
+  if (typeof dayjs === 'undefined' || typeof Swal === 'undefined') {
+    document.getElementById('view').innerHTML = `
+      <div class="empty-state" style="padding:60px 20px;">
+        <i class="fas fa-wifi" style="color:var(--danger);font-size:40px;"></i>
+        <p style="margin-top:12px;"><strong>Gerekli kütüphaneler yüklenemedi</strong></p>
+        <p style="font-size:11px;opacity:.6;margin-top:6px;">İnternet bağlantınızı kontrol edip sayfayı yenileyin.</p>
+        <button class="btn btn-primary" style="margin-top:16px;" onclick="location.reload()">Yenile</button>
+      </div>`;
+    return;
+  }
   try {
     await openDB();
     await loadAllData();
