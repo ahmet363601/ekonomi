@@ -1449,6 +1449,7 @@ const CRUD = {
     const item = state.borcalacaklar.find(b => b.id == id);
     if (!item) return false;
     item.odendiMi = true;
+    item.odemeTarihi = new Date().toISOString();   // ← YENİ: arşiv sıralaması için
     await saveBorclar();
     await addLog('borc_tam_odendi', item.kisiAdi);
     await createAutoBackup();
@@ -1461,7 +1462,10 @@ const CRUD = {
     if (!item.payments) item.payments = [];
     item.payments.push({ id: Date.now(), miktar: parseFloat(miktar), tarih, aciklama: aciklama || '' });
     const odenen = item.payments.reduce((s, p) => s + p.miktar, 0);
-    if (odenen >= item.miktar) item.odendiMi = true;
+    if (odenen >= item.miktar) {
+      item.odendiMi = true;
+      item.odemeTarihi = new Date().toISOString();   // ← YENİ
+    }
     await saveBorclar();
     await addLog('ara_odeme', `${item.kisiAdi} · ${Calc.fmt(miktar)}`);
     await createAutoBackup();
@@ -1499,25 +1503,38 @@ const CRUD = {
       Swal.fire({ icon: 'warning', title: 'Uyarı', text: `${monthKey} ayı zaten arşivlenmiş!` });
       return false;
     }
+    // SADECE gelir/gider — borçlar ana listede kalır
     const aGelir = state.gelirler.filter(g => g.tarih && g.tarih.startsWith(monthKey));
     const aGider = state.giderler.filter(g => g.tarih && g.tarih.startsWith(monthKey));
-    const aBorc  = state.borcalacaklar.filter(b => b.tarih && b.tarih.startsWith(monthKey));
-    if (!aGelir.length && !aGider.length && !aBorc.length) {
-      Swal.fire({ icon: 'info', title: 'Bilgi', text: `${monthKey} ayına ait veri bulunamadı.` });
+
+    if (!aGelir.length && !aGider.length) {
+      Swal.fire({ icon: 'info', title: 'Bilgi', text: `${monthKey} ayına ait gelir/gider kaydı bulunamadı.` });
       return false;
     }
+
     state.archives[monthKey] = {
-      gelirler: aGelir, giderler: aGider, borcalacaklar: aBorc,
+      gelirler: aGelir,
+      giderler: aGider,
       archivedAt: new Date().toISOString()
     };
+
     state.gelirler = state.gelirler.filter(g => !g.tarih || !g.tarih.startsWith(monthKey));
     state.giderler = state.giderler.filter(g => !g.tarih || !g.tarih.startsWith(monthKey));
+
     await saveGelirler();
     await saveGiderler();
     await saveArchives();
     await addLog('manuel_arsiv', `${monthKey} arşivlendi`);
     await createAutoBackup();
-    Swal.fire({ icon: 'success', title: 'Arşivlendi!', text: 'Borç verileriniz korundu.', timer: 1800, showConfirmButton: false });
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Arşivlendi!',
+      html: `<p><strong>${aGelir.length}</strong> gelir + <strong>${aGider.length}</strong> gider arşive taşındı.</p>
+             <p style="font-size:12px;color:#94a3b8;margin-top:6px;">Borç/Alacak kayıtları ana listede kalmaya devam ediyor. Tamamlananlar otomatik olarak Arşiv sayfasında görünür.</p>`,
+      timer: 3000,
+      showConfirmButton: false
+    });
     return true;
   },
 
@@ -2299,9 +2316,10 @@ const App = {
     const r = await Swal.fire({ icon:'question', title:'Tamamen ödendi mi?', showCancelButton:true, confirmButtonText:'Evet', cancelButtonText:'İptal' });
     if (r.isConfirmed) {
       await CRUD.borcOdendi(id);
-      showToast('✅ Ödeme tamamlandı!');
+      showToast('✅ Ödeme tamamlandı! Arşiv\'e eklendi.');
       await this.renderBorcList();
       if (this.currentPage === 'dashboard') await this.renderRecentList();
+      if (this.currentPage === 'arsiv') await this.renderArsiv();
     }
   },
 
@@ -2314,6 +2332,144 @@ const App = {
       if (this.currentPage === 'dashboard') await this.renderRecentList();
     }
   },
+
+  /* ══════════════════════════════════════
+     TAMAMLANAN BORÇ DETAYI (Arşiv)
+  ══════════════════════════════════════ */
+  async showTamamlananBorcDetay(id) {
+    const b = state.borcalacaklar.find(x => x.id == id);
+    if (!b) return;
+
+    const birim = b.birim || 'tl';
+    const fiyat = Calc.birimFiyat(birim);
+    const toplamTL = (Number(b.miktar) || 0) * fiyat;
+    const isAl = b.tip === 'alacak';
+    const odemeTarihi = b.odemeTarihi ? dayjs(b.odemeTarihi).format('DD MMMM YYYY HH:mm') : '—';
+    const birimKisa = Calc.birimKisa(birim);
+
+    const payRows = (b.payments || []).map(p => {
+      const pmBirim = Number(p.miktar) || 0;
+      const pmTL = pmBirim * fiyat;
+      const pmStr = birim === 'tl'
+        ? Calc.fmt(pmTL)
+        : `${pmBirim.toLocaleString('tr-TR',{maximumFractionDigits:2})} ${birimKisa} <span style="color:var(--text3);">≈ ${Calc.fmt(pmTL)}</span>`;
+      return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;">
+        <span>${dayjs(p.tarih||b.tarih).format('DD MMM')} ${p.aciklama?'· '+UI.escHtml(p.aciklama):''}</span>
+        <span style="color:var(--accent);font-weight:700;">+${pmStr}</span>
+      </div>`;
+    }).join('');
+
+    const miktarGosterim = birim === 'tl'
+      ? Calc.fmt(toplamTL)
+      : `${Calc.formatBirim(b)} <span style="color:var(--text3);font-size:13px;font-weight:500;">≈ ${Calc.fmt(toplamTL)}</span>`;
+
+    const result = await Swal.fire({
+      title: '✅ Tamamlanan ' + (isAl ? 'Alacak' : 'Borç') + ' Detayı',
+      html: `<div style="text-align:left;">
+        <div class="archive-stat-card" style="text-align:center;margin-bottom:12px;padding:14px;">
+          <div class="archive-stat-label">Kişi</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:18px;font-weight:800;">${UI.escHtml(b.kisiAdi)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">${isAl ? '🟢 Alacak' : '🔴 Borç'}</div>
+        </div>
+
+        <div class="archive-detail-stats" style="margin-bottom:12px;">
+          <div class="archive-stat-card">
+            <div class="archive-stat-label">Miktar</div>
+            <div class="archive-stat-value">${miktarGosterim}</div>
+          </div>
+          <div class="archive-stat-card">
+            <div class="archive-stat-label">Birim Fiyat</div>
+            <div class="archive-stat-value" style="font-size:11px;">${Calc.fmt(fiyat)}</div>
+          </div>
+          <div class="archive-stat-card">
+            <div class="archive-stat-label">Ödeme</div>
+            <div class="archive-stat-value" style="font-size:12px;">${(b.payments || []).length} adet</div>
+          </div>
+        </div>
+
+        <div class="card-sm" style="margin-bottom:8px;">
+          <div class="archive-stat-label">Oluşturulma</div>
+          <div style="font-size:12px;margin-top:3px;">${dayjs(b.tarih).format('DD MMMM YYYY')}</div>
+        </div>
+
+        <div class="card-sm" style="margin-bottom:8px;border-color:var(--accent);background:var(--accent-light);">
+          <div class="archive-stat-label">✅ Tamamlanma Tarihi</div>
+          <div style="font-size:12px;margin-top:3px;color:var(--accent);font-weight:700;">${odemeTarihi}</div>
+        </div>
+
+        ${b.aciklama ? `<div class="card-sm" style="margin-bottom:10px;">
+          <div class="archive-stat-label">Açıklama</div>
+          <div style="font-size:13px;margin-top:4px;">${UI.escHtml(b.aciklama)}</div>
+        </div>` : ''}
+
+        ${payRows ? `<div style="font-size:12px;font-weight:700;margin:12px 0 6px;">Ödeme Geçmişi</div>${payRows}` : ''}
+      </div>`,
+      showDenyButton: true,
+      showCancelButton: true,
+      confirmButtonText: 'Kapat',
+      denyButtonText: '↩️ Geri Al',
+      cancelButtonText: '🗑️ Kalıcı Sil',
+      denyButtonColor: '#f59e0b',
+      cancelButtonColor: '#dc2626',
+      width: Math.min(500, window.innerWidth - 24)
+    });
+
+    if (result.isDenied) {
+      await this.geriAlTamamlananBorc(id);
+    } else if (result.isDismissed && result.dismiss === Swal.DismissReason.cancel) {
+      await this.kaliciSilTamamlananBorc(id);
+    }
+  },
+
+  async geriAlTamamlananBorc(id) {
+    const b = state.borcalacaklar.find(x => x.id == id);
+    if (!b) return;
+
+    b.odendiMi = false;
+    delete b.odemeTarihi;
+
+    // Eğer ödemeler toplamı borcu karşılıyorsa, son ödemeyi geri al
+    const totalPaid = (b.payments || []).reduce((s, p) => s + (Number(p.miktar) || 0), 0);
+    if (totalPaid >= b.miktar && b.payments && b.payments.length > 0) {
+      b.payments = b.payments.slice(0, -1);
+    }
+
+    await saveBorclar();
+    await addLog('borc_geri_alindi', b.kisiAdi);
+    await createAutoBackup();
+
+    showToast('↩️ Kayıt tekrar aktif olarak işaretlendi');
+    await this.renderArsiv();
+  },
+
+  async kaliciSilTamamlananBorc(id) {
+    const b = state.borcalacaklar.find(x => x.id == id);
+    if (!b) return;
+
+    const onay = await Swal.fire({
+      icon: 'warning',
+      title: 'Kalıcı olarak silinsin mi?',
+      html: `<p><strong>${UI.escHtml(b.kisiAdi)}</strong> kaydı tamamen silinecek.</p>
+             <p style="font-size:12px;color:#94a3b8;margin-top:6px;">Bu işlem geri alınamaz.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Evet, Sil',
+      confirmButtonColor: '#dc2626',
+      cancelButtonText: 'İptal'
+    });
+
+    if (!onay.isConfirmed) return;
+
+    state.borcalacaklar = state.borcalacaklar.filter(x => x.id != id);
+    await saveBorclar();
+    await addLog('borc_sil_kalici', b.kisiAdi);
+    await createAutoBackup();
+
+    showToast('🗑️ Kayıt kalıcı olarak silindi');
+    await this.renderArsiv();
+  },
+
+  /* ══════════════════════════════════════
+     RAPOR
 
   /* ══════════════════════════════════════
      RAPOR
@@ -2435,6 +2591,10 @@ const App = {
   ══════════════════════════════════════ */
   async renderArsiv() {
     const keys = Object.keys(state.archives).sort().reverse();
+    const tamamlananBorclar = state.borcalacaklar.filter(b => b.odendiMi);
+    const tamamlananToplamTL = tamamlananBorclar.reduce(
+      (s, b) => s + (Number(b.miktar) || 0) * Calc.birimFiyat(b.birim || 'tl'), 0
+    );
 
     document.getElementById('view').innerHTML = `<div class="page-in">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px;flex-wrap:wrap;">
@@ -2452,6 +2612,22 @@ const App = {
         <div class="stat-card"><div class="card-label">Arşivlenen Ay</div><div class="stat-amount blue">${keys.length}</div></div>
         <div class="stat-card"><div class="card-label">Yedek Sayısı</div><div class="stat-amount amber">${state.backups.length}</div></div>
       </div>
+
+      ${tamamlananBorclar.length > 0 ? `
+        <div class="card" style="border-left:4px solid var(--accent);">
+          <div class="section-header">
+            <span class="section-title" style="display:flex;align-items:center;gap:8px;">
+              <i class="fas fa-check-circle" style="color:var(--accent);"></i>
+              Tamamlanan Borç & Alacak
+            </span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:11px;color:var(--text3);font-weight:600;">${Calc.fmt(tamamlananToplamTL)}</span>
+              <span class="badge badge-success">${tamamlananBorclar.length}</span>
+            </div>
+          </div>
+          <div id="tamamlananBorcList"></div>
+        </div>
+      ` : ''}
 
       ${keys.length === 0
         ? UI.empty('Henüz arşiv yok. "Bu Ayı Arşivle" butonunu kullanarak başlayın.')
@@ -2488,6 +2664,40 @@ const App = {
         </div>
       </div>
     </div>`;
+
+    // ✅ Tamamlanan borçları render et
+    if (tamamlananBorclar.length > 0) {
+      const el = document.getElementById('tamamlananBorcList');
+      if (el) {
+        el.innerHTML = tamamlananBorclar
+          .sort((a, b) => (b.odemeTarihi || '') > (a.odemeTarihi || '') ? 1 : -1)
+          .map(b => {
+            const birim = b.birim || 'tl';
+            const fiyat = Calc.birimFiyat(birim);
+            const tlDeger = (Number(b.miktar) || 0) * fiyat;
+            const isAl = b.tip === 'alacak';
+            const odemeTarihi = b.odemeTarihi ? dayjs(b.odemeTarihi).format('DD MMM YYYY') : '—';
+            const miktarStr = birim === 'tl'
+              ? Calc.fmt(tlDeger)
+              : `${Calc.formatBirim(b)} <span style="color:var(--text3);font-weight:500;">≈ ${Calc.fmt(tlDeger)}</span>`;
+
+            return `<div class="tx-item tx-item-clickable" onclick="App.showTamamlananBorcDetay(${b.id})"
+                         style="margin-bottom:8px;border-left:3px solid ${isAl ? 'var(--accent)' : 'var(--warning)'};">
+              <div class="tx-icon ${isAl ? 'alacak' : 'borc'}">
+                <i class="fas ${isAl ? 'fa-hand-holding-dollar' : 'fa-hand-holding-usd'}"></i>
+              </div>
+              <div class="tx-info">
+                <div class="tx-title">${UI.escHtml(b.kisiAdi)}</div>
+                <div class="tx-date">${isAl ? '🟢 Alacak' : '🔴 Borç'} · ${miktarStr}</div>
+              </div>
+              <div style="text-align:right;font-size:10px;color:var(--text3);flex-shrink:0;">
+                <div style="color:var(--accent);font-weight:700;margin-bottom:2px;">✅ Tamamlandı</div>
+                <div>${odemeTarihi}</div>
+              </div>
+            </div>`;
+          }).join('');
+      }
+    }
   },
 
   async manualArchive() {
