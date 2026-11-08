@@ -2682,88 +2682,12 @@ const App = {
   /* ══════════════════════════════════════
      EXPORT / IMPORT
   ══════════════════════════════════════ */
-    async exportToPDF() {
-    if (typeof window.jspdf === 'undefined') {
-      showToast('❌ PDF motoru yüklenemedi. İnternet bağlantınızı kontrol edin.');
-      return;
-    }
-    Swal.fire({ title: 'PDF oluşturuluyor…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    try {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF('p','mm','a4');
-      const W = doc.internal.pageSize.getWidth();
-
-      // Header
-      doc.setFillColor(37,99,235);
-      doc.rect(0,0,W,36,'F');
-      doc.setTextColor(255,255,255);
-      doc.setFontSize(18); doc.setFont('helvetica','bold');
-      doc.text('BUTCEM PRO — Finansal Rapor', W/2, 16, { align:'center' });
-      doc.setFontSize(9); doc.setFont('helvetica','normal');
-      doc.text(`Oluşturma: ${dayjs().format('DD.MM.YYYY HH:mm')}`, W/2, 26, { align:'center' });
-
-      doc.setTextColor(15,23,42);
-      let y = 48;
-
-      const row = (label, val, color) => {
-        if (y > 270) { doc.addPage(); y = 20; }
-        doc.setFontSize(10); doc.setFont('helvetica','normal');
-        doc.setTextColor(100,116,139); doc.text(label, 20, y);
-        if (color) doc.setTextColor(...color);
-        else doc.setTextColor(15,23,42);
-        doc.text(val, W-20, y, { align:'right' });
-        y += 9;
-      };
-
-      const ayF = Calc.ayFilter();
-      doc.setFontSize(12); doc.setFont('helvetica','bold'); doc.setTextColor(15,23,42);
-      doc.text('ÖZET', 20, y); y += 4;
-      doc.setDrawColor(226,232,240); doc.line(20,y,W-20,y); y += 8;
-
-      row('Bu Ay Gelir', Calc.fmt(Calc.toplamGelir(ayF)), [5,150,105]);
-      row('Bu Ay Gider', Calc.fmt(Calc.toplamGider(ayF)), [220,38,38]);
-      row('Net Bakiye',  Calc.fmt(Calc.bakiye(ayF)));
-      row('Toplam Gelir (tüm)', Calc.fmt(Calc.toplamGelir()));
-      row('Toplam Gider (tüm)', Calc.fmt(Calc.toplamGider()));
-      row('Aktif Borç/Alacak',  Calc.fmt(Calc.aktifBorcAlacak()), [217,119,6]);
-      row('Toplam İşlem',       `${state.gelirler.length + state.giderler.length}`);
-
-      y += 6;
-      const section = (title, items, amtFn, colorFn) => {
-        if (!items.length) return;
-        doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(15,23,42);
-        doc.text(title, 20, y); y += 4;
-        doc.setDrawColor(226,232,240); doc.line(20,y,W-20,y); y += 6;
-        items.slice(0,25).forEach(item => {
-          if (y > 272) { doc.addPage(); y = 20; }
-          doc.setFontSize(9); doc.setFont('helvetica','normal');
-          doc.setTextColor(100,116,139); doc.text(item.tarih||'', 20, y);
-          doc.setTextColor(15,23,42); doc.text(String(item.kategori || item.kisiAdi || '').substring(0, 30), 46, y);
-if (item.aciklama) doc.text(String(item.aciklama).substring(0, 25), 105, y);
-          const [r,g,b] = colorFn(item);
-          doc.setTextColor(r,g,b);
-          doc.text(amtFn(item), W-20, y, { align:'right' });
-          doc.setTextColor(15,23,42);
-          y += 7;
-        });
-        if (items.length > 25) { doc.setFontSize(8); doc.setTextColor(148,163,184); doc.text(`... ve ${items.length-25} kayıt daha`, 20, y); y += 6; }
-        y += 4;
-      };
-
-      section('GELİRLER', state.gelirler, i=>`+${Calc.fmt(i.miktar)}`, ()=>[5,150,105]);
-      section('GİDERLER', state.giderler, i=>`-${Calc.fmt(i.miktar)}`, ()=>[220,38,38]);
-      section('BORÇ & ALACAK', state.borcalacaklar,
-        i => Calc.fmt(i.miktar),
-        i => i.tip==='alacak'?[5,150,105]:[217,119,6]);
-
-      doc.save(`butcem_rapor_${dayjs().format('YYYY-MM-DD_HHmm')}.pdf`);
-      Swal.close();
-      showToast('📄 PDF indirildi!');
   async exportToPDF() {
     if (typeof window.jspdf === 'undefined') {
       showToast('❌ PDF motoru yüklenemedi. İnternet bağlantınızı kontrol edin.');
       return;
     }
+
     Swal.fire({
       title: 'PDF hazırlanıyor...',
       html: 'Türkçe font ve rapor yükleniyor',
@@ -2778,7 +2702,7 @@ if (item.aciklama) doc.text(String(item.aciklama).substring(0, 25), 105, y);
       const H = doc.internal.pageSize.getHeight();
       const M = 20;
 
-      /* Türkçe destekli font */
+      /* Türkçe destekli font (Roboto TTF CDN'den yüklenir) */
       const hasUni = await _loadPdfFonts(doc);
       const FONT = hasUni ? 'Roboto' : 'helvetica';
 
@@ -2820,10 +2744,10 @@ if (item.aciklama) doc.text(String(item.aciklama).substring(0, 25), 105, y);
       const cw = (W - 2 * M - 9) / 4;
       const ch = 24;
 
-      _kart(doc, M, y, cw, ch,                 { label: 'Gelir',  value: Calc.fmt(gelirT), accent: [5,150,105]   }, hasUni, FONT);
-      _kart(doc, M + cw + 3, y, cw, ch,        { label: 'Gider',  value: Calc.fmt(giderT), accent: [220,38,38]  }, hasUni, FONT);
-      _kart(doc, M + (cw+3)*2, y, cw, ch,      { label: 'Net',    value: Calc.fmt(bakiye), accent: [37,99,235]  }, hasUni, FONT);
-      _kart(doc, M + (cw+3)*3, y, cw, ch,      { label: 'Borç',   value: Calc.fmt(borcT),  accent: [217,119,6] }, hasUni, FONT);
+      _kart(doc, M,               y, cw, ch, { label: 'Gelir', value: Calc.fmt(gelirT), accent: [5,150,105]   }, hasUni, FONT);
+      _kart(doc, M + cw + 3,      y, cw, ch, { label: 'Gider', value: Calc.fmt(giderT), accent: [220,38,38]  }, hasUni, FONT);
+      _kart(doc, M + (cw+3)*2,    y, cw, ch, { label: 'Net',   value: Calc.fmt(bakiye), accent: [37,99,235]  }, hasUni, FONT);
+      _kart(doc, M + (cw+3)*3,    y, cw, ch, { label: 'Borç',  value: Calc.fmt(borcT),  accent: [217,119,6] }, hasUni, FONT);
 
       y += ch + 10;
 
@@ -2834,9 +2758,12 @@ if (item.aciklama) doc.text(String(item.aciklama).substring(0, 25), 105, y);
       y += 10;
 
       const katG = Calc.kategoriGiderler(ayF);
-      const sortedKat = Object.entries(katG).sort((a,b) => b[1] - a[1]).slice(0, 8);
+      const sortedKat = Object.entries(katG).sort((a, b) => b[1] - a[1]).slice(0, 8);
       const maxKat = sortedKat.length ? sortedKat[0][1] : 1;
-      const palet = [[37,99,235],[5,150,105],[217,119,6],[220,38,38],[124,58,237],[8,145,178],[234,88,12],[219,39,119]];
+      const palet = [
+        [37,99,235], [5,150,105], [217,119,6], [220,38,38],
+        [124,58,237], [8,145,178], [234,88,12], [219,39,119]
+      ];
 
       sortedKat.forEach(([kat, val], i) => {
         if (y > H - 40) { doc.addPage(); y = 20; }
@@ -2856,11 +2783,12 @@ if (item.aciklama) doc.text(String(item.aciklama).substring(0, 25), 105, y);
       });
 
       /* ═══════════════════════
-         İŞLEM TABLOLARI
+         İŞLEM TABLOLARI (GELİR / GİDER)
          ═══════════════════════ */
       const tablo = (list, baslik, renk, isaret) => {
         if (!list || !list.length) return;
         if (y > H - 50) { doc.addPage(); y = 20; }
+
         y += 6;
         _baslik(doc, baslik, y, hasUni, FONT);
         y += 10;
@@ -2913,8 +2841,8 @@ if (item.aciklama) doc.text(String(item.aciklama).substring(0, 25), 105, y);
         }
       };
 
-      tablo(state.gelirler, 'GELİRLER', [5,150,105], '+');
-      tablo(state.giderler, 'GİDERLER', [220,38,38], '-');
+      tablo(state.gelirler, 'GELİRLER', [5, 150, 105], '+');
+      tablo(state.giderler, 'GİDERLER', [220, 38, 38], '-');
 
       /* ═══════════════════════
          BORÇ / ALACAK
@@ -2927,12 +2855,13 @@ if (item.aciklama) doc.text(String(item.aciklama).substring(0, 25), 105, y);
 
         state.borcalacaklar.slice(0, 20).forEach(b => {
           if (y > H - 30) { doc.addPage(); y = 20; }
-          const paid = (b.payments || []).reduce((s, p) => s + (Number(p.miktar) || 0), 0);
-          const kalan = Math.max(0, (b.miktar || 0) - paid);
-          const isAl = b.tip === 'alacak';
-          const renk = isAl ? [5,150,105] : [217,119,6];
 
-          _roundRect(doc, M, y - 4, W - 2 * M, 15, 2, [252,253,255], [226,232,240]);
+          const paid  = (b.payments || []).reduce((s, p) => s + (Number(p.miktar) || 0), 0);
+          const kalan = Math.max(0, (Number(b.miktar) || 0) - paid);
+          const isAl  = b.tip === 'alacak';
+          const renk  = isAl ? [5, 150, 105] : [217, 119, 6];
+
+          _roundRect(doc, M, y - 4, W - 2 * M, 15, 2, [252, 253, 255], [226, 232, 240]);
 
           doc.setFillColor(...renk);
           doc.roundedRect(M + 3, y - 2, 14, 4.5, 1, 1, 'F');
@@ -2950,7 +2879,7 @@ if (item.aciklama) doc.text(String(item.aciklama).substring(0, 25), 105, y);
           doc.setTextColor(...renk);
           _txt(doc, Calc.fmt(b.miktar), W - M - 3, y + 1, { align: 'right' }, hasUni);
 
-          const pct = b.miktar > 0 ? Math.min(1, paid / b.miktar) : 0;
+          const pct = (Number(b.miktar) || 0) > 0 ? Math.min(1, paid / Number(b.miktar)) : 0;
           _bar(doc, M + 3, y + 5, 40, 2, pct, renk);
 
           doc.setFont(FONT, 'normal');
@@ -2965,6 +2894,7 @@ if (item.aciklama) doc.text(String(item.aciklama).substring(0, 25), 105, y);
             doc.setFont(FONT, 'bold');
             _txt(doc, '✓ Tamamlandı', W - M - 3, y + 6.5, { align: 'right' }, hasUni);
           }
+
           y += 17;
         });
       }
@@ -2988,6 +2918,7 @@ if (item.aciklama) doc.text(String(item.aciklama).substring(0, 25), 105, y);
       Swal.fire({ icon: 'error', title: 'PDF Hatası', text: err.message || 'Rapor oluşturulamadı.' });
     }
   },
+
 
     async exportToExcel() {
     if (typeof window.XLSX === 'undefined') {
