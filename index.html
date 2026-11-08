@@ -1384,10 +1384,10 @@ const Calc = {
     return [
       ...state.gelirler.map(g => ({ ...g, _tip: 'gelir' })),
       ...state.giderler.map(g => ({ ...g, _tip: 'gider' })),
-      ...state.borcalacaklar.map(b => ({ ...b, _tip: b.tip }))
+      // ✅ Ödenmiş borçlar arşive taşındı → son işlemlerde gösterilmez
+      ...state.borcalacaklar.filter(b => !b.odendiMi).map(b => ({ ...b, _tip: b.tip }))
     ].sort((a, b) => (b.tarih || '') > (a.tarih || '') ? 1 : -1);
   }
-};
 
 /* ─────────────────────────────────────────────
    CRUD
