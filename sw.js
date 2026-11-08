@@ -1,9 +1,9 @@
 /* ═══════════════════════════════════════════════════════════════
-   Bütçem Pro — Service Worker
+   EBHA Mani — Service Worker
    ─────────────────────────────────────────────────────────────
-   Sürüm : 6.0
+   Sürüm : 6.1
    Scope : /ekonomi/
-   
+
    Strateji Haritası
    ─────────────────
    • HTML (navigate/document)   → NETWORK-FIRST + no-store + timeout
@@ -11,11 +11,11 @@
    • Görsel/Font                → CACHE-FIRST
    • API (anthropic/openai vs.) → BYPASS
    • Diğer                      → NETWORK-FIRST + offline fallback
-   
+
    Güncelleme kuralı
    ─────────────────
    Her deploy'da yalnızca SW_VERSION değişkenini artırın
-   (6.0 → 6.1 → 6.2 …). Activate eski cache'leri temizler,
+   (6.1 → 6.2 → 6.3 …). Activate eski cache'leri temizler,
    skipWaiting + clients.claim açık sekmeleri anında devralır.
    ═══════════════════════════════════════════════════════════════ */
 
@@ -24,9 +24,10 @@
 /* ─────────────────────────────────────────────
    SÜRÜM & SABİTLER
 ───────────────────────────────────────────── */
-const SW_VERSION    = '6.0';
-const BASE_PATH     = '/ekonomi/';
-const HTML_TIMEOUT  = 4000;   // ms — ağ yavaşsa cache'e düş
+const SW_VERSION  = '6.1';
+const APP_NAME    = 'EBHA Mani';            // 🏷️ marka adı — push/fallback başlıkları
+const BASE_PATH   = '/ekonomi/';
+const HTML_TIMEOUT = 4000;                  // ms — ağ yavaşsa cache'e düş
 
 const STATIC_CACHE  = `bp-static-v${SW_VERSION}`;
 const DYNAMIC_CACHE = `bp-dynamic-v${SW_VERSION}`;
@@ -120,7 +121,7 @@ function isApiCall(url) {
    INSTALL
 ───────────────────────────────────────────── */
 self.addEventListener('install', (event) => {
-  console.log(`[SW v${SW_VERSION}] install`);
+  console.log(`[SW ${APP_NAME} v${SW_VERSION}] install`);
 
   event.waitUntil((async () => {
     try {
@@ -139,7 +140,7 @@ self.addEventListener('install', (event) => {
 
       /* Yeni SW'yi beklemeden devreye al */
       await self.skipWaiting();
-      console.log(`[SW v${SW_VERSION}] installed & waiting skipped`);
+      console.log(`[SW ${APP_NAME} v${SW_VERSION}] installed & waiting skipped`);
     } catch (err) {
       console.error('[SW] install error:', err);
     }
@@ -150,7 +151,7 @@ self.addEventListener('install', (event) => {
    ACTIVATE
 ───────────────────────────────────────────── */
 self.addEventListener('activate', (event) => {
-  console.log(`[SW v${SW_VERSION}] activate`);
+  console.log(`[SW ${APP_NAME} v${SW_VERSION}] activate`);
 
   event.waitUntil((async () => {
     /* Eski sürümlerin cache'lerini sil */
@@ -166,7 +167,7 @@ self.addEventListener('activate', (event) => {
 
     /* Açık sekmeleri de devral */
     await self.clients.claim();
-    console.log(`[SW v${SW_VERSION}] activated & clients claimed`);
+    console.log(`[SW ${APP_NAME} v${SW_VERSION}] activated & clients claimed`);
   })());
 });
 
@@ -212,7 +213,7 @@ self.addEventListener('fetch', (event) => {
         if (fallback) return fallback;
 
         return new Response(
-          '<h1>Çevrimdışı</h1><p>Bağlantı yok ve yedek sayfa bulunamadı.</p>',
+          `<h1>Çevrimdışı</h1><p>${APP_NAME} — bağlantı yok ve yedek sayfa bulunamadı.</p>`,
           { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
         );
       }
@@ -321,7 +322,11 @@ self.addEventListener('push', (event) => {
   if (!event.data) return;
 
   let data = {};
-  try { data = event.data.json(); } catch { data = { title: 'Bütçem Pro', body: event.data.text() }; }
+  try {
+    data = event.data.json();
+  } catch {
+    data = { title: APP_NAME, body: event.data.text() };
+  }
 
   const options = {
     body: data.body || 'Finansal durumunuzu kontrol edin',
@@ -332,7 +337,7 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Bütçem Pro', options)
+    self.registration.showNotification(data.title || APP_NAME, options)
   );
 });
 
@@ -371,7 +376,11 @@ self.addEventListener('message', (event) => {
   }
 
   if (data.type === 'GET_VERSION') {
-    event.source?.postMessage({ type: 'VERSION', version: SW_VERSION });
+    event.source?.postMessage({
+      type: 'VERSION',
+      version: SW_VERSION,
+      name: APP_NAME
+    });
     return;
   }
 });
