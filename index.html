@@ -3249,13 +3249,18 @@ const App = {
       /* ═══════════════════════
          BORÇ / ALACAK
          ═══════════════════════ */
-      if (state.borcalacaklar.length) {
+      /* ═══════════════════════
+         BORÇ / ALACAK — Sadece aktif olanlar
+         ═══════════════════════ */
+      const aktifBorclar = state.borcalacaklar.filter(b => !b.odendiMi);
+
+      if (aktifBorclar.length) {
         if (y > H - 50) { doc.addPage(); y = 20; }
         y += 6;
         _baslik(doc, 'BORÇ & ALACAK', y, hasUni, FONT);
         y += 10;
 
-        state.borcalacaklar.slice(0, 20).forEach(b => {
+        aktifBorclar.slice(0, 20).forEach(b => {
           if (y > H - 30) { doc.addPage(); y = 20; }
 
           const paid  = (b.payments || []).reduce((s, p) => s + (Number(p.miktar) || 0), 0);
