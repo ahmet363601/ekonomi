@@ -3011,8 +3011,10 @@ const App = {
             return s + (g - gd);
           }, 0);
             const totalCount = yearKeys.reduce((s, k) => {
-              const a = state.archives[k];
-              return s + a.gelirler.length + a.giderler.length;
+              const a = state.archives[k] || {};
+              const aG = Array.isArray(a.gelirler) ? a.gelirler : [];
+              const aGd = Array.isArray(a.giderler) ? a.giderler : [];
+              return s + aG.length + aGd.length;
             }, 0);
 
             return `<div class="card" style="margin-bottom:12px;">
@@ -3044,7 +3046,7 @@ const App = {
                       const gider = aGd.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
                       const net = gelir - gider;
                       const logCnt = Array.isArray(a.loglar) ? a.loglar.length : 0;
-                      const cnt = a.gelirler.length + a.giderler.length;
+                      const cnt = aG.length + aGd.length;
                       return `<div class="archive-card" onclick="App.showArchiveDetail('${k}')">
                         <div class="archive-month" style="font-size:12px;">${SalaryMonth.shortLabel(k)}</div>
                         <div style="font-size:9px;color:var(--text3);margin-bottom:4px;">${SalaryMonth.range(k).start.substring(5)} → ${SalaryMonth.range(k).end.substring(5)}</div>
@@ -4104,38 +4106,6 @@ async function autoArchiveCheck() {
   }
 }
 
-    const { isConfirmed } = await Swal.fire({
-      icon: 'warning',
-      title: '⏰ Arşiv Gecikmiş',
-      html: `<div style="text-align:left;">
-        <p><strong>${SalaryMonth.shortLabel(prevKey)}</strong> dönemi bitti ama hâlâ arşivlenmedi.</p>
-        <div style="margin:12px 0;padding:12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);">
-          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px;">Dönem</div>
-          <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:800;">${SalaryMonth.shortLabel(prevKey)}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${SalaryMonth.range(prevKey).start} → ${SalaryMonth.range(prevKey).end}</div>
-        </div>
-        <p style="font-size:12px;color:#94a3b8;">Şimdi arşivlemek ister misiniz? Daha sonra Arşiv sayfasından yapabilirsiniz.</p>
-      </div>`,
-      showCancelButton: true,
-      confirmButtonText: '✅ Evet, Arşivle',
-      cancelButtonText: 'Daha Sonra',
-      timer: 20000,
-      timerProgressBar: true
-    });
-
-    if (isConfirmed) {
-      const ok = await CRUD.manualArchive(prevKey);
-      if (ok) {
-        /* Bulunduğu sayfayı yenile */
-        if (App.currentPage === 'dashboard') await App.renderDashboard();
-        else if (App.currentPage === 'arsiv') await App.renderArsiv();
-      }
-    }
-  } catch (e) {
-    console.warn('[autoArchiveCheck] Hata:', e);
-  }
-}
-
 /* ─────────────────────────────────────────────
    MİGRASYON (Eski ayların otomatik arşivlenmesi)
 ───────────────────────────────────────────── */
@@ -4473,9 +4443,13 @@ document.addEventListener('click', () => { requestPersistentStorage(); }, { once
     await loadAllData();
     await App.loadPage('dashboard');    // ← ÖNCE dashboard açılsın
 
+    /* Migration arka planda — dashboard'u bloklamasın */
+    setTimeout(async () => {
+      try { await migrateOldData(); }
+      catch (e) { console.warn('[init] migrate:', e); }
+    }, 800);
 
-
-    /* 🆕 Otomatik arşiv kontrolü — gecikmiş arşiv varsa uyar */
+    /* Otomatik arşiv kontrolü — gecikmiş arşiv varsa uyar */
     setTimeout(async () => {
       try { await autoArchiveCheck(); }
       catch (e) { console.warn('[init] autoArchive:', e); }
