@@ -1345,11 +1345,17 @@ const SalaryMonth = {
   },
 
   /** Uzun etiket: "Aralık 2026 (15 Ara – 14 Oca)" */
-  label(key) {
-    const { start, end } = this.range(key);
-    const s = dayjs(start), e = dayjs(end);
-    return `${s.format('MMMM YYYY')} · 15 ${s.format('MMM')} – 14 ${e.format('MMM')}`;
-  },
+label(key) {
+  const { start, end } = this.range(key);
+  const s = dayjs(start), e = dayjs(end);
+  /* Farklı yıl ise iki yılı da göster */
+  const yearS = s.format('YYYY');
+  const yearE = e.format('YYYY');
+  if (yearS !== yearE) {
+    return `${s.format('MMMM YYYY')} · 15 ${s.format('MMM')} ${yearS} – 14 ${e.format('MMM')} ${yearE}`;
+  }
+  return `${s.format('MMMM YYYY')} · 15 ${s.format('MMM')} – 14 ${e.format('MMM')}`;
+},
 
   /** Kısa etiket: "Aralık 2026" */
   shortLabel(key) { return dayjs(key + '-15').format('MMMM YYYY'); },
@@ -1964,6 +1970,7 @@ const App = {
   _borcFilter:   'tum',
   _raporStart:   dayjs().subtract(30, 'day').format('YYYY-MM-DD'),
   _raporEnd:     dayjs().format('YYYY-MM-DD'),
+  _archivingLock: false,   // 🆕 Arşivleme kilidi
 
   /* ── PAGE LOADER ── */
   async loadPage(name) {
@@ -2907,14 +2914,39 @@ const App = {
       </div>
 
       <!-- ═══ ARŞİV BUTONU ═══ -->
-      ${(!prevArchived && prevHasData) || overdue ? `
-        <button class="btn ${overdue ? 'btn-danger' : 'btn-primary'} btn-full" onclick="App.manualArchive()" style="margin-bottom:14px;">
-          <i class="fas fa-archive"></i>
-          ${overdue
-            ? `Gecikmiş Arşiv: ${SalaryMonth.shortLabel(prevKey)}`
-            : `${SalaryMonth.shortLabel(prevKey)} Dönemini Arşivle`}
-        </button>
-      ` : ''}
+      ${(() => {
+        /* 1. Önceki dönem arşivlenmemişse → birincil buton */
+        if (!prevArchived && prevHasData) {
+          return `<button class="btn ${overdue ? 'btn-danger' : 'btn-primary'} btn-full" onclick="App.manualArchive()" style="margin-bottom:10px;">
+            <i class="fas fa-archive"></i>
+            ${overdue
+              ? `Gecikmiş Arşiv: ${SalaryMonth.shortLabel(prevKey)}`
+              : `${SalaryMonth.shortLabel(prevKey)} Dönemini Arşivle`}
+          </button>`;
+        }
+
+        /* 2. Aktif dönem son 5 gün içindeyse → belirgin buton */
+        if (daysLeft <= 5 && daysLeft > 0 && (curGelir > 0 || curGider > 0)) {
+          const isLastDay = daysLeft === 1;
+          return `<button class="btn ${isLastDay ? 'btn-danger' : 'btn-amber'} btn-full" onclick="App.manualArchive('${currentKey}')" style="margin-bottom:10px;">
+            <i class="fas fa-${isLastDay ? 'exclamation-triangle' : 'archive'}"></i>
+            ${isLastDay
+              ? `Yarın Arşiv Günü — ${SalaryMonth.shortLabel(currentKey)} Arşivle`
+              : `${SalaryMonth.shortLabel(currentKey)} Arşivle — ${daysLeft} gün kaldı`}
+          </button>`;
+        }
+
+        /* 3. Aktif dönem için küçük "erken arşivle" seçeneği (her zaman) */
+        if (curGelir > 0 || curGider > 0) {
+          return `<div style="text-align:center;margin-bottom:10px;">
+            <button class="btn btn-ghost btn-sm" onclick="App.manualArchive('${currentKey}')" style="font-size:11px;">
+              <i class="fas fa-archive"></i> ${SalaryMonth.shortLabel(currentKey)} Dönemini Erken Arşivle
+            </button>
+          </div>`;
+        }
+
+        return '';
+      })()}
 
       <!-- ═══ BEKLEYENLER ═══ -->
       ${pendingMonths.length > 0 ? `
@@ -2971,11 +3003,13 @@ const App = {
             const yearKeys = byYear[y];
             const isOpen = this._archiveOpenYears.has(y);
             const yearTotal = yearKeys.reduce((s, k) => {
-              const a = state.archives[k];
-              const g = a.gelirler.reduce((ss, x) => ss + (Number(x.miktar) || 0), 0);
-              const gd = a.giderler.reduce((ss, x) => ss + (Number(x.miktar) || 0), 0);
-              return s + (g - gd);
-            }, 0);
+            const a = state.archives[k] || {};
+            const aG = Array.isArray(a.gelirler) ? a.gelirler : [];
+            const aGd = Array.isArray(a.giderler) ? a.giderler : [];
+            const g = aG.reduce((ss, x) => ss + (Number(x.miktar) || 0), 0);
+            const gd = aGd.reduce((ss, x) => ss + (Number(x.miktar) || 0), 0);
+            return s + (g - gd);
+          }, 0);
             const totalCount = yearKeys.reduce((s, k) => {
               const a = state.archives[k];
               return s + a.gelirler.length + a.giderler.length;
@@ -3003,9 +3037,11 @@ const App = {
                 <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
                   <div class="archive-grid">
                     ${yearKeys.map(k => {
-                      const a = state.archives[k];
-                      const gelir = a.gelirler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
-                      const gider = a.giderler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+                      const a = state.archives[k] || {};
+                      const aG = Array.isArray(a.gelirler) ? a.gelirler : [];
+                      const aGd = Array.isArray(a.giderler) ? a.giderler : [];
+                      const gelir = aG.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+                      const gider = aGd.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
                       const net = gelir - gider;
                       const logCnt = Array.isArray(a.loglar) ? a.loglar.length : 0;
                       const cnt = a.gelirler.length + a.giderler.length;
@@ -3087,6 +3123,20 @@ const App = {
 
   /* Manuel arşivleme — onay dialog + işlem */
   async manualArchive(targetKey) {
+    /* 🆕 Çift tıklama koruması */
+    if (this._archivingLock) {
+      showToast('⏳ Arşivleme devam ediyor...');
+      return;
+    }
+    this._archivingLock = true;
+    try {
+      return await this._manualArchiveInternal(targetKey);
+    } finally {
+      this._archivingLock = false;
+    }
+  },
+
+  async _manualArchiveInternal(targetKey) {
     if (!targetKey) {
       const prevKey = SalaryMonth.previousKey();
       const curKey = SalaryMonth.currentKey();
@@ -3984,6 +4034,111 @@ const App = {
    MİGRASYON (Eski ayların otomatik arşivlenmesi)
 ───────────────────────────────────────────── */
 /* Geçmiş ay arşivleme — SADECE kullanıcı onayıyla, tek seferlik */
+/* ─────────────────────────────────────────────
+   OTOMATİK ARŞİV KONTROLÜ — uygulama açılışında çalışır
+   Geçmiş dönem arşivlenmemişse kullanıcıya tek tıkla arşivleme sunar
+───────────────────────────────────────────── */
+async function autoArchiveCheck() {
+  try {
+    /* 🆕 TÜM bekleyen dönemleri al (sadece bir önceki değil) */
+    const pending = SalaryMonth.pendingMonths();
+
+    if (!pending.length) return;
+
+    /* Toplu onay dialogu */
+    const totalGelir = pending.reduce((s, k) => {
+      const r = SalaryMonth.range(k);
+      return s + state.gelirler.filter(g => g.tarih >= r.start && g.tarih <= r.end).length;
+    }, 0);
+    const totalGider = pending.reduce((s, k) => {
+      const r = SalaryMonth.range(k);
+      return s + state.giderler.filter(g => g.tarih >= r.start && g.tarih <= r.end).length;
+    }, 0);
+
+    const { isConfirmed } = await Swal.fire({
+      icon: 'warning',
+      title: pending.length === 1
+        ? '⏰ Arşiv Gecikmiş'
+        : `⏰ ${pending.length} Dönem Arşivlenmeli`,
+      html: `<div style="text-align:left;">
+        <p><strong>${pending.length}</strong> dönem arşivlenmemiş durumda:</p>
+        <div style="margin:12px 0;padding:12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);max-height:180px;overflow-y:auto;">
+          ${pending.map(k => `
+            <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;">
+              <span style="font-weight:700;">${SalaryMonth.shortLabel(k)}</span>
+              <span style="color:var(--text3);font-size:10px;">${SalaryMonth.range(k).start.substring(5)} → ${SalaryMonth.range(k).end.substring(5)}</span>
+            </div>
+          `).join('')}
+        </div>
+        <p style="font-size:12px;color:#94a3b8;">
+          <strong>${totalGelir}</strong> gelir · <strong>${totalGider}</strong> gider toplam
+        </p>
+        <p style="font-size:11px;color:#94a3b8;margin-top:6px;">
+          Şimdi hepsini arşivlemek ister misiniz? Daha sonra Arşiv sayfasından tek tek yapabilirsiniz.
+        </p>
+      </div>`,
+      showCancelButton: true,
+      confirmButtonText: '✅ Tümünü Arşivle',
+      cancelButtonText: 'Daha Sonra',
+      width: Math.min(480, window.innerWidth - 24)
+    });
+
+    if (!isConfirmed) return;
+
+    /* Her birini sırayla arşivle */
+    for (const k of pending) {
+      await CRUD.manualArchive(k);
+    }
+
+    showToast(`✅ ${pending.length} dönem arşivlendi`);
+
+    /* Aktif sayfayı yenile */
+    if (App.currentPage === 'dashboard') await App.renderDashboard();
+    else if (App.currentPage === 'arsiv') await App.renderArsiv();
+    else if (App.currentPage === 'islemler') await App.renderIslemler();
+    else if (App.currentPage === 'borcalacak') await App.renderBorcalacak();
+    else if (App.currentPage === 'rapor') await App.renderRapor();
+
+  } catch (e) {
+    console.warn('[autoArchiveCheck] Hata:', e);
+  }
+}
+
+    const { isConfirmed } = await Swal.fire({
+      icon: 'warning',
+      title: '⏰ Arşiv Gecikmiş',
+      html: `<div style="text-align:left;">
+        <p><strong>${SalaryMonth.shortLabel(prevKey)}</strong> dönemi bitti ama hâlâ arşivlenmedi.</p>
+        <div style="margin:12px 0;padding:12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);">
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px;">Dönem</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:800;">${SalaryMonth.shortLabel(prevKey)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${SalaryMonth.range(prevKey).start} → ${SalaryMonth.range(prevKey).end}</div>
+        </div>
+        <p style="font-size:12px;color:#94a3b8;">Şimdi arşivlemek ister misiniz? Daha sonra Arşiv sayfasından yapabilirsiniz.</p>
+      </div>`,
+      showCancelButton: true,
+      confirmButtonText: '✅ Evet, Arşivle',
+      cancelButtonText: 'Daha Sonra',
+      timer: 20000,
+      timerProgressBar: true
+    });
+
+    if (isConfirmed) {
+      const ok = await CRUD.manualArchive(prevKey);
+      if (ok) {
+        /* Bulunduğu sayfayı yenile */
+        if (App.currentPage === 'dashboard') await App.renderDashboard();
+        else if (App.currentPage === 'arsiv') await App.renderArsiv();
+      }
+    }
+  } catch (e) {
+    console.warn('[autoArchiveCheck] Hata:', e);
+  }
+}
+
+/* ─────────────────────────────────────────────
+   MİGRASYON (Eski ayların otomatik arşivlenmesi)
+───────────────────────────────────────────── */
 async function migrateOldData(force = false) {
   const seenKey = 'butcem_migrate_done';
   if (!force && localStorage.getItem(seenKey) === '1') return;
@@ -4318,11 +4473,13 @@ document.addEventListener('click', () => { requestPersistentStorage(); }, { once
     await loadAllData();
     await App.loadPage('dashboard');    // ← ÖNCE dashboard açılsın
 
-    /* Migration arka planda — dashboard'u bloklamasın */
+
+
+    /* 🆕 Otomatik arşiv kontrolü — gecikmiş arşiv varsa uyar */
     setTimeout(async () => {
-      try { await migrateOldData(); }
-      catch (e) { console.warn('[init] migrate:', e); }
-    }, 800);
+      try { await autoArchiveCheck(); }
+      catch (e) { console.warn('[init] autoArchive:', e); }
+    }, 1500);
 
     /* iOS'a özgü uyarı — 7 günlük ITP temizliği hakkında */
     if (isIOS && !localStorage.getItem('ios_install_hint_shown')) {
