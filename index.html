@@ -1321,6 +1321,96 @@ async function createAutoBackup() {
 /* ─────────────────────────────────────────────
    HESAPLAMALAR
 ───────────────────────────────────────────── */
+/* ─────────────────────────────────────────────
+   SALARY MONTH — 15'inden 15'ine maaş dönemi
+───────────────────────────────────────────── */
+const SalaryMonth = {
+  DAY_START: 15,
+
+  /** Tarih → maaş dönemi anahtarı (YYYY-MM) */
+  keyOf(dateInput) {
+    const d = dateInput ? dayjs(dateInput) : dayjs();
+    return d.date() >= this.DAY_START
+      ? d.format('YYYY-MM')
+      : d.subtract(1, 'month').format('YYYY-MM');
+  },
+  currentKey() { return this.keyOf(); },
+  previousKey() { return dayjs(this.currentKey() + '-15').subtract(1, 'month').format('YYYY-MM'); },
+
+  /** Anahtar → { start, end } (YYYY-MM-DD) */
+  range(key) {
+    const start = dayjs(key + '-15').format('YYYY-MM-DD');
+    const end = dayjs(start).add(1, 'month').subtract(1, 'day').format('YYYY-MM-DD');
+    return { start, end };
+  },
+
+  /** Uzun etiket: "Aralık 2026 (15 Ara – 14 Oca)" */
+  label(key) {
+    const { start, end } = this.range(key);
+    const s = dayjs(start), e = dayjs(end);
+    return `${s.format('MMMM YYYY')} · 15 ${s.format('MMM')} – 14 ${e.format('MMM')}`;
+  },
+
+  /** Kısa etiket: "Aralık 2026" */
+  shortLabel(key) { return dayjs(key + '-15').format('MMMM YYYY'); },
+
+  /** Yıl (arşiv gruplaması için): "2026" */
+  yearOf(key) { return key.substring(0, 4); },
+
+  /** Sonraki arşive kaç gün kaldı */
+  daysUntilArchive() {
+    const now = dayjs();
+    if (now.date() < this.DAY_START) return this.DAY_START - now.date();
+    const next = now.add(1, 'month').startOf('month').date(this.DAY_START);
+    return Math.max(0, next.startOf('day').diff(now.startOf('day'), 'day'));
+  },
+
+  /** Sonraki arşiv tarihi (YYYY-MM-DD) */
+  nextArchiveDate() {
+    const now = dayjs();
+    if (now.date() < this.DAY_START) return now.date(this.DAY_START).format('YYYY-MM-DD');
+    return now.add(1, 'month').startOf('month').date(this.DAY_START).format('YYYY-MM-DD');
+  },
+
+  /** Dönem ilerleme yüzdesi */
+  progressPct(key) {
+    const { start, end } = this.range(key);
+    const now = dayjs().startOf('day');
+    const s = dayjs(start), e = dayjs(end);
+    if (now.isBefore(s)) return 0;
+    if (now.isAfter(e)) return 100;
+    const total = e.diff(s, 'day') + 1;
+    const passed = now.diff(s, 'day') + 1;
+    return Math.min(100, Math.round((passed / total) * 100));
+  },
+
+  /** Bir aralıkta veri var mı */
+  hasDataInRange(r) {
+    return state.gelirler.some(g => g.tarih >= r.start && g.tarih <= r.end) ||
+           state.giderler.some(g => g.tarih >= r.start && g.tarih <= r.end);
+  },
+
+  /** Arşivlenmemiş, verisi olan geçmiş dönemler */
+  pendingMonths() {
+    const months = new Set();
+    state.gelirler.forEach(g => { if (g.tarih) months.add(this.keyOf(g.tarih)); });
+    state.giderler.forEach(g => { if (g.tarih) months.add(this.keyOf(g.tarih)); });
+    const current = this.currentKey();
+    return [...months].filter(k => k !== current && !state.archives[k]).sort();
+  },
+
+  /** Arşiv gecikmiş mi */
+  isOverdue() {
+    const prev = this.previousKey();
+    if (state.archives[prev]) return false;
+    if (!this.hasDataInRange(this.range(prev))) return false;
+    return dayjs().date() >= this.DAY_START;
+  },
+};
+
+/* ─────────────────────────────────────────────
+   HESAPLAMALAR
+───────────────────────────────────────────── */
 const Calc = {
   fmt(n) {
     const num = Number(n) || 0;
@@ -1340,8 +1430,7 @@ const Calc = {
   },
   bakiye(f = {}) { return this.toplamGelir(f) - this.toplamGider(f); },
   ayFilter() {
-    const now = dayjs();
-    return { start: now.startOf('month').format('YYYY-MM-DD'), end: now.endOf('month').format('YYYY-MM-DD') };
+    return SalaryMonth.range(SalaryMonth.currentKey());
   },
   aktifBorcAlacak() {
     return state.borcalacaklar
@@ -1364,14 +1453,15 @@ const Calc = {
     }, {});
   },
   aylikTrend(aySayisi = 6) {
-    const now = dayjs();
+    const currentStart = dayjs(SalaryMonth.currentKey() + '-15');
     return Array.from({ length: aySayisi }, (_, i) => {
-      const d = now.subtract(aySayisi - 1 - i, 'month');
-      const prefix = d.format('YYYY-MM');
+      const monthStart = currentStart.subtract(aySayisi - 1 - i, 'month');
+      const key = monthStart.format('YYYY-MM');
+      const r = SalaryMonth.range(key);
       return {
-        label: d.format('MMM YY'),
-        gelir: state.gelirler.filter(g => g.tarih && g.tarih.startsWith(prefix)).reduce((s, g) => s + (Number(g.miktar) || 0), 0),
-        gider: state.giderler.filter(g => g.tarih && g.tarih.startsWith(prefix)).reduce((s, g) => s + (Number(g.miktar) || 0), 0)
+        label: monthStart.format('MMM YY'),
+        gelir: state.gelirler.filter(g => g.tarih >= r.start && g.tarih <= r.end).reduce((s, g) => s + (Number(g.miktar) || 0), 0),
+        gider: state.giderler.filter(g => g.tarih >= r.start && g.tarih <= r.end).reduce((s, g) => s + (Number(g.miktar) || 0), 0)
       };
     });
   },
@@ -1573,56 +1663,71 @@ const CRUD = {
     await saveLimitler();
     await addLog('limit_sil', kategori);
   },
-
   async manualArchive(monthKey) {
+    /* Default: bir önceki tamamlanmış maaş dönemi */
+    if (!monthKey) monthKey = SalaryMonth.previousKey();
+
     if (state.archives[monthKey]) {
-      Swal.fire({ icon: 'warning', title: 'Uyarı', text: `${monthKey} ayı zaten arşivlenmiş!` });
+      Swal.fire({ icon: 'warning', title: 'Uyarı', text: `Bu dönem zaten arşivlenmiş!` });
       return false;
     }
-    // SADECE gelir/gider — borçlar ana listede kalır
-    const aGelir = state.gelirler.filter(g => g.tarih && g.tarih.startsWith(monthKey));
-    const aGider = state.giderler.filter(g => g.tarih && g.tarih.startsWith(monthKey));
+
+    const range = SalaryMonth.range(monthKey);
+    const aGelir = state.gelirler.filter(g => g.tarih >= range.start && g.tarih <= range.end);
+    const aGider = state.giderler.filter(g => g.tarih >= range.start && g.tarih <= range.end);
 
     if (!aGelir.length && !aGider.length) {
-      Swal.fire({ icon: 'info', title: 'Bilgi', text: `${monthKey} ayına ait gelir/gider kaydı bulunamadı.` });
+      Swal.fire({ icon: 'info', title: 'Bilgi', text: `Bu dönemde kayıt yok.` });
       return false;
     }
 
-    /* 🆕 O aya ait logları da arşive taşı */
+    /* O döneme ait loglar (yerel tarihe göre) */
     const aLoglar = state.logs.filter(l => {
-      if (!l.timestamp) return false;
-      return l.timestamp.substring(0, 7) === monthKey;   // YYYY-MM
+      const d = dayjs(l.timestamp).format('YYYY-MM-DD');
+      return d >= range.start && d <= range.end;
     });
 
     state.archives[monthKey] = {
       gelirler: aGelir,
       giderler: aGider,
-      loglar:   aLoglar,                                // 🆕
+      loglar:   aLoglar,
+      salaryMonthRange: range,
+      year: SalaryMonth.yearOf(monthKey),
       archivedAt: new Date().toISOString(),
-      schemaVersion: 2                                  // 🆕
+      schemaVersion: 3
     };
 
-    state.gelirler = state.gelirler.filter(g => !g.tarih || !g.tarih.startsWith(monthKey));
-    state.giderler = state.giderler.filter(g => !g.tarih || !g.tarih.startsWith(monthKey));
-    state.logs     = state.logs.filter(l => {           // 🆕
-      if (!l.timestamp) return true;
-      return l.timestamp.substring(0, 7) !== monthKey;
+    state.gelirler = state.gelirler.filter(g => !(g.tarih >= range.start && g.tarih <= range.end));
+    state.giderler = state.giderler.filter(g => !(g.tarih >= range.start && g.tarih <= range.end));
+    state.logs     = state.logs.filter(l => {
+      const d = dayjs(l.timestamp).format('YYYY-MM-DD');
+      return !(d >= range.start && d <= range.end);
     });
 
     await saveGelirler();
     await saveGiderler();
-    await saveLogs();                                   // 🆕
+    await saveLogs();
     await saveArchives();
+
     await addLog('manuel_arsiv',
-      `${monthKey} · ${aGelir.length} gelir + ${aGider.length} gider + ${aLoglar.length} log`,
-      { month: monthKey, gelirCount: aGelir.length, giderCount: aGider.length, logCount: aLoglar.length });    await createAutoBackup();
+      `${SalaryMonth.label(monthKey)} · ${aGelir.length} gelir + ${aGider.length} gider + ${aLoglar.length} log`,
+      { month: monthKey, salaryMonth: true, range, year: SalaryMonth.yearOf(monthKey),
+        gelirCount: aGelir.length, giderCount: aGider.length, logCount: aLoglar.length });
+
+    await createAutoBackup();
 
     Swal.fire({
       icon: 'success',
-      title: 'Arşivlendi!',
-      html: `<p><strong>${aGelir.length}</strong> gelir + <strong>${aGider.length}</strong> gider + <strong>${aLoglar.length}</strong> log arşive taşındı.</p>
-             <p style="font-size:12px;color:#94a3b8;margin-top:6px;">Borç/Alacak kayıtları ana listede kalmaya devam ediyor. Tamamlananlar otomatik olarak Arşiv sayfasında görünür.</p>`,
-      timer: 3200,
+      title: '✅ Arşivlendi',
+      html: `<div style="text-align:left;">
+        <div style="padding:12px;background:var(--surface2);border-radius:10px;margin-bottom:10px;">
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px;">Arşivlenen Dönem</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:800;">${SalaryMonth.shortLabel(monthKey)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${range.start} → ${range.end}</div>
+        </div>
+        <p><strong>${aGelir.length}</strong> gelir · <strong>${aGider.length}</strong> gider · <strong>${aLoglar.length}</strong> log taşındı.</p>
+      </div>`,
+      timer: 3600,
       showConfirmButton: false
     });
     return true;
@@ -1926,6 +2031,16 @@ const App = {
       </div>
 
       ${limitAlerts}
+
+      ${SalaryMonth.isOverdue() ? `
+        <div class="alert" style="background:#FEF3C7;border:1px solid #FCD34D;color:#92400E;cursor:pointer;" onclick="App.loadPage('arsiv')">
+          <i class="fas fa-exclamation-triangle"></i>
+          <div>
+            <strong>Arşiv gecikmiş!</strong> ${SalaryMonth.shortLabel(SalaryMonth.previousKey())} bekliyor.
+            <span style="text-decoration:underline;font-weight:700;">Arşive git →</span>
+          </div>
+        </div>
+      ` : ''}
 
       <div class="card">
         <div class="section-header"><span class="section-title">Aylık Trend</span></div>
@@ -2623,10 +2738,11 @@ const App = {
 
   quickFilter(t) {
     const now = dayjs();
+    const salaryRange = SalaryMonth.range(SalaryMonth.currentKey());
     const map = {
       bugun: [now.format('YYYY-MM-DD'), now.format('YYYY-MM-DD')],
       hafta: [now.subtract(7,'day').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')],
-      ay:    [now.startOf('month').format('YYYY-MM-DD'), now.endOf('month').format('YYYY-MM-DD')],
+      ay:    [salaryRange.start, salaryRange.end],
       '3ay': [now.subtract(3,'month').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')],
       '6ay': [now.subtract(6,'month').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')]
     };
@@ -2699,23 +2815,137 @@ const App = {
       (s, b) => s + (Number(b.miktar) || 0) * Calc.birimFiyat(b.birim || 'tl'), 0
     );
 
+    /* Yıla göre grupla */
+    const byYear = {};
+    keys.forEach(k => {
+      const y = SalaryMonth.yearOf(k);
+      if (!byYear[y]) byYear[y] = [];
+      byYear[y].push(k);
+    });
+    const years = Object.keys(byYear).sort().reverse();
+
+    /* Açık yıllar */
+    if (!this._archiveOpenYears) {
+      this._archiveOpenYears = new Set(years.length ? [years[0]] : []);
+    }
+
+    /* Aktif dönem & sayaç */
+    const currentKey = SalaryMonth.currentKey();
+    const currentRange = SalaryMonth.range(currentKey);
+    const daysLeft = SalaryMonth.daysUntilArchive();
+    const nextDate = SalaryMonth.nextArchiveDate();
+    const pct = SalaryMonth.progressPct(currentKey);
+    const overdue = SalaryMonth.isOverdue();
+    const prevKey = SalaryMonth.previousKey();
+    const prevArchived = !!state.archives[prevKey];
+    const prevHasData = SalaryMonth.hasDataInRange(SalaryMonth.range(prevKey));
+    const pendingMonths = SalaryMonth.pendingMonths();
+
+    const curGelir = state.gelirler.filter(g => g.tarih >= currentRange.start && g.tarih <= currentRange.end).reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+    const curGider = state.giderler.filter(g => g.tarih >= currentRange.start && g.tarih <= currentRange.end).reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+    const curNet = curGelir - curGider;
+
+    const countdownColor = overdue ? 'var(--danger)' : (daysLeft <= 3 ? 'var(--warning)' : 'var(--primary)');
+    const countdownBg = overdue ? 'var(--danger-light)' : (daysLeft <= 3 ? 'var(--warning-light)' : 'var(--primary-light)');
+    const countdownIcon = overdue ? 'fa-exclamation-triangle' : 'fa-hourglass-half';
+    const countdownText = overdue
+      ? `Arşiv gecikmiş! ${SalaryMonth.shortLabel(prevKey)} bekliyor`
+      : (daysLeft === 0 ? 'Bugün arşiv günü!' : `${daysLeft} gün sonra arşiv`);
+
     document.getElementById('view').innerHTML = `<div class="page-in">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px;flex-wrap:wrap;">
-        <h2 style="font-family:'Plus Jakarta Sans';font-size:20px;font-weight:900;">📦 Arşiv</h2>
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-primary btn-sm" onclick="App.manualArchive()"><i class="fas fa-archive"></i> Bu Ayı Arşivle</button>
-          <label class="btn btn-ghost btn-sm" style="cursor:pointer;">
-            <i class="fas fa-upload"></i> Yükle
-            <input type="file" accept=".json" style="display:none;" onchange="App.importFromJSON(this.files[0])">
-          </label>
+
+      <!-- ═══ AKTİF DÖNEM + SAYAÇ ═══ -->
+      <div class="card" style="background:linear-gradient(135deg, #EFF6FF, #FFFFFF);border-left:4px solid ${countdownColor};">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <i class="fas fa-calendar-check" style="color:var(--primary);font-size:16px;"></i>
+          <span style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;">Aktif Maaş Dönemi</span>
+        </div>
+
+        <div style="font-family:'Plus Jakarta Sans';font-size:20px;font-weight:900;color:var(--text);margin-bottom:4px;">
+          ${SalaryMonth.shortLabel(currentKey)}
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">
+          ${currentRange.start} → ${currentRange.end}
+        </div>
+
+        <div style="padding:12px;background:${countdownBg};border-radius:10px;margin-bottom:10px;border:1px solid ${countdownColor}40;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <i class="fas ${countdownIcon}" style="color:${countdownColor};font-size:18px;"></i>
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:800;color:${countdownColor};">${countdownText}</div>
+              <div style="font-size:10.5px;color:var(--text3);margin-top:2px;">
+                Sonraki arşiv: ${dayjs(nextDate).format('DD MMMM YYYY')}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:4px;">
+          <span>Dönem ilerlemesi</span>
+          <span>%${pct}</span>
+        </div>
+        <div class="progress-track" style="margin:0 0 12px 0;">
+          <div class="progress-bar" style="width:${pct}%;background:${countdownColor};"></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+          <div style="text-align:center;padding:8px;background:var(--accent-light);border-radius:8px;">
+            <div style="font-size:9px;color:var(--accent);text-transform:uppercase;font-weight:700;margin-bottom:2px;">Gelir</div>
+            <div style="font-family:'Plus Jakarta Sans';font-size:11px;font-weight:800;color:var(--accent);">${Calc.fmt(curGelir)}</div>
+          </div>
+          <div style="text-align:center;padding:8px;background:var(--danger-light);border-radius:8px;">
+            <div style="font-size:9px;color:var(--danger);text-transform:uppercase;font-weight:700;margin-bottom:2px;">Gider</div>
+            <div style="font-family:'Plus Jakarta Sans';font-size:11px;font-weight:800;color:var(--danger);">${Calc.fmt(curGider)}</div>
+          </div>
+          <div style="text-align:center;padding:8px;background:var(--surface2);border-radius:8px;">
+            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:2px;">Net</div>
+            <div style="font-family:'Plus Jakarta Sans';font-size:11px;font-weight:800;color:${curNet>=0?'var(--accent)':'var(--danger)'};">${Calc.fmt(curNet)}</div>
+          </div>
         </div>
       </div>
 
+      <!-- ═══ ARŞİV BUTONU ═══ -->
+      ${(!prevArchived && prevHasData) || overdue ? `
+        <button class="btn ${overdue ? 'btn-danger' : 'btn-primary'} btn-full" onclick="App.manualArchive()" style="margin-bottom:14px;">
+          <i class="fas fa-archive"></i>
+          ${overdue
+            ? `Gecikmiş Arşiv: ${SalaryMonth.shortLabel(prevKey)}`
+            : `${SalaryMonth.shortLabel(prevKey)} Dönemini Arşivle`}
+        </button>
+      ` : ''}
+
+      <!-- ═══ BEKLEYENLER ═══ -->
+      ${pendingMonths.length > 0 ? `
+        <div class="card" style="border-left:4px solid var(--warning);">
+          <div class="section-header">
+            <span class="section-title" style="display:flex;align-items:center;gap:8px;">
+              <i class="fas fa-clock" style="color:var(--warning);"></i>
+              Arşivlenmeyi Bekleyen
+            </span>
+            <span class="badge badge-amber">${pendingMonths.length}</span>
+          </div>
+          ${pendingMonths.map(k => {
+            const r = SalaryMonth.range(k);
+            const g = state.gelirler.filter(x => x.tarih >= r.start && x.tarih <= r.end).length;
+            const gd = state.giderler.filter(x => x.tarih >= r.start && x.tarih <= r.end).length;
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:6px;background:var(--surface2);">
+              <div>
+                <div style="font-size:13px;font-weight:700;">${SalaryMonth.shortLabel(k)}</div>
+                <div style="font-size:10.5px;color:var(--text3);margin-top:2px;">${g} gelir · ${gd} gider</div>
+              </div>
+              <button onclick="App.manualArchive('${k}')" class="btn btn-sm btn-primary"><i class="fas fa-archive"></i> Arşivle</button>
+            </div>`;
+          }).join('')}
+        </div>
+      ` : ''}
+
+      <!-- ═══ İSTATİSTİK ═══ -->
       <div class="stat-grid">
-        <div class="stat-card"><div class="card-label">Arşivlenen Ay</div><div class="stat-amount blue">${keys.length}</div></div>
+        <div class="stat-card"><div class="card-label">Arşivlenen Dönem</div><div class="stat-amount blue">${keys.length}</div></div>
         <div class="stat-card"><div class="card-label">Yedek Sayısı</div><div class="stat-amount amber">${state.backups.length}</div></div>
       </div>
 
+      <!-- ═══ TAMAMLANAN BORÇLAR ═══ -->
       ${tamamlananBorclar.length > 0 ? `
         <div class="card" style="border-left:4px solid var(--accent);">
           <div class="section-header">
@@ -2732,29 +2962,70 @@ const App = {
         </div>
       ` : ''}
 
-      ${keys.length === 0
-        ? UI.empty('Henüz arşiv yok. "Bu Ayı Arşivle" butonunu kullanarak başlayın.')
-        : `<div class="archive-grid">
-            ${keys.map(k => {
+      <!-- ═══ YIL GRUPLU ARŞİV ═══ -->
+      ${years.length === 0
+        ? UI.empty('Henüz arşiv yok.')
+        : years.map(y => {
+            const yearKeys = byYear[y];
+            const isOpen = this._archiveOpenYears.has(y);
+            const yearTotal = yearKeys.reduce((s, k) => {
               const a = state.archives[k];
-              const gelir = a.gelirler.reduce((s,g)=>s+g.miktar,0);
-              const gider = a.giderler.reduce((s,g)=>s+g.miktar,0);
-              const net   = gelir - gider;
-              const logCnt = Array.isArray(a.loglar) ? a.loglar.length : 0;   // 🆕
-              const cnt   = a.gelirler.length + a.giderler.length + (a.borcalacaklar||[]).length;
-              return `<div class="archive-card" onclick="App.showArchiveDetail('${k}')">
-                <div class="archive-month">${dayjs(k+'-01').format('MMMM YYYY')}</div>
-                <div class="archive-amount" style="color:${net>=0?'var(--accent)':'var(--danger)'};">${Calc.fmt(net)}</div>
-                <div class="archive-count">${cnt} işlem${logCnt ? ` · ${logCnt} log` : ''}</div>
-                <div style="margin-top:6px;font-size:10px;display:flex;gap:8px;">
-                  <span style="color:var(--accent);">↑ ${Calc.fmt(gelir)}</span>
-                  <span style="color:var(--danger);">↓ ${Calc.fmt(gider)}</span>
+              const g = a.gelirler.reduce((ss, x) => ss + (Number(x.miktar) || 0), 0);
+              const gd = a.giderler.reduce((ss, x) => ss + (Number(x.miktar) || 0), 0);
+              return s + (g - gd);
+            }, 0);
+            const totalCount = yearKeys.reduce((s, k) => {
+              const a = state.archives[k];
+              return s + a.gelirler.length + a.giderler.length;
+            }, 0);
+
+            return `<div class="card" style="margin-bottom:12px;">
+              <!-- Yıl başlığı (tıklanabilir) -->
+              <div onclick="App._toggleArchiveYear('${y}')" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <i class="fas fa-chevron-${isOpen ? 'down' : 'right'}" style="color:var(--primary);font-size:14px;width:16px;"></i>
+                  <div>
+                    <div style="font-family:'Plus Jakarta Sans';font-size:18px;font-weight:900;color:var(--text);">${y}</div>
+                    <div style="font-size:11px;color:var(--text3);margin-top:2px;">
+                      ${yearKeys.length} dönem · ${totalCount} işlem
+                    </div>
+                  </div>
                 </div>
-              </div>`;
-            }).join('')}
-          </div>`
+                <div style="text-align:right;">
+                  <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">Net</div>
+                  <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:800;color:${yearTotal>=0?'var(--accent)':'var(--danger)'};">${Calc.fmt(yearTotal)}</div>
+                </div>
+              </div>
+
+              ${isOpen ? `
+                <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+                  <div class="archive-grid">
+                    ${yearKeys.map(k => {
+                      const a = state.archives[k];
+                      const gelir = a.gelirler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+                      const gider = a.giderler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+                      const net = gelir - gider;
+                      const logCnt = Array.isArray(a.loglar) ? a.loglar.length : 0;
+                      const cnt = a.gelirler.length + a.giderler.length;
+                      return `<div class="archive-card" onclick="App.showArchiveDetail('${k}')">
+                        <div class="archive-month" style="font-size:12px;">${SalaryMonth.shortLabel(k)}</div>
+                        <div style="font-size:9px;color:var(--text3);margin-bottom:4px;">${SalaryMonth.range(k).start.substring(5)} → ${SalaryMonth.range(k).end.substring(5)}</div>
+                        <div class="archive-amount" style="color:${net>=0?'var(--accent)':'var(--danger)'};">${Calc.fmt(net)}</div>
+                        <div class="archive-count">${cnt} işlem${logCnt ? ` · ${logCnt} log` : ''}</div>
+                        <div style="margin-top:6px;font-size:10px;display:flex;gap:8px;">
+                          <span style="color:var(--accent);">↑ ${Calc.fmt(gelir)}</span>
+                          <span style="color:var(--danger);">↓ ${Calc.fmt(gider)}</span>
+                        </div>
+                      </div>`;
+                    }).join('')}
+                  </div>
+                </div>
+              ` : ''}
+            </div>`;
+          }).join('')
       }
 
+      <!-- ═══ YEDEK GEÇMİŞİ ═══ -->
       <div class="card">
         <div class="section-header"><span class="section-title">📋 Yedek Geçmişi</span></div>
         <div style="max-height:260px;overflow-y:auto;">
@@ -2763,13 +3034,13 @@ const App = {
               <span style="color:var(--text2);">${dayjs(b.createdAt).format('DD MMM HH:mm')}</span>
               <span style="color:var(--text3);">${b.stats.islemSayisi} işlem</span>
               <span class="badge ${b.type==='auto'?'badge-blue':'badge-amber'}">${b.type==='auto'?'Otomatik':'Manuel'}</span>
-              <button onclick="App.downloadBackup(${b.id})" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:13px;" title="İndir"><i class="fas fa-download"></i></button>
+              <button onclick="App.downloadBackup(${b.id})" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:13px;"><i class="fas fa-download"></i></button>
             </div>`).join('') || '<div class="empty-state" style="padding:20px;"><i class="fas fa-cloud-upload-alt"></i><p>Henüz yedek yok</p></div>'}
         </div>
       </div>
     </div>`;
 
-    // ✅ Tamamlanan borçları render et
+    /* Tamamlanan borçları render et */
     if (tamamlananBorclar.length > 0) {
       const el = document.getElementById('tamamlananBorcList');
       if (el) {
@@ -2804,171 +3075,147 @@ const App = {
     }
   },
 
-  async manualArchive() {
-    const now = dayjs();
-    const r = await Swal.fire({
-      title: 'Arşivleme Onayı',
-      html: `<p>${now.format('MMMM YYYY')} ayını arşivlemek istiyor musunuz?</p><p style="font-size:12px;color:#94A3B8;margin-top:8px;">Borç/Alacak verileri korunacak. Gelir ve giderler arşive taşınacak.</p>`,
+  /* Yıl accordion aç/kapa */
+  _toggleArchiveYear(y) {
+    if (!this._archiveOpenYears) this._archiveOpenYears = new Set();
+    if (this._archiveOpenYears.has(y)) this._archiveOpenYears.delete(y);
+    else this._archiveOpenYears.add(y);
+    this.renderArsiv();
+  },
+
+  /* Manuel arşivleme — onay dialog + işlem */
+  async manualArchive(targetKey) {
+    if (!targetKey) {
+      const prevKey = SalaryMonth.previousKey();
+      const curKey = SalaryMonth.currentKey();
+      const prevArchived = !!state.archives[prevKey];
+      const prevHasData = SalaryMonth.hasDataInRange(SalaryMonth.range(prevKey));
+      const curHasData = SalaryMonth.hasDataInRange(SalaryMonth.range(curKey));
+
+      if (!prevArchived && prevHasData) targetKey = prevKey;
+      else if (prevArchived && curHasData) targetKey = curKey;
+      else {
+        Swal.fire({ icon: 'info', title: 'Bilgi', text: 'Arşivlenecek dönem bulunamadı.' });
+        return;
+      }
+    }
+
+    const range = SalaryMonth.range(targetKey);
+    const isEarly = targetKey === SalaryMonth.currentKey();
+
+    const { isConfirmed } = await Swal.fire({
+      title: 'Dönemi Arşivle',
+      html: `<div style="text-align:left;">
+        <p>Aşağıdaki maaş dönemi arşivlenecek:</p>
+        <div style="margin:12px 0;padding:14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);">
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Dönem</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:16px;font-weight:800;">${SalaryMonth.shortLabel(targetKey)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">${range.start} → ${range.end}</div>
+        </div>
+        ${isEarly ? `
+          <div style="margin-top:10px;padding:10px;background:#FEF3C7;border-radius:8px;font-size:12px;color:#92400E;">
+            ⚠️ <strong>Aktif dönemi</strong> erken arşivliyorsunuz. Sonraki günlerde eklenen işlemler ana listede kalır.
+          </div>` : ''}
+        <p style="font-size:12px;color:var(--text3);margin-top:12px;">Borç/Alacak kayıtları etkilenmeyecek.</p>
+      </div>`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Evet, Arşivle',
-      cancelButtonText: 'İptal'
+      cancelButtonText: 'İptal',
+      width: Math.min(520, window.innerWidth - 24)
     });
-    if (r.isConfirmed) {
-      const ok = await CRUD.manualArchive(now.format('YYYY-MM'));
-      if (ok) {
-        await this.renderArsiv();
-        if (this.currentPage === 'dashboard') await this.renderDashboard();
-      }
+    if (!isConfirmed) return;
+
+    const ok = await CRUD.manualArchive(targetKey);
+    if (ok) {
+      await this.renderArsiv();
+      if (this.currentPage === 'dashboard') await this.renderDashboard();
     }
   },
 
+  /* Arşiv detay modalı */
   async showArchiveDetail(key) {
-  const a = state.archives[key];
-  if (!a) return;
-  const aGelirler = Array.isArray(a.gelirler) ? a.gelirler : [];
-  const aGiderler = Array.isArray(a.giderler) ? a.giderler : [];
-  const aBorclar  = Array.isArray(a.borcalacaklar) ? a.borcalacaklar : [];
-  const aLoglar   = Array.isArray(a.loglar) ? a.loglar : [];   // 🆕
+    const a = state.archives[key];
+    if (!a) return;
 
-  const gelir  = aGelirler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
-  const gider  = aGiderler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
-  const net    = gelir - gider;
-  const bToplam = aBorclar.filter(b => b.tip === 'borc' && !b.odendiMi)
-    .reduce((s, b) => s + Math.max(0, (Number(b.miktar) || 0) - (b.payments || []).reduce((p, pm) => p + (Number(pm.miktar) || 0), 0)), 0);
-  const aToplam = aBorclar.filter(b => b.tip === 'alacak' && !b.odendiMi)
-    .reduce((s, b) => s + Math.max(0, (Number(b.miktar) || 0) - (b.payments || []).reduce((p, pm) => p + (Number(pm.miktar) || 0), 0)), 0);
+    const aGelirler = Array.isArray(a.gelirler) ? a.gelirler : [];
+    const aGiderler = Array.isArray(a.giderler) ? a.giderler : [];
+    const aBorclar  = Array.isArray(a.borcalacaklar) ? a.borcalacaklar : [];
+    const aLoglar   = Array.isArray(a.loglar) ? a.loglar : [];
 
-  const katG = aGiderler.reduce((m, g) => {
-    const k = g.kategori || 'Diğer';
-    m[k] = (m[k] || 0) + (Number(g.miktar) || 0);
-    return m;
-  }, {});
-  const topKat = Object.entries(katG).sort((x, y) => y[1] - x[1])[0];
+    const gelir  = aGelirler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+    const gider  = aGiderler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+    const net    = gelir - gider;
+    const bToplam = aBorclar.filter(b => b.tip === 'borc' && !b.odendiMi)
+      .reduce((s, b) => s + Math.max(0, (Number(b.miktar) || 0) - (b.payments || []).reduce((p, pm) => p + (Number(pm.miktar) || 0), 0)), 0);
+    const aToplam = aBorclar.filter(b => b.tip === 'alacak' && !b.odendiMi)
+      .reduce((s, b) => s + Math.max(0, (Number(b.miktar) || 0) - (b.payments || []).reduce((p, pm) => p + (Number(pm.miktar) || 0), 0)), 0);
 
-  const allTx = [
-    ...aGelirler.map(g => ({ ...g, _tip: 'gelir' })),
-    ...aGiderler.map(g => ({ ...g, _tip: 'gider' })),
-    ...aBorclar.map(b => ({ ...b, _tip: b.tip }))
-  ].sort((x, y) => (y.tarih || '') > (x.tarih || '') ? 1 : -1);
+    const katG = aGiderler.reduce((m, g) => {
+      const k = g.kategori || 'Diğer';
+      m[k] = (m[k] || 0) + (Number(g.miktar) || 0);
+      return m;
+    }, {});
+    const topKat = Object.entries(katG).sort((x, y) => y[1] - x[1])[0];
 
-  Swal.fire({
-    title: `${dayjs(key + '-01').format('MMMM YYYY')} — Detaylı Analiz`,
-    html: `<div style="text-align:left;max-height:480px;overflow-y:auto;">
-      <div class="archive-detail-stats">
-        <div class="archive-stat-card"><div class="archive-stat-label">Gelir</div><div class="archive-stat-value green">${Calc.fmt(gelir)}</div></div>
-        <div class="archive-stat-card"><div class="archive-stat-label">Gider</div><div class="archive-stat-value red">${Calc.fmt(gider)}</div></div>
-        <div class="archive-stat-card"><div class="archive-stat-label">Net</div><div class="archive-stat-value ${net>=0?'green':'red'}">${Calc.fmt(net)}</div></div>
-      </div>
-      <div class="archive-detail-stats">
-        <div class="archive-stat-card"><div class="archive-stat-label">Alacak</div><div class="archive-stat-value green">${Calc.fmt(aToplam)}</div></div>
-        <div class="archive-stat-card"><div class="archive-stat-label">Borç</div><div class="archive-stat-value red">${Calc.fmt(bToplam)}</div></div>
-        <div class="archive-stat-card"><div class="archive-stat-label">İşlemler</div><div class="archive-stat-value blue">${allTx.length}</div></div>
-      </div>
-      ${topKat ? `<div class="card-sm" style="text-align:center;margin-bottom:10px;">
-        <div class="archive-stat-label">En Yüksek Gider Kategorisi</div>
-        <div style="font-family:'Plus Jakarta Sans';font-size:16px;font-weight:800;margin-top:4px;">${UI.escHtml(topKat[0])}</div>
-        <div style="font-size:13px;color:var(--danger);font-weight:700;">${Calc.fmt(topKat[1])}</div>
-      </div>` : ''}
-      <div class="card-sm" style="margin-bottom:12px;">
-        <div class="archive-stat-label">Arşivlenme Tarihi</div>
-        <div style="font-size:12px;margin-top:3px;">${a.archivedAt ? dayjs(a.archivedAt).format('DD MMMM YYYY HH:mm') : '-'}</div>
-      </div>
-      <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text);">İşlem Listesi (${allTx.length})</div>
-      <div style="max-height:220px;overflow-y:auto;">
-        ${allTx.slice(0, 30).map(tx => UI.txItem(tx)).join('')}
-        ${allTx.length > 30 ? `<p style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0;">+${allTx.length - 30} işlem daha</p>` : ''}
-      </div>
+    const allTx = [
+      ...aGelirler.map(g => ({ ...g, _tip: 'gelir' })),
+      ...aGiderler.map(g => ({ ...g, _tip: 'gider' })),
+      ...aBorclar.map(b => ({ ...b, _tip: b.tip }))
+    ].sort((x, y) => (y.tarih || '') > (x.tarih || '') ? 1 : -1);
 
-      ${aLoglar.length ? `
-        <div style="margin-top:16px;">
-          <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text);display:flex;justify-content:space-between;align-items:center;">
-            <span>📜 Arşiv Logları</span>
-            <span class="badge badge-blue" style="font-size:10px;">${aLoglar.length} kayıt</span>
-          </div>
-          <div style="max-height:240px;overflow-y:auto;">
-            ${aLoglar.slice(0, 40).map(l =>
-              UI.logItem(l, null)   // Arşivde statik — tıklama yok
-            ).join('')}
-            ${aLoglar.length > 40 ? `<p style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0;">+${aLoglar.length - 40} log daha</p>` : ''}
-          </div>
-        </div>
-      ` : ''}
-    </div>`,
-    width: Math.min(540, window.innerWidth - 24),
-    confirmButtonText: 'Kapat',
-    showCloseButton: true
-  });
-},
-
-  /* ══════════════════════════════════════
-     İŞLEM DETAYI
-  ══════════════════════════════════════ */
-  async showTransactionDetail(id, tip) {
-    const item = CRUD.getIslemDetay(id, tip);
-    if (!item) return;
-    let html = '';
-
-    if (tip === 'gelir' || tip === 'gider') {
-      const isGelir = tip === 'gelir';
-      html = `<div style="text-align:left;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-          ${UI.tipBadge(tip)}
-          <span style="font-size:10px;color:var(--text3);">ID: ${item.id}</span>
-        </div>
-        <div class="archive-stat-card" style="text-align:center;margin-bottom:14px;padding:16px;">
-          <div class="archive-stat-label">Miktar</div>
-          <div style="font-family:'Plus Jakarta Sans';font-size:28px;font-weight:900;color:${isGelir?'var(--accent)':'var(--danger)'};">${isGelir?'+':'-'}${Calc.fmt(item.miktar)}</div>
-        </div>
-        <div class="archive-detail-stats" style="margin-bottom:12px;">
-          <div class="archive-stat-card"><div class="archive-stat-label">Kategori</div><div class="archive-stat-value" style="font-size:13px;">${UI.escHtml(item.kategori)}</div></div>
-          <div class="archive-stat-card"><div class="archive-stat-label">Tarih</div><div class="archive-stat-value" style="font-size:13px;">${dayjs(item.tarih).format('DD MMM YYYY')}</div></div>
-          <div class="archive-stat-card"><div class="archive-stat-label">Oluşturulma</div><div class="archive-stat-value" style="font-size:11px;">${dayjs(item.createdAt).format('DD MMM HH:mm')}</div></div>
-        </div>
-        ${item.aciklama?`<div class="card-sm"><div class="archive-stat-label">Açıklama</div><div style="font-size:13px;margin-top:4px;">${UI.escHtml(item.aciklama)}</div></div>`:''}
-      </div>`;
-    } else {
-      const paid    = (item.payments||[]).reduce((s,p)=>s+p.miktar,0);
-      const kalan   = item.miktar - paid;
-      const percent = item.miktar>0 ? Math.min(100,Math.round((paid/item.miktar)*100)) : 0;
-      html = `<div style="text-align:left;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-          ${UI.tipBadge(item.tip)}
-          <span style="font-size:10px;color:var(--text3);">ID: ${item.id}</span>
-        </div>
-        <div class="archive-stat-card" style="margin-bottom:12px;padding:14px;">
-          <div class="archive-stat-label">Kişi</div>
-          <div style="font-family:'Plus Jakarta Sans';font-size:18px;font-weight:800;">${UI.escHtml(item.kisiAdi)}</div>
-        </div>
-        <div class="archive-detail-stats" style="margin-bottom:12px;">
-          <div class="archive-stat-card"><div class="archive-stat-label">Toplam</div><div class="archive-stat-value">${Calc.fmt(item.miktar)}</div></div>
-          <div class="archive-stat-card"><div class="archive-stat-label">Ödenen</div><div class="archive-stat-value green">${Calc.fmt(paid)}</div></div>
-          <div class="archive-stat-card"><div class="archive-stat-label">Kalan</div><div class="archive-stat-value ${kalan>0?'red':'green'}">${Calc.fmt(kalan)}</div></div>
-        </div>
-        <div class="progress-track"><div class="progress-bar" style="width:${percent}%;background:${item.tip==='alacak'?'var(--accent)':'var(--warning)'};"></div></div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:12px;">
-          <span>%${percent} tamamlandı</span><span>${Calc.fmt(paid)} / ${Calc.fmt(item.miktar)}</span>
-        </div>
-        ${(item.payments||[]).length?`
-          <div style="font-size:12px;font-weight:700;margin-bottom:6px;">Ödeme Geçmişi</div>
-          ${item.payments.map(p=>`
-            <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;">
-              <span>${dayjs(p.tarih||item.tarih).format('DD MMM')} ${p.aciklama?'· '+UI.escHtml(p.aciklama):''}</span>
-              <span style="color:var(--accent);font-weight:700;">+${Calc.fmt(p.miktar)}</span>
-            </div>`).join('')}
-        `:''}
-        ${item.aciklama?`<div class="card-sm" style="margin-top:10px;"><div class="archive-stat-label">Açıklama</div><div style="font-size:13px;margin-top:4px;">${UI.escHtml(item.aciklama)}</div></div>`:''}
-      </div>`;
-    }
+    const range = a.salaryMonthRange || SalaryMonth.range(key);
 
     Swal.fire({
-      title: '📋 İşlem Detayı',
-      html,
-      width: Math.min(480, window.innerWidth - 24),
+      title: SalaryMonth.label(key) + ' — Detaylı Analiz',
+      html: `<div style="text-align:left;max-height:480px;overflow-y:auto;">
+        <div class="card-sm" style="margin-bottom:12px;text-align:center;">
+          <div class="archive-stat-label">Maaş Dönemi</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:14px;font-weight:800;margin-top:4px;">${range.start} → ${range.end}</div>
+        </div>
+        <div class="archive-detail-stats">
+          <div class="archive-stat-card"><div class="archive-stat-label">Gelir</div><div class="archive-stat-value green">${Calc.fmt(gelir)}</div></div>
+          <div class="archive-stat-card"><div class="archive-stat-label">Gider</div><div class="archive-stat-value red">${Calc.fmt(gider)}</div></div>
+          <div class="archive-stat-card"><div class="archive-stat-label">Net</div><div class="archive-stat-value ${net>=0?'green':'red'}">${Calc.fmt(net)}</div></div>
+        </div>
+        <div class="archive-detail-stats">
+          <div class="archive-stat-card"><div class="archive-stat-label">Alacak</div><div class="archive-stat-value green">${Calc.fmt(aToplam)}</div></div>
+          <div class="archive-stat-card"><div class="archive-stat-label">Borç</div><div class="archive-stat-value red">${Calc.fmt(bToplam)}</div></div>
+          <div class="archive-stat-card"><div class="archive-stat-label">İşlemler</div><div class="archive-stat-value blue">${allTx.length}</div></div>
+        </div>
+        ${topKat ? `<div class="card-sm" style="text-align:center;margin-bottom:10px;">
+          <div class="archive-stat-label">En Yüksek Gider Kategorisi</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:16px;font-weight:800;margin-top:4px;">${UI.escHtml(topKat[0])}</div>
+          <div style="font-size:13px;color:var(--danger);font-weight:700;">${Calc.fmt(topKat[1])}</div>
+        </div>` : ''}
+        <div class="card-sm" style="margin-bottom:12px;">
+          <div class="archive-stat-label">Arşivlenme Tarihi</div>
+          <div style="font-size:12px;margin-top:3px;">${a.archivedAt ? dayjs(a.archivedAt).format('DD MMMM YYYY HH:mm') : '-'}</div>
+        </div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text);">İşlem Listesi (${allTx.length})</div>
+        <div style="max-height:220px;overflow-y:auto;">
+          ${allTx.slice(0, 30).map(tx => UI.txItem(tx)).join('')}
+          ${allTx.length > 30 ? `<p style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0;">+${allTx.length - 30} işlem daha</p>` : ''}
+        </div>
+        ${aLoglar.length ? `
+          <div style="margin-top:16px;">
+            <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text);display:flex;justify-content:space-between;align-items:center;">
+              <span>📜 Arşiv Logları</span>
+              <span class="badge badge-blue" style="font-size:10px;">${aLoglar.length} kayıt</span>
+            </div>
+            <div style="max-height:240px;overflow-y:auto;">
+              ${aLoglar.slice(0, 40).map(l => UI.logItem(l, null)).join('')}
+              ${aLoglar.length > 40 ? `<p style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0;">+${aLoglar.length - 40} log daha</p>` : ''}
+            </div>
+          </div>
+        ` : ''}
+      </div>`,
+      width: Math.min(540, window.innerWidth - 24),
       confirmButtonText: 'Kapat',
       showCloseButton: true
     });
   },
+
   /* ══════════════════════════════════════
      LOGLAR — Kategorize, filtrelenebilir
   ══════════════════════════════════════ */
@@ -3039,10 +3286,12 @@ const App = {
   _filterByTime(logs) {
     const period = this._logTimeFilter;
     if (period === 'tum') return logs;
-    const now = dayjs();
-    const target = period === 'gecenay' ? now.subtract(1, 'month') : now;
-    const prefix = target.format('YYYY-MM');
-    return logs.filter(l => (l.timestamp || '').startsWith(prefix));
+    const targetKey = period === 'gecenay' ? SalaryMonth.previousKey() : SalaryMonth.currentKey();
+    const range = SalaryMonth.range(targetKey);
+    return logs.filter(l => {
+      const d = dayjs(l.timestamp).format('YYYY-MM-DD');
+      return d >= range.start && d <= range.end;
+    });
   },
 
   _setLogTime(t) {
@@ -3749,37 +3998,56 @@ async function migrateOldData(force = false) {
     });
 
     if (isConfirmed) {
+      const currentKey = SalaryMonth.currentKey();
+      const currentRange = SalaryMonth.range(currentKey);
+      const prevKey = SalaryMonth.previousKey();
+      const prevRange = SalaryMonth.range(prevKey);
+
       const months = new Set([
-        ...oldGelir.map(g => g.tarih.substring(0, 7)),
-        ...oldGider.map(g => g.tarih.substring(0, 7))
+        ...oldGelir.map(g => SalaryMonth.keyOf(g.tarih)),
+        ...oldGider.map(g => SalaryMonth.keyOf(g.tarih))
       ]);
+
       for (const m of months) {
         if (!state.archives[m]) {
-          /* 🆕 O aya ait logları da topla */
+          const r = SalaryMonth.range(m);
           const aLoglar = state.logs.filter(l => {
-            if (!l.timestamp) return false;
-            return l.timestamp.substring(0, 7) === m;
+            const d = dayjs(l.timestamp).format('YYYY-MM-DD');
+            return d >= r.start && d <= r.end;
           });
           state.archives[m] = {
-            gelirler: oldGelir.filter(g => g.tarih.startsWith(m)),
-            giderler: oldGider.filter(g => g.tarih.startsWith(m)),
+            gelirler: oldGelir.filter(g => g.tarih >= r.start && g.tarih <= r.end),
+            giderler: oldGider.filter(g => g.tarih >= r.start && g.tarih <= r.end),
             borcalacaklar: [],
             loglar: aLoglar,
+            salaryMonthRange: r,
+            year: SalaryMonth.yearOf(m),
             archivedAt: new Date().toISOString(),
-            schemaVersion: 2
+            schemaVersion: 3
           };
         }
       }
-      state.gelirler = state.gelirler.filter(g => !g.tarih || g.tarih.startsWith(currentMonth));
-      state.giderler = state.giderler.filter(g => !g.tarih || g.tarih.startsWith(currentMonth));
-      /* 🆕 Bu aya ait olmayan logları state.logs'tan çıkar */
-      state.logs = state.logs.filter(l => {
-        if (!l.timestamp) return true;
-        return l.timestamp.substring(0, 7) === currentMonth;
+
+      /* Sadece aktif ve önceki dönem ana listede kalsın */
+      state.gelirler = state.gelirler.filter(g => {
+        if (!g.tarih) return true;
+        return (g.tarih >= currentRange.start && g.tarih <= currentRange.end) ||
+               (g.tarih >= prevRange.start && g.tarih <= prevRange.end);
       });
+      state.giderler = state.giderler.filter(g => {
+        if (!g.tarih) return true;
+        return (g.tarih >= currentRange.start && g.tarih <= currentRange.end) ||
+               (g.tarih >= prevRange.start && g.tarih <= prevRange.end);
+      });
+      state.logs = state.logs.filter(l => {
+        const d = dayjs(l.timestamp).format('YYYY-MM-DD');
+        return (d >= currentRange.start && d <= currentRange.end) ||
+               (d >= prevRange.start && d <= prevRange.end);
+      });
+
       await saveGelirler();
       await saveGiderler();
-      await saveLogs();   // 🆕
+      await saveLogs();
       await saveArchives();
     }
   }
