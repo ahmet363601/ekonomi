@@ -10,7 +10,6 @@ const BASE_PATH = '/ekonomi/';
 
 // Önbelleğe alınacak statik dosyalar (BASE_PATH ile)
 const STATIC_URLS = [
-  BASE_PATH,
   `${BASE_PATH}index.html`,
   `${BASE_PATH}manifest.json`
 ];
@@ -33,10 +32,9 @@ self.addEventListener('install', event => {
         return cache.addAll(STATIC_URLS);
       }),
       caches.open(ASSET_CACHE).then(cache => {
-        return cache.addAll(EXTERNAL_URLS.map(url => {
-          return new Request(url, { mode: 'no-cors' });
-        })).catch(err => {
-          console.warn('[SW] External cache error:', url, err);
+        const reqs = EXTERNAL_URLS.map(url => new Request(url, { mode: 'no-cors' }));
+        return cache.addAll(reqs).catch(err => {
+          console.warn('[SW] External cache error:', err);
         });
       })
     ]).then(() => {
