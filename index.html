@@ -1004,6 +1004,10 @@ const DB_NAME    = 'ButcemProDB';
 const DB_VERSION = 2;
 const PARA       = 'TL';
 
+/* iOS tespiti — PWA kurulum yönlendirmesi ve ITP uyarısı için */
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
 /* ─────────────────────────────────────────────
    INDEXEDDB
 ───────────────────────────────────────────── */
@@ -2806,6 +2810,7 @@ if (item.aciklama) doc.text(String(item.aciklama).substring(0, 25), 105, y);
     const a    = Object.assign(document.createElement('a'), { href:url, download:`butcem_yedek_${dayjs().format('YYYY-MM-DD_HHmm')}.json` });
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    localStorage.setItem('last_backup_date', new Date().toISOString());
     showToast('💾 Yedek alındı!');
   },
 
@@ -2907,19 +2912,75 @@ async function migrateOldData(force = false) {
 }
 
 /* ─────────────────────────────────────────────
+   YEDEKLEME HATIRLATICI
+   Son yedek 7 günden eskiyse kullanıcıyı uyarır.
+───────────────────────────────────────────── */
+async function checkBackupReminder() {
+  try {
+    const lastBackup = localStorage.getItem('last_backup_date');
+    if (!lastBackup) return; // hiç yedek alınmamış → sessiz kal
+
+    const gunFark = (Date.now() - new Date(lastBackup).getTime()) / (1000 * 60 * 60 * 24);
+    if (gunFark < 7) return;
+
+    const { isConfirmed } = await Swal.fire({
+      icon: 'warning',
+      title: '📦 Yedek Hatırlatıcısı',
+      html: `<p style="font-size:13px;">Son yedeğinizin üzerinden <strong>${Math.floor(gunFark)} gün</strong> geçti.</p>
+             <p style="font-size:12px;color:#94a3b8;margin-top:6px;">Verileriniz kaybolmasın diye JSON yedeği almanız önerilir.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Yedek Al',
+      cancelButtonText: 'Daha Sonra'
+    });
+    if (isConfirmed) await App.exportToJSON();
+  } catch (e) {
+    console.warn('[BackupReminder] Hata:', e);
+  }
+}
+
+/* ─────────────────────────────────────────────
    EXPOSE GLOBALS
 ───────────────────────────────────────────── */
 window.App  = App;
 window.CRUD = CRUD;
 
 /* ───── PWA Install Prompt ───── */
+/* ───── PWA Install Prompt ───── */
 let deferredInstallPrompt = null;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredInstallPrompt = e;
 });
+
 async function promptInstall() {
-  if (!deferredInstallPrompt) { showToast('Uygulama zaten yüklü ya da desteklenmiyor.'); return; }
+  /* iOS Safari beforeinstallprompt desteklemez → manuel talimat göster */
+  if (isIOS) {
+    Swal.fire({
+      title: '📲 Ana Ekrana Ekle',
+      html: `
+        <div style="text-align: left; font-size: 14px; line-height: 1.8;">
+          <p><strong>Safari'de</strong> şu adımları izleyin:</p>
+          <p>1. Ekranın altındaki <strong>Paylaş</strong> butonuna dokunun
+             <i class="fas fa-arrow-up-from-bracket" style="color:#2563EB;"></i></p>
+          <p>2. Aşağı kaydırıp <strong>"Ana Ekrana Ekle"</strong> seçeneğine dokunun</p>
+          <p>3. Sağ üstteki <strong>"Ekle"</strong> butonuna dokunun</p>
+          <hr style="margin: 14px 0; border: none; border-top: 1px solid #e2e8f0;">
+          <p style="font-size: 12px; color: #94a3b8;">
+            <i class="fas fa-info-circle"></i> Bu adım, verilerinizin iOS'un 7 günlük
+            otomatik temizliğinden korunmasını sağlar.
+          </p>
+        </div>`,
+      confirmButtonText: 'Anladım',
+      width: Math.min(420, window.innerWidth - 24)
+    });
+    return;
+  }
+
+  /* Diğer tarayıcılar için standart PWA akışı */
+  if (!deferredInstallPrompt) {
+    showToast('Uygulama zaten yüklü ya da bu tarayıcıda desteklenmiyor.');
+    return;
+  }
   deferredInstallPrompt.prompt();
   const { outcome } = await deferredInstallPrompt.userChoice;
   deferredInstallPrompt = null;
@@ -2936,21 +2997,36 @@ document.addEventListener('visibilitychange', async () => {
 });
   
 // Kalıcı depolama izni iste
-(async function requestPersistentStorage() {
-    if (navigator.storage && navigator.storage.persist) {
-        const isPersisted = await navigator.storage.persisted();
-        if (!isPersisted) {
-            const granted = await navigator.storage.persist();
-            console.log('[Storage] Kalıcı depolama izni:', granted ? 'VERİLDİ ✅' : 'REDDEDİLDİ ❌');
-            if (!granted) {
-                // Kullanıcıya bilgi ver (opsiyonel)
-                console.warn('Tarayıcı kalıcı depolamaya izin vermedi. Veriler temizlenebilir.');
-            }
-        } else {
-            console.log('[Storage] Zaten kalıcı depolama aktif.');
-        }
+/* ───── Kalıcı depolama izni ─────
+   iOS ve bazı tarayıcılar persist() çağrısına kullanıcı etkileşimi
+   sonrası daha olumlu yanıt verir. İlk tıklamada bir kez tetiklenir. */
+let persistRequested = false;
+async function requestPersistentStorage() {
+  if (persistRequested) return;
+  persistRequested = true;
+
+  if (!navigator.storage || !navigator.storage.persist) {
+    console.warn('[Storage] Kalıcı depolama API\'si desteklenmiyor.');
+    return;
+  }
+  try {
+    const isPersisted = await navigator.storage.persisted();
+    if (isPersisted) {
+      console.log('[Storage] ✅ Zaten kalıcı depolama aktif.');
+      return;
     }
-})();
+    const granted = await navigator.storage.persist();
+    console.log('[Storage] Kalıcı depolama izni:', granted ? '✅ VERİLDİ' : '❌ REDDEDİLDİ');
+    if (!granted) {
+      console.warn('[Storage] Tarayıcı kalıcı depolamaya izin vermedi. Düzenli yedek alın.');
+    }
+  } catch (e) {
+    console.error('[Storage] Kalıcı depolama isteği hatası:', e);
+  }
+}
+
+// İlk kullanıcı etkileşiminde çalıştır
+document.addEventListener('click', () => { requestPersistentStorage(); }, { once: true });
 /* ─────────────────────────────────────────────
    INIT
 ───────────────────────────────────────────── */
@@ -2971,6 +3047,28 @@ document.addEventListener('visibilitychange', async () => {
     await loadAllData();
     await migrateOldData();
     await App.loadPage('dashboard');
+
+    /* iOS'a özgü uyarı — 7 günlük ITP temizliği hakkında */
+    if (isIOS && !localStorage.getItem('ios_install_hint_shown')) {
+      setTimeout(() => {
+        Swal.fire({
+          icon: 'info',
+          title: 'Verileriniz İçin Önemli',
+          html: `<p style="font-size:13px;">iOS Safari, <strong>7 gün</strong> boyunca ziyaret edilmeyen sitelerin verilerini silebilir.</p>
+                 <p style="font-size:13px;margin-top:10px;">Verilerinizi korumak için:</p>
+                 <p style="font-size:13px;margin-top:6px;">📲 Uygulamayı <strong>Ana Ekrana Ekleyin</strong><br>
+                 💾 Veya düzenli olarak <strong>JSON Yedeği</strong> alın.</p>`,
+          confirmButtonText: 'Anladım',
+          timer: 12000,
+          timerProgressBar: true
+        });
+        localStorage.setItem('ios_install_hint_shown', '1');
+      }, 2500);
+    }
+
+    /* 7 günden eski yedeği olanlara hatırlatıcı */
+    await checkBackupReminder();
+
   } catch(e) {
     console.error('Başlatma hatası:', e);
     document.getElementById('view').innerHTML = `
