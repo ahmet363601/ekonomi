@@ -901,7 +901,9 @@ button, input, select, textarea {
   z-index: 999;
   animation: toastAnim 2.8s forwards;
   box-shadow: var(--shadow-md);
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
   max-width: 90%;
   text-align: center;
   pointer-events: none;
@@ -2321,6 +2323,53 @@ const App = {
       if (this.currentPage === 'dashboard') await this.renderRecentList();
     }
   },
+
+
+  async showTransactionDetail(id, tip) {
+  const item = (tip === 'gelir' ? state.gelirler : state.giderler).find(i => i.id == id);
+  if (!item) { showToast('⚠️ Kayıt bulunamadı'); return; }
+  const isGelir = tip === 'gelir';
+  await Swal.fire({
+    title: (isGelir ? '📥 Gelir Detayı' : '📤 Gider Detayı'),
+    html: `<div style="text-align:left;">
+      <div class="card-sm" style="text-align:center;margin-bottom:12px;">
+        <div class="archive-stat-label">Kategori</div>
+        <div style="font-family:'Plus Jakarta Sans';font-size:16px;font-weight:800;margin-top:4px;">${UI.escHtml(item.kategori)}</div>
+      </div>
+      <div class="archive-detail-stats">
+        <div class="archive-stat-card">
+          <div class="archive-stat-label">Miktar</div>
+          <div class="archive-stat-value ${isGelir ? 'green' : 'red'}">${Calc.fmt(item.miktar)}</div>
+        </div>
+        <div class="archive-stat-card">
+          <div class="archive-stat-label">Tarih</div>
+          <div class="archive-stat-value" style="font-size:11px;">${dayjs(item.tarih).format('DD MMM YYYY')}</div>
+        </div>
+        <div class="archive-stat-card">
+          <div class="archive-stat-label">Dönem</div>
+          <div class="archive-stat-value" style="font-size:11px;">${SalaryMonth.shortLabel(SalaryMonth.keyOf(item.tarih))}</div>
+        </div>
+      </div>
+      ${item.aciklama ? `<div class="card-sm"><div class="archive-stat-label">Açıklama</div>
+        <div style="font-size:13px;margin-top:4px;">${UI.escHtml(item.aciklama)}</div></div>` : ''}
+      <div class="card-sm"><div class="archive-stat-label">Oluşturulma</div>
+        <div style="font-size:11px;margin-top:3px;">${dayjs(item.createdAt).format('DD MMMM YYYY HH:mm')}</div></div>
+    </div>`,
+    showDenyButton: true,
+    showCancelButton: true,
+    confirmButtonText: 'Kapat',
+    denyButtonText: '✏️ Düzenle',
+    cancelButtonText: '🗑️ Sil',
+    denyButtonColor: 'var(--primary)',
+    cancelButtonColor: 'var(--danger)',
+    width: Math.min(480, window.innerWidth - 24)
+  }).then(r => {
+    if (r.isDenied) App.editIslem(id, tip);
+    else if (r.dismiss === Swal.DismissReason.cancel) App.deleteIslem(id, tip);
+  });
+},
+
+  
   async deleteArchive(key) {
     const archive = state.archives[key];
     if (!archive) { showToast('⚠️ Arşiv bulunamadı'); return; }
@@ -3067,15 +3116,16 @@ const App = {
         }
 
         /* 3. Aktif dönem için küçük "erken arşivle" seçeneği (her zaman) */
-        if (curGelir > 0 || curGider > 0) {
-          return `<button class="btn btn-ghost btn-full" onclick="App.manualArchive('${currentKey}')"
-                          style="margin-bottom:10px;font-size:12px;border-style:dashed;">
-            <i class="fas fa-archive"></i> ${SalaryMonth.shortLabel(currentKey)} Dönemini Erken Arşivle
-            <span style="color:var(--text3);font-weight:500;">(${daysLeft} gün kaldı)</span>
-          </button>`;
-        }
-
-        return '';
+        /* 3. Aktif dönem için "erken arşivle" — veri olsa da olmasa da göster */
+        const currentHasData = curGelir > 0 || curGider > 0;
+        return `<button class="btn btn-ghost btn-full" onclick="App.manualArchive('${currentKey}')"
+                        style="margin-bottom:10px;font-size:12px;border-style:dashed;">
+          <i class="fas fa-archive"></i>
+          ${currentHasData
+            ? `${SalaryMonth.shortLabel(currentKey)} Dönemini Erken Arşivle`
+            : `${SalaryMonth.shortLabel(currentKey)} Dönemini Arşivle (boş)`}
+          <span style="color:var(--text3);font-weight:500;">(${daysLeft} gün kaldı)</span>
+        </button>`;
       })()}
 
       <!-- ═══ BEKLEYENLER ═══ -->
@@ -3341,10 +3391,6 @@ const App = {
     const gelir  = aGelirler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
     const gider  = aGiderler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
     const net    = gelir - gider;
-    const bToplam = aBorclar.filter(b => b.tip === 'borc' && !b.odendiMi)
-      .reduce((s, b) => s + Math.max(0, (Number(b.miktar) || 0) - (b.payments || []).reduce((p, pm) => p + (Number(pm.miktar) || 0), 0)), 0);
-    const aToplam = aBorclar.filter(b => b.tip === 'alacak' && !b.odendiMi)
-      .reduce((s, b) => s + Math.max(0, (Number(b.miktar) || 0) - (b.payments || []).reduce((p, pm) => p + (Number(pm.miktar) || 0), 0)), 0);
 
     const katG = aGiderler.reduce((m, g) => {
       const k = g.kategori || 'Diğer';
@@ -3373,10 +3419,9 @@ const App = {
           <div class="archive-stat-card"><div class="archive-stat-label">Gider</div><div class="archive-stat-value red">${Calc.fmt(gider)}</div></div>
           <div class="archive-stat-card"><div class="archive-stat-label">Net</div><div class="archive-stat-value ${net>=0?'green':'red'}">${Calc.fmt(net)}</div></div>
         </div>
-        <div class="archive-detail-stats">
-          <div class="archive-stat-card"><div class="archive-stat-label">Alacak</div><div class="archive-stat-value green">${Calc.fmt(aToplam)}</div></div>
-          <div class="archive-stat-card"><div class="archive-stat-label">Borç</div><div class="archive-stat-value red">${Calc.fmt(bToplam)}</div></div>
-          <div class="archive-stat-card"><div class="archive-stat-label">İşlemler</div><div class="archive-stat-value blue">${allTx.length}</div></div>
+        <div class="archive-detail-stats" style="grid-template-columns:1fr 1fr;">
+          <div class="archive-stat-card"><div class="archive-stat-label">Gelir Kayıt</div><div class="archive-stat-value green">${aGelirler.length}</div></div>
+          <div class="archive-stat-card"><div class="archive-stat-label">Gider Kayıt</div><div class="archive-stat-value red">${aGiderler.length}</div></div>
         </div>
         ${topKat ? `<div class="card-sm" style="text-align:center;margin-bottom:10px;">
           <div class="archive-stat-label">En Yüksek Gider Kategorisi</div>
@@ -4527,6 +4572,7 @@ async function promptInstall() {
   if (outcome === 'accepted') showToast('✅ Uygulama yüklendi!');
 }
 window.promptInstall = promptInstall;
+App.promptInstall = promptInstall;   // 🆕 App üzerinden de erişilsin
 
 /* ───── Arka plana atılmadan önce bekleyen yazmayı flush et ───── */
 document.addEventListener('visibilitychange', async () => {
