@@ -1279,6 +1279,8 @@ const LOG_ACTIONS = {
   limit_ekle:       { cat:'limit',    sev:'info',    icon:'fa-shield-alt',           label:'Limit Belirlendi' },
   limit_sil:        { cat:'limit',    sev:'warning', icon:'fa-shield-alt',           label:'Limit Kaldırıldı' },
   manuel_arsiv:     { cat:'arsiv',    sev:'info',    icon:'fa-archive',              label:'Ay Arşivlendi' },
+  arsiv_sil:        { cat:'arsiv',    sev:'danger',  icon:'fa-trash',                label:'Arşiv Kalıcı Silindi' },
+  arsiv_geri_yukle: { cat:'arsiv',    sev:'warning', icon:'fa-undo',                 label:'Arşiv Geri Yüklendi' },
   json_import:      { cat:'veri',     sev:'warning', icon:'fa-file-import',          label:'Yedek Yüklendi' },
   json_export:      { cat:'veri',     sev:'info',    icon:'fa-file-export',          label:'Yedek Alındı' },
   reset_all:        { cat:'veri',     sev:'danger',  icon:'fa-bomb',                 label:'Tüm Veriler Sıfırlandı' },
@@ -2320,6 +2322,70 @@ const App = {
     }
   },
 
+
+    async deleteArchive(key) {
+    const archive = state.archives[key];
+    if (!archive) { showToast('⚠️ Arşiv bulunamadı'); return; }
+
+    const range      = archive.salaryMonthRange || SalaryMonth.range(key);
+    const aGelirler  = Array.isArray(archive.gelirler) ? archive.gelirler : [];
+    const aGiderler  = Array.isArray(archive.giderler) ? archive.giderler : [];
+    const aLoglar    = Array.isArray(archive.loglar)   ? archive.loglar   : [];
+
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: '🗑️ Arşivi Sil',
+      html: `<div style="text-align:left;">
+        <div style="padding:12px;background:var(--surface2);border-radius:10px;margin-bottom:12px;">
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Arşiv</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:800;">${SalaryMonth.shortLabel(key)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${range.start} → ${range.end}</div>
+        </div>
+        <p><strong>${aGelirler.length}</strong> gelir · <strong>${aGiderler.length}</strong> gider · <strong>${aLoglar.length}</strong> log içeriyor.</p>
+        <p style="font-size:12px;color:#94a3b8;margin-top:10px;">Ne yapmak istersiniz?</p>
+      </div>`,
+      showDenyButton: true,
+      showCancelButton: true,
+      confirmButtonText: '🗑️ Kalıcı Sil',
+      denyButtonText:    '↩️ Ana Listeye Geri Yükle',
+      cancelButtonText:  'İptal',
+      confirmButtonColor: '#DC2626',
+      denyButtonColor:    '#D97706',
+      width: Math.min(520, window.innerWidth - 24)
+    });
+
+    if (result.isDismissed) return;
+
+    const isRestore = result.isDenied;
+
+    if (isRestore) {
+      /* Aynı ID'ler zaten varsa atla (çift kayıt koruması) */
+      const gIds = new Set(state.gelirler.map(g => g.id));
+      const dIds = new Set(state.giderler.map(g => g.id));
+      const lIds = new Set(state.logs.map(l => l.id));
+      aGelirler.forEach(g => { if (!gIds.has(g.id)) state.gelirler.push(g); });
+      aGiderler.forEach(g => { if (!dIds.has(g.id)) state.giderler.push(g); });
+      aLoglar.forEach(l   => { if (!lIds.has(l.id)) state.logs.push(l); });
+      state.logs.sort((a, b) => b.timestamp > a.timestamp ? 1 : -1);
+    }
+
+    delete state.archives[key];
+    await saveGelirler();
+    await saveGiderler();
+    await saveLogs();
+    await saveArchives();
+
+    await addLog(isRestore ? 'arsiv_geri_yukle' : 'arsiv_sil',
+      SalaryMonth.label(key),
+      { month: key, gelirCount: aGelirler.length, giderCount: aGiderler.length, logCount: aLoglar.length });
+    await createAutoBackup();
+
+    showToast(isRestore ? '↩️ Arşiv geri yüklendi' : '🗑️ Arşiv silindi');
+    await this.renderArsiv();
+  },
+
+
+  
   /* ══════════════════════════════════════
      BORÇ & ALACAK
   ══════════════════════════════════════ */
@@ -2966,11 +3032,11 @@ const App = {
 
         /* 3. Aktif dönem için küçük "erken arşivle" seçeneği (her zaman) */
         if (curGelir > 0 || curGider > 0) {
-          return `<div style="text-align:center;margin-bottom:10px;">
-            <button class="btn btn-ghost btn-sm" onclick="App.manualArchive('${currentKey}')" style="font-size:11px;">
-              <i class="fas fa-archive"></i> ${SalaryMonth.shortLabel(currentKey)} Dönemini Erken Arşivle
-            </button>
-          </div>`;
+          return `<button class="btn btn-ghost btn-full" onclick="App.manualArchive('${currentKey}')"
+                          style="margin-bottom:10px;font-size:12px;border-style:dashed;">
+            <i class="fas fa-archive"></i> ${SalaryMonth.shortLabel(currentKey)} Dönemini Erken Arşivle
+            <span style="color:var(--text3);font-weight:500;">(${daysLeft} gün kaldı)</span>
+          </button>`;
         }
 
         return '';
@@ -3075,7 +3141,14 @@ const App = {
                       const net = gelir - gider;
                       const logCnt = Array.isArray(a.loglar) ? a.loglar.length : 0;
                       const cnt = aG.length + aGd.length;
-                      return `<div class="archive-card" onclick="App.showArchiveDetail('${k}')">
+                      return `<div class="archive-card" style="position:relative;" onclick="App.showArchiveDetail('${k}')">
+                        <button onclick="event.stopPropagation();App.deleteArchive('${k}')"
+                                title="Arşivi Sil"
+                                style="position:absolute;top:6px;right:6px;background:var(--danger-light);color:var(--danger);
+                                       border:1px solid var(--danger);width:22px;height:22px;border-radius:6px;cursor:pointer;
+                                       font-size:10px;display:flex;align-items:center;justify-content:center;padding:0;z-index:2;">
+                          <i class="fas fa-trash"></i>
+                        </button>
                         <div class="archive-month" style="font-size:12px;">${SalaryMonth.shortLabel(k)}</div>
                         <div style="font-size:9px;color:var(--text3);margin-bottom:4px;">${SalaryMonth.range(k).start.substring(5)} → ${SalaryMonth.range(k).end.substring(5)}</div>
                         <div class="archive-amount" style="color:${net>=0?'var(--accent)':'var(--danger)'};">${Calc.fmt(net)}</div>
@@ -3298,7 +3371,14 @@ const App = {
       </div>`,
       width: Math.min(540, window.innerWidth - 24),
       confirmButtonText: 'Kapat',
+      showDenyButton: true,
+      denyButtonText: '🗑️ Arşivi Sil',
+      denyButtonColor: '#DC2626',
       showCloseButton: true
+    }).then(r => {
+      if (r.isDenied) {
+        setTimeout(() => this.deleteArchive(key), 250);
+      }
     });
   },
 
