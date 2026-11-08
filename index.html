@@ -1203,6 +1203,14 @@ const saveAyarlar     = () => queueSave(() => saveStore('ayarlar', [{
   ceyrekAltinFiyati: Number(state.ayarlar.ceyrekAltinFiyati) || 0
 }]));
 const saveArchives    = () => queueSave(() => saveStore('archives', Object.entries(state.archives).map(([month, data]) => ({ month, data }))));
+const saveLogs        = () => queueSave(() => saveStore('logs', state.logs));
+const saveBackups     = () => queueSave(() => saveStore('backups', state.backups));
+const saveKategoriler = () => queueSave(() => saveStore('kategoriler', [
+  { tip: 'gelir', kategoriler: state.kategoriler.gelir },
+  { tip: 'gider', kategoriler: state.kategoriler.gider }
+]));
+
+/* Tüm store'ları yaz — sadece resetAll/import gibi nadir durumlarda */
 
 /* Tüm store'ları yaz — sadece resetAll/import gibi nadir durumlarda */
 async function saveAllData() {
