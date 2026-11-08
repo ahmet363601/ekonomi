@@ -1384,11 +1384,9 @@ const Calc = {
     return [
       ...state.gelirler.map(g => ({ ...g, _tip: 'gelir' })),
       ...state.giderler.map(g => ({ ...g, _tip: 'gider' })),
-      // ✅ Ödenmiş borçlar arşive taşındı → son işlemlerde gösterilmez
       ...state.borcalacaklar.filter(b => !b.odendiMi).map(b => ({ ...b, _tip: b.tip }))
     ].sort((a, b) => (b.tarih || '') > (a.tarih || '') ? 1 : -1);
   }
-
 /* ─────────────────────────────────────────────
    CRUD
 ───────────────────────────────────────────── */
@@ -3247,9 +3245,6 @@ const App = {
       tablo(state.giderler, 'GİDERLER', [220, 38, 38], '-');
 
       /* ═══════════════════════
-         BORÇ / ALACAK
-         ═══════════════════════ */
-      /* ═══════════════════════
          BORÇ / ALACAK — Sadece aktif olanlar
          ═══════════════════════ */
       const aktifBorclar = state.borcalacaklar.filter(b => !b.odendiMi);
@@ -3305,7 +3300,6 @@ const App = {
           y += 17;
         });
       }
-
       /* ═══════════════════════
          TÜM SAYFALARA FOOTER
          ═══════════════════════ */
