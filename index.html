@@ -1228,17 +1228,64 @@ async function saveAllData() {
 /* ─────────────────────────────────────────────
    LOGLAMA
 ───────────────────────────────────────────── */
-async function addLog(action, details = '') {
+/* ═══════════════════════════════════════════════════════════════
+   LOG ACTION REGISTRY + META + UI.logItem
+   (Bu blok addLog'dan ÖNCE tanımlanmalı — hoisting yok)
+   ═══════════════════════════════════════════════════════════════ */
+const LOG_ACTIONS = {
+  gelir_ekle:       { cat:'islem',    sev:'success', icon:'fa-arrow-down',           label:'Gelir Eklendi' },
+  gider_ekle:       { cat:'islem',    sev:'warning', icon:'fa-arrow-up',             label:'Gider Eklendi' },
+  gelir_guncelle:   { cat:'islem',    sev:'warning', icon:'fa-pen',                  label:'Gelir Güncellendi' },
+  gider_guncelle:   { cat:'islem',    sev:'warning', icon:'fa-pen',                  label:'Gider Güncellendi' },
+  gelir_sil:        { cat:'islem',    sev:'danger',  icon:'fa-trash',                label:'Gelir Silindi' },
+  gider_sil:        { cat:'islem',    sev:'danger',  icon:'fa-trash',                label:'Gider Silindi' },
+  borc_ekle_alacak: { cat:'borc',     sev:'success', icon:'fa-hand-holding-dollar',  label:'Alacak Eklendi' },
+  borc_ekle_borc:   { cat:'borc',     sev:'warning', icon:'fa-hand-holding-usd',     label:'Borç Eklendi' },
+  borc_sil:         { cat:'borc',     sev:'danger',  icon:'fa-trash',                label:'Borç/Alacak Silindi' },
+  borc_tam_odendi:  { cat:'borc',     sev:'success', icon:'fa-check-circle',         label:'Borç Tamamen Ödendi' },
+  ara_odeme:        { cat:'borc',     sev:'success', icon:'fa-money-bill-wave',      label:'Ara Ödeme Yapıldı' },
+  borc_geri_alindi: { cat:'borc',     sev:'warning', icon:'fa-undo',                 label:'Borç Geri Alındı' },
+  borc_sil_kalici:  { cat:'borc',     sev:'danger',  icon:'fa-trash',                label:'Borç Kalıcı Silindi' },
+  kategori_ekle:    { cat:'kategori', sev:'info',    icon:'fa-tag',                  label:'Kategori Eklendi' },
+  kategori_sil:     { cat:'kategori', sev:'warning', icon:'fa-tag',                  label:'Kategori Silindi' },
+  limit_ekle:       { cat:'limit',    sev:'info',    icon:'fa-shield-alt',           label:'Limit Belirlendi' },
+  limit_sil:        { cat:'limit',    sev:'warning', icon:'fa-shield-alt',           label:'Limit Kaldırıldı' },
+  manuel_arsiv:     { cat:'arsiv',    sev:'info',    icon:'fa-archive',              label:'Ay Arşivlendi' },
+  json_import:      { cat:'veri',     sev:'warning', icon:'fa-file-import',          label:'Yedek Yüklendi' },
+  json_export:      { cat:'veri',     sev:'info',    icon:'fa-file-export',          label:'Yedek Alındı' },
+  reset_all:        { cat:'veri',     sev:'danger',  icon:'fa-bomb',                 label:'Tüm Veriler Sıfırlandı' },
+  init:             { cat:'sistem',   sev:'info',    icon:'fa-power-off',            label:'Uygulama Başlatıldı' },
+  sayfa:            { cat:'sistem',   sev:'info',    icon:'fa-eye',                  label:'Sayfa Görüntülendi' }
+};
+
+const LOG_META = {
+  islem:    { color:'var(--primary)', bg:'var(--primary-light)', label:'İşlemler' },
+  borc:     { color:'var(--warning)', bg:'var(--warning-light)', label:'Borç/Alacak' },
+  kategori: { color:'var(--info)',    bg:'var(--info-light)',    label:'Kategori' },
+  limit:    { color:'#7C3AED',        bg:'#F3E8FF',              label:'Limit' },
+  arsiv:    { color:'var(--primary)', bg:'var(--primary-light)', label:'Arşiv' },
+  veri:     { color:'var(--danger)',  bg:'var(--danger-light)',  label:'Veri' },
+  sistem:   { color:'var(--text3)',   bg:'var(--surface2)',      label:'Sistem' },
+  diger:    { color:'var(--text2)',   bg:'var(--surface2)',      label:'Diğer' }
+};
+
+/* addLog */
+async function addLog(action, details = '', meta = {}) {
+  const def = LOG_ACTIONS[action] || { cat:'diger', sev:'info', icon:'fa-info-circle', label: action };
   const log = {
     id: Date.now() + Math.random(),
     timestamp: new Date().toISOString(),
     action,
+    category: def.cat,
+    severity: def.sev,
+    label:    def.label,
     details,
+    meta,
     page: (typeof App !== 'undefined' && App) ? App.currentPage : 'init'
   };
   state.logs.unshift(log);
   if (state.logs.length > 500) state.logs = state.logs.slice(0, 500);
-  await saveLogs();   // Sadece logs yaz — diğer store'lara dokunma
+  await saveLogs();
 }
 
 /* ─────────────────────────────────────────────
@@ -1404,7 +1451,9 @@ const CRUD = {
         Swal.fire({ icon: 'warning', title: '⚠️ Limit Aşımı!', text: `${kategori} için ${Calc.fmt(limit)} limiti aşıldı!`, timer: 2500, showConfirmButton: false });
       }
     }
-    await addLog(`${tip}_ekle`, `${Calc.fmt(miktar)} · ${kategori}`);
+    await addLog(`${tip}_ekle`,
+      `${Calc.fmt(miktar)} · ${kategori}${aciklama ? ' — ' + aciklama.substring(0, 40) : ''}`,
+      { entityId: item.id, entityType: tip, amount: miktar, category: kategori, date: tarih });
     await createAutoBackup();
     return item;
   },
@@ -1413,16 +1462,35 @@ const CRUD = {
     const arr = tip === 'gelir' ? state.gelirler : state.giderler;
     const idx = arr.findIndex(i => i.id == id);
     if (idx === -1) return false;
+    const before = { ...arr[idx] };
     arr[idx] = { ...arr[idx], ...guncelleme };
+    const after = arr[idx];
     await (tip === 'gelir' ? saveGelirler() : saveGiderler());
-    await addLog(`${tip}_guncelle`, `ID:${id}`);
+
+    const changes = [];
+    if (Number(before.miktar) !== Number(after.miktar)) changes.push(`Miktar: ${Calc.fmt(before.miktar)} → ${Calc.fmt(after.miktar)}`);
+    if (before.kategori !== after.kategori)             changes.push(`Kategori: ${before.kategori} → ${after.kategori}`);
+    if (before.tarih !== after.tarih)                   changes.push(`Tarih: ${before.tarih} → ${after.tarih}`);
+    if (before.aciklama !== after.aciklama)             changes.push('Açıklama değiştirildi');
+
+    await addLog(`${tip}_guncelle`, changes.join(' · ') || 'Değişiklik yok', {
+      entityId: id, entityType: tip,
+      oldValue: before.miktar, newValue: after.miktar,
+      category: after.kategori
+    });
     return true;
   },
 
   async islemSil(id, tip) {
+    /* Silmeden ÖNCE yakala — sonra state'ten düşecek */
+    const silinecek = (tip === 'gelir' ? state.gelirler : state.giderler).find(i => i.id == id);
+
     if (tip === 'gelir') { state.gelirler = state.gelirler.filter(g => g.id != id); await saveGelirler(); }
     else                 { state.giderler = state.giderler.filter(g => g.id != id); await saveGiderler(); }
-    await addLog(`${tip}_sil`, `ID:${id}`);
+
+    await addLog(`${tip}_sil`,
+      silinecek ? `${Calc.fmt(silinecek.miktar)} · ${silinecek.kategori}` : `ID:${id}`,
+      { entityId: id, entityType: tip, amount: silinecek?.miktar, category: silinecek?.kategori });
     await createAutoBackup();
   },
 
@@ -1431,15 +1499,22 @@ const CRUD = {
     const item = { id: Date.now(), tip, kisiAdi, miktar: parseFloat(miktar), birim, tarih, aciklama: aciklama || '', payments: [], odendiMi: false, createdAt: new Date().toISOString() };
     state.borcalacaklar.push(item);
     await saveBorclar();
-    await addLog(`borc_ekle_${tip}`, `${kisiAdi} · ${Calc.formatBirim(item)}`);
-    await createAutoBackup();
+    await addLog(`borc_ekle_${tip}`,
+      `${kisiAdi} · ${Calc.formatBirim(item)}${aciklama ? ' — ' + aciklama.substring(0, 40) : ''}`,
+      { entityId: item.id, entityType: tip, person: kisiAdi, amount: miktar, unit: birim, tlValue: Calc.tlKarsiligi(item) });    await createAutoBackup();
     return item;
   },
 
   async borcSil(id) {
+    /* Silmeden ÖNCE yakala */
+    const silinen = state.borcalacaklar.find(b => b.id == id);
+
     state.borcalacaklar = state.borcalacaklar.filter(b => b.id != id);
     await saveBorclar();
-    await addLog('borc_sil', `ID:${id}`);
+
+    await addLog('borc_sil',
+      silinen ? `${silinen.kisiAdi} · ${Calc.formatBirim(silinen)}` : `ID:${id}`,
+      { entityId: id, person: silinen?.kisiAdi, amount: silinen?.miktar, unit: silinen?.birim });
     await createAutoBackup();
   },
 
@@ -1449,8 +1524,9 @@ const CRUD = {
     item.odendiMi = true;
     item.odemeTarihi = new Date().toISOString();   // ← YENİ: arşiv sıralaması için
     await saveBorclar();
-    await addLog('borc_tam_odendi', item.kisiAdi);
-    await createAutoBackup();
+    await addLog('borc_tam_odendi',
+      `${item.kisiAdi} · ${Calc.formatBirim(item)}`,
+      { entityId: id, person: item.kisiAdi, amount: item.miktar, unit: item.birim, tlValue: Calc.tlKarsiligi(item) });    await createAutoBackup();
     return true;
   },
 
@@ -1465,8 +1541,10 @@ const CRUD = {
       item.odemeTarihi = new Date().toISOString();   // ← YENİ
     }
     await saveBorclar();
-    await addLog('ara_odeme', `${item.kisiAdi} · ${Calc.fmt(miktar)}`);
-    await createAutoBackup();
+    const totalPaid = item.payments.reduce((s, p) => s + p.miktar, 0);
+    await addLog('ara_odeme',
+      `${item.kisiAdi} · ${Calc.fmt(miktar)} ödendi (toplam: ${Calc.fmt(totalPaid)} / ${Calc.fmt(item.miktar)})`,
+      { entityId: borcId, person: item.kisiAdi, amount: miktar, date: tarih, totalPaid, totalAmount: item.miktar });    await createAutoBackup();
     return true;
   },
 
@@ -1535,8 +1613,9 @@ const CRUD = {
     await saveGiderler();
     await saveLogs();                                   // 🆕
     await saveArchives();
-    await addLog('manuel_arsiv', `${monthKey} arşivlendi`);
-    await createAutoBackup();
+    await addLog('manuel_arsiv',
+      `${monthKey} · ${aGelir.length} gelir + ${aGider.length} gider + ${aLoglar.length} log`,
+      { month: monthKey, gelirCount: aGelir.length, giderCount: aGider.length, logCount: aLoglar.length });    await createAutoBackup();
 
     Swal.fire({
       icon: 'success',
@@ -1730,6 +1809,23 @@ const UI = {
     container.querySelectorAll('.chip').forEach(c => {
       c.classList.toggle('active', c.dataset.val === activeValue);
     });
+  },
+
+  /* 🆕 Log satırı HTML üretici — canlı modal + arşiv ortak */
+  logItem(l, onclick) {
+    const def = LOG_ACTIONS[l.action] || { cat:'diger', sev:'info', icon:'fa-info-circle', label: l.action };
+    const cat = LOG_META[def.cat] || LOG_META.diger;
+    const label = l.label || def.label;
+    const clickAttr = onclick ? ` onclick="${onclick}"` : '';
+    return `<div class="log-item"${clickAttr} style="border-left:3px solid ${cat.color};${onclick ? 'cursor:pointer;' : ''}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <i class="fas ${def.icon}" style="color:${cat.color};font-size:12px;"></i>
+        <span class="log-action" style="margin-bottom:0;">${this.escHtml(label)}</span>
+        <span class="badge" style="background:${cat.bg};color:${cat.color};font-size:9px;padding:2px 6px;margin-left:auto;">${cat.label}</span>
+      </div>
+      ${l.details ? `<div class="log-details" style="margin-left:20px;">${this.escHtml(l.details)}</div>` : ''}
+      <div class="log-time" style="margin-left:20px;"><i class="fas fa-clock"></i> ${dayjs(l.timestamp).format('DD MMM YYYY HH:mm:ss')}</div>
+    </div>`;
   }
 };
 
@@ -1776,7 +1872,8 @@ const App = {
     else if (name === 'borcalacak') await this.renderBorcalacak();
     else if (name === 'rapor')      await this.renderRapor();
     else if (name === 'arsiv')      await this.renderArsiv();
-    await addLog('sayfa', name);
+    /* Sayfa gezinmesi artık loglanmıyor — gürültü kaynağıydı.
+       Geri isterseniz: await addLog('sayfa', name); */
   } catch (e) {
     console.error(`[loadPage] ${name} hatası:`, e);
     document.getElementById('view').innerHTML = `
@@ -2790,13 +2887,9 @@ const App = {
             <span class="badge badge-blue" style="font-size:10px;">${aLoglar.length} kayıt</span>
           </div>
           <div style="max-height:240px;overflow-y:auto;">
-            ${aLoglar.slice(0, 40).map(l => `
-              <div class="log-item" style="margin-bottom:6px;">
-                <div class="log-action">${UI.escHtml(l.action)}</div>
-                ${l.details ? `<div class="log-details">${UI.escHtml(l.details)}</div>` : ''}
-                <div class="log-time"><i class="fas fa-clock"></i> ${dayjs(l.timestamp).format('DD MMM YYYY HH:mm:ss')}</div>
-              </div>
-            `).join('')}
+            ${aLoglar.slice(0, 40).map(l =>
+              UI.logItem(l, null)   // Arşivde statik — tıklama yok
+            ).join('')}
             ${aLoglar.length > 40 ? `<p style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0;">+${aLoglar.length - 40} log daha</p>` : ''}
           </div>
         </div>
@@ -2876,60 +2969,244 @@ const App = {
       showCloseButton: true
     });
   },
-
   /* ══════════════════════════════════════
-     LOGLAR
+     LOGLAR — Kategorize, filtrelenebilir
   ══════════════════════════════════════ */
-  async openLogModal() {
-    const makeRows = logs => logs.slice(0, 100).map(l => `
-      <div class="log-item" onclick="App.showLogDetail(${l.id})">
-        <div class="log-action">${UI.escHtml(l.action)}</div>
-        ${l.details?`<div class="log-details">${UI.escHtml(l.details)}</div>`:''}
-        <div class="log-time"><i class="fas fa-clock"></i> ${dayjs(l.timestamp).format('DD MMM YYYY HH:mm:ss')}</div>
-      </div>`).join('');
+  _logFilterCat: 'tum',
+  _logTimeFilter: 'ay',        // 'ay' | 'gecenay' | 'tum'
 
-    const noLogs = '<div class="empty-state" style="padding:30px;"><i class="fas fa-clipboard-list"></i><p>Henüz log yok</p></div>';
+  async openLogModal() {
+    this._logFilterCat = 'tum';
+    this._logTimeFilter = 'ay';
 
     Swal.fire({
       title: '📜 İşlem Logları',
-      html: `<div class="search-box" style="margin-bottom:10px;">
+      html: `<div style="text-align:left;">
+        <div class="search-box" style="margin-bottom:10px;">
           <i class="fas fa-search"></i>
-          <input type="text" id="logSearch" class="form-input" placeholder="Loglarda ara…" oninput="App._filterLogs()">
+          <input type="text" id="logSearch" class="form-input"
+                 placeholder="İşlem, kişi, kategori veya açıklamada ara…"
+                 oninput="App._filterLogs()">
         </div>
-        <div id="logBody" style="max-height:380px;overflow-y:auto;">
-          ${state.logs.length ? makeRows(state.logs) : noLogs}
-        </div>`,
-      width: Math.min(520, window.innerWidth - 24),
+
+        <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px;">Dönem</div>
+        <div class="tab-chips" id="logTimeChips" style="margin-bottom:10px;">
+          <span class="chip active" data-time="ay"       onclick="App._setLogTime('ay')">Bu Ay</span>
+          <span class="chip"        data-time="gecenay"   onclick="App._setLogTime('gecenay')">Geçen Ay</span>
+          <span class="chip"        data-time="tum"       onclick="App._setLogTime('tum')">Tümü</span>
+        </div>
+
+        <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px;">Kategori</div>
+        <div class="tab-chips" id="logCatChips" style="margin-bottom:10px;"></div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;">
+          <span style="font-size:11px;color:var(--text3);" id="logCounter">—</span>
+          <button onclick="App._cleanupPageLogs()" style="padding:5px 10px;background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;">
+            <i class="fas fa-broom"></i> Eski Sayfa Loglarını Temizle
+          </button>
+        </div>
+
+        <div id="logBody" style="max-height:420px;overflow-y:auto;"></div>
+      </div>`,
+      width: Math.min(560, window.innerWidth - 24),
       confirmButtonText: 'Kapat',
       showCloseButton: true
     });
-    window._logMakeRows = makeRows;
-    window._logNoRows   = noLogs;
+
+    this._renderCatChips();
+    this._renderLogBody();
   },
 
-  _filterLogs() {
+  _renderCatChips() {
+    const container = document.getElementById('logCatChips');
+    if (!container) return;
+
+    const timeFiltered = this._filterByTime(state.logs);
+    const counts = {};
+    timeFiltered.forEach(l => { counts[l.category || 'diger'] = (counts[l.category || 'diger'] || 0) + 1; });
+
+    const cats = [['tum', 'Tümü'], ['islem','İşlemler'], ['borc','Borç/Alacak'],
+                  ['kategori','Kategori'], ['limit','Limit'], ['arsiv','Arşiv'],
+                  ['veri','Veri'], ['sistem','Sistem']];
+
+    container.innerHTML = cats.map(([k, v]) => {
+      const cnt = k === 'tum' ? timeFiltered.length : (counts[k] || 0);
+      if (k !== 'tum' && cnt === 0) return '';  // boş kategoriyi gösterme
+      return `<span class="chip${this._logFilterCat === k ? ' active' : ''}" data-cat="${k}" onclick="App._setLogCat('${k}')">${v}${cnt ? ` (${cnt})` : ''}</span>`;
+    }).join('');
+  },
+
+  _filterByTime(logs) {
+    const period = this._logTimeFilter;
+    if (period === 'tum') return logs;
+    const now = dayjs();
+    const target = period === 'gecenay' ? now.subtract(1, 'month') : now;
+    const prefix = target.format('YYYY-MM');
+    return logs.filter(l => (l.timestamp || '').startsWith(prefix));
+  },
+
+  _setLogTime(t) {
+    this._logTimeFilter = t;
+    document.querySelectorAll('#logTimeChips .chip').forEach(c => c.classList.toggle('active', c.dataset.time === t));
+    this._renderCatChips();
+    this._renderLogBody();
+  },
+
+  _setLogCat(c) {
+    this._logFilterCat = c;
+    document.querySelectorAll('#logCatChips .chip').forEach(c2 => c2.classList.toggle('active', c2.dataset.cat === c));
+    this._renderLogBody();
+  },
+
+  _renderLogBody() {
     const q = (document.getElementById('logSearch')?.value || '').toLowerCase();
-    const filtered = q ? state.logs.filter(l => l.action.toLowerCase().includes(q) || (l.details||'').toLowerCase().includes(q)) : state.logs;
+
+    let filtered = this._filterByTime(state.logs);
+
+    if (this._logFilterCat !== 'tum') {
+      filtered = filtered.filter(l => (l.category || 'diger') === this._logFilterCat);
+    }
+
+    if (q) {
+      filtered = filtered.filter(l => {
+        const hay = [
+          l.label || l.action || '',
+          l.details || '',
+          l.meta?.person || '',
+          l.meta?.category || '',
+          l.meta?.month || ''
+        ].join(' ').toLowerCase();
+        return hay.includes(q);
+      });
+    }
+
+    const counter = document.getElementById('logCounter');
+    if (counter) counter.textContent = `${filtered.length} kayıt`;
+
     const body = document.getElementById('logBody');
-    if (body) body.innerHTML = filtered.length ? window._logMakeRows(filtered) : window._logNoRows;
+    if (!body) return;
+
+    if (!filtered.length) {
+      body.innerHTML = '<div class="empty-state" style="padding:30px;"><i class="fas fa-clipboard-list"></i><p>Kriterlere uygun log bulunamadı</p></div>';
+      return;
+    }
+
+    body.innerHTML = filtered.slice(0, 150).map(l =>
+      UI.logItem(l, `App.showLogDetail(${l.id})`)
+    ).join('')
+    + (filtered.length > 150
+        ? `<p style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0;">+${filtered.length - 150} kayıt daha (aramayı daraltın)</p>`
+        : '');
   },
 
-  showLogDetail(logId) {
-    const log = state.logs.find(l => l.id == logId);
+  _filterLogs() { this._renderLogBody(); },
+
+  /* Eski 'sayfa' loglarını toplu temizle */
+  async _cleanupPageLogs() {
+    const count = state.logs.filter(l => l.action === 'sayfa').length;
+    if (!count) {
+      showToast('ℹ️ Temizlenecek sayfa logu yok');
+      return;
+    }
+
+    const r = await Swal.fire({
+      icon: 'question',
+      title: 'Sayfa Loglarını Temizle',
+      html: `<p><strong>${count}</strong> adet "Sayfa Görüntülendi" logu silinecek.</p>
+             <p style="font-size:12px;color:#94a3b8;margin-top:6px;">Gelir, gider, borç, kategori gibi tüm işlem loglarınız korunur.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Temizle',
+      confirmButtonColor: '#DC2626',
+      cancelButtonText: 'İptal'
+    });
+
+    if (r.isConfirmed) {
+      state.logs = state.logs.filter(l => l.action !== 'sayfa');
+      await saveLogs();
+      showToast(`🗑️ ${count} sayfa logu temizlendi`);
+      Swal.close();
+      this.openLogModal();
+    }
+  },
+
+  showLogDetail(logIdOrObj) {
+    const log = typeof logIdOrObj === 'object'
+      ? logIdOrObj
+      : state.logs.find(l => l.id == logIdOrObj);
     if (!log) return;
+
+    const def = LOG_ACTIONS[log.action] || { cat:'diger', sev:'info', icon:'fa-info-circle', label: log.action };
+    const cat = LOG_META[def.cat] || LOG_META.diger;
+    const label = log.label || def.label;
+
+    /* Meta satırları */
+    const metaRows = [];
+    if (log.meta) {
+      if (log.meta.entityId)             metaRows.push({ k: 'Kayıt ID',       v: log.meta.entityId });
+      if (log.meta.person)               metaRows.push({ k: 'Kişi',           v: log.meta.person });
+      if (log.meta.category)             metaRows.push({ k: 'Kategori',       v: log.meta.category });
+      if (log.meta.amount !== undefined) {
+        const u = log.meta.unit || 'tl';
+        metaRows.push({ k: 'Miktar', v: u === 'tl' ? Calc.fmt(log.meta.amount) : `${log.meta.amount} ${Calc.birimKisa(u)}` });
+      }
+      if (log.meta.tlValue !== undefined) metaRows.push({ k: 'TL Karşılığı',  v: Calc.fmt(log.meta.tlValue) });
+      if (log.meta.date)                 metaRows.push({ k: 'İşlem Tarihi',   v: log.meta.date });
+      if (log.meta.month)                metaRows.push({ k: 'Ay',             v: log.meta.month });
+      if (log.meta.gelirCount !== undefined) metaRows.push({ k: 'Gelir',      v: `${log.meta.gelirCount} kayıt` });
+      if (log.meta.giderCount !== undefined) metaRows.push({ k: 'Gider',      v: `${log.meta.giderCount} kayıt` });
+      if (log.meta.logCount !== undefined)   metaRows.push({ k: 'Log',        v: `${log.meta.logCount} kayıt` });
+      if (log.meta.oldValue !== undefined && log.meta.newValue !== undefined) {
+        metaRows.push({ k: 'Önce → Sonra', v: `${Calc.fmt(log.meta.oldValue)} → ${Calc.fmt(log.meta.newValue)}` });
+      }
+      if (log.meta.totalPaid !== undefined && log.meta.totalAmount !== undefined) {
+        metaRows.push({ k: 'Toplam Ödenen', v: `${Calc.fmt(log.meta.totalPaid)} / ${Calc.fmt(log.meta.totalAmount)}` });
+      }
+    }
+
     Swal.fire({
       title: '📋 Log Detayı',
       html: `<div style="text-align:left;">
-        <div class="archive-stat-card" style="margin-bottom:10px;"><div class="archive-stat-label">İşlem</div><div class="archive-stat-value" style="font-size:15px;">${UI.escHtml(log.action)}</div></div>
-        <div class="archive-stat-card" style="margin-bottom:10px;"><div class="archive-stat-label">Detay</div><div class="archive-stat-value" style="font-size:13px;">${UI.escHtml(log.details||'-')}</div></div>
-        <div class="archive-stat-card" style="margin-bottom:10px;"><div class="archive-stat-label">Sayfa</div><div class="archive-stat-value" style="font-size:13px;">${UI.escHtml(log.page||'-')}</div></div>
-        <div class="archive-stat-card"><div class="archive-stat-label">Tarih</div><div class="archive-stat-value" style="font-size:13px;">${dayjs(log.timestamp).format('DD MMMM YYYY HH:mm:ss')}</div></div>
+        <div class="archive-stat-card" style="margin-bottom:10px;border-left:4px solid ${cat.color};">
+          <div class="archive-stat-label">İşlem</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+            <i class="fas ${def.icon}" style="color:${cat.color};font-size:16px;"></i>
+            <div class="archive-stat-value" style="font-size:15px;">${UI.escHtml(label)}</div>
+          </div>
+          <div style="margin-top:6px;">
+            <span class="badge" style="background:${cat.bg};color:${cat.color};">${cat.label}</span>
+          </div>
+        </div>
+
+        ${log.details ? `
+        <div class="archive-stat-card" style="margin-bottom:10px;">
+          <div class="archive-stat-label">Detay</div>
+          <div style="font-size:13px;margin-top:4px;color:var(--text);">${UI.escHtml(log.details)}</div>
+        </div>` : ''}
+
+        ${metaRows.length ? `
+        <div class="archive-stat-card" style="margin-bottom:10px;">
+          <div class="archive-stat-label">Ek Bilgiler</div>
+          ${metaRows.map(r => `
+            <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border);">
+              <span style="color:var(--text3);">${UI.escHtml(r.k)}</span>
+              <span style="font-weight:600;color:var(--text);">${UI.escHtml(String(r.v))}</span>
+            </div>`).join('')}
+        </div>` : ''}
+
+        <div class="archive-stat-card" style="margin-bottom:10px;">
+          <div class="archive-stat-label">Sayfa</div>
+          <div class="archive-stat-value" style="font-size:13px;">${UI.escHtml(log.page || '-')}</div>
+        </div>
+
+        <div class="archive-stat-card">
+          <div class="archive-stat-label">Tarih</div>
+          <div class="archive-stat-value" style="font-size:13px;">${dayjs(log.timestamp).format('DD MMMM YYYY HH:mm:ss')}</div>
+        </div>
       </div>`,
       confirmButtonText: 'Kapat',
-      width: Math.min(460, window.innerWidth - 24)
+      width: Math.min(480, window.innerWidth - 24)
     });
   },
-
   /* ══════════════════════════════════════
      KATEGORİ MODAL
   ══════════════════════════════════════ */
