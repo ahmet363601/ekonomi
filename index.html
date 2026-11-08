@@ -1387,15 +1387,9 @@ const Calc = {
       ...state.borcalacaklar.filter(b => !b.odendiMi).map(b => ({ ...b, _tip: b.tip }))
     ].sort((a, b) => (b.tarih || '') > (a.tarih || '') ? 1 : -1);
   }
-};   // ← EKLENMESİ GEREKEN SATIR
+};   // ← EKLENMESİ GEREKEN TEK SATIR BU
 
-/* ─────────────────────────────────────────────
-   CRUD
-───────────────────────────────────────────── */
-const CRUD = {
-/* ─────────────────────────────────────────────
-   CRUD
-───────────────────────────────────────────── */
+
 const CRUD = {
   async islemEkle(tip, miktar, kategori, tarih, aciklama) {
     const item = { id: Date.now(), miktar: parseFloat(miktar), kategori, tarih, aciklama: aciklama || '', createdAt: new Date().toISOString() };
