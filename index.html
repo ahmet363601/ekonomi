@@ -1404,7 +1404,9 @@ const SalaryMonth = {
     const prev = this.previousKey();
     if (state.archives[prev]) return false;
     if (!this.hasDataInRange(this.range(prev))) return false;
-    return dayjs().date() >= this.DAY_START;
+    /* Önceki dönemin bitiş tarihi geçtiyse ve arşivlenmediyse gecikmiş */
+    const prevEnd = this.range(prev).end;
+    return dayjs().format('YYYY-MM-DD') > prevEnd;
   },
 };
 
@@ -3128,6 +3130,10 @@ const App = {
 
     const ok = await CRUD.manualArchive(targetKey);
     if (ok) {
+      /* Yeni yılı accordion'da otomatik aç */
+      const newYear = SalaryMonth.yearOf(targetKey);
+      if (!this._archiveOpenYears) this._archiveOpenYears = new Set();
+      this._archiveOpenYears.add(newYear);
       await this.renderArsiv();
       if (this.currentPage === 'dashboard') await this.renderDashboard();
     }
@@ -3982,9 +3988,19 @@ async function migrateOldData(force = false) {
   const seenKey = 'butcem_migrate_done';
   if (!force && localStorage.getItem(seenKey) === '1') return;
 
-  const currentMonth = dayjs().format('YYYY-MM');
-  const oldGelir = state.gelirler.filter(g => g.tarih && !g.tarih.startsWith(currentMonth));
-  const oldGider = state.giderler.filter(g => g.tarih && !g.tarih.startsWith(currentMonth));
+  /* Maaş dönemi sınırları (15→15) */
+  const currentKey = SalaryMonth.currentKey();
+  const currentRange = SalaryMonth.range(currentKey);
+
+  /* Aktif maaş dönemi dışındaki işlemler "eski" */
+  const oldGelir = state.gelirler.filter(g => {
+    if (!g.tarih) return false;
+    return g.tarih < currentRange.start || g.tarih > currentRange.end;
+  });
+  const oldGider = state.giderler.filter(g => {
+    if (!g.tarih) return false;
+    return g.tarih < currentRange.start || g.tarih > currentRange.end;
+  });
 
   if (oldGelir.length || oldGider.length) {
     const { isConfirmed } = await Swal.fire({
@@ -3998,11 +4014,7 @@ async function migrateOldData(force = false) {
     });
 
     if (isConfirmed) {
-      const currentKey = SalaryMonth.currentKey();
-      const currentRange = SalaryMonth.range(currentKey);
-      const prevKey = SalaryMonth.previousKey();
-      const prevRange = SalaryMonth.range(prevKey);
-
+      /* Maaş dönemlerine göre grupla */
       const months = new Set([
         ...oldGelir.map(g => SalaryMonth.keyOf(g.tarih)),
         ...oldGider.map(g => SalaryMonth.keyOf(g.tarih))
@@ -4028,21 +4040,19 @@ async function migrateOldData(force = false) {
         }
       }
 
-      /* Sadece aktif ve önceki dönem ana listede kalsın */
+      /* Sadece AKTİF maaş dönemi ana listede kalsın
+         (önceki dönem de arşivlendi — çift kayıt önlenir) */
       state.gelirler = state.gelirler.filter(g => {
         if (!g.tarih) return true;
-        return (g.tarih >= currentRange.start && g.tarih <= currentRange.end) ||
-               (g.tarih >= prevRange.start && g.tarih <= prevRange.end);
+        return g.tarih >= currentRange.start && g.tarih <= currentRange.end;
       });
       state.giderler = state.giderler.filter(g => {
         if (!g.tarih) return true;
-        return (g.tarih >= currentRange.start && g.tarih <= currentRange.end) ||
-               (g.tarih >= prevRange.start && g.tarih <= prevRange.end);
+        return g.tarih >= currentRange.start && g.tarih <= currentRange.end;
       });
       state.logs = state.logs.filter(l => {
         const d = dayjs(l.timestamp).format('YYYY-MM-DD');
-        return (d >= currentRange.start && d <= currentRange.end) ||
-               (d >= prevRange.start && d <= prevRange.end);
+        return d >= currentRange.start && d <= currentRange.end;
       });
 
       await saveGelirler();
