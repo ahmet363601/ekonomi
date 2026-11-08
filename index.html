@@ -1106,7 +1106,11 @@ const state = {
     gider: ['Market','Fatura','Eğlence','Ulaşım','Sağlık','Eğitim','Yemek','Alışveriş','Diğer']
   },
   limitler: {},
-  ayarlar: { varsayilanRaporAraligi: 'ay' },
+  ayarlar: {
+    varsayilanRaporAraligi: 'ay',
+    gramAltinFiyati: 6400,
+    ceyrekAltinFiyati: 10500
+  },
   archives: {},
   logs: [],
   backups: []
@@ -1116,7 +1120,10 @@ async function loadAllData() {
   try {
     state.gelirler       = await dbGetAll('gelirler');
     state.giderler       = await dbGetAll('giderler');
-    state.borcalacaklar  = await dbGetAll('borcalacaklar');
+    state.borcalacaklar  = (await dbGetAll('borcalacaklar')).map(b => ({
+      ...b,
+      birim: b.birim || 'tl'   // eski kayıtlar için varsayılan TL
+    }));
 
     const kats = await dbGetAll('kategoriler');
     kats.forEach(k => { if (k.tip === 'gelir' || k.tip === 'gider') state.kategoriler[k.tip] = k.kategoriler; });
@@ -1189,14 +1196,13 @@ const saveGelirler    = () => queueSave(() => saveStore('gelirler',    state.gel
 const saveGiderler    = () => queueSave(() => saveStore('giderler',    state.giderler));
 const saveBorclar     = () => queueSave(() => saveStore('borcalacaklar', state.borcalacaklar));
 const saveLimitler    = () => queueSave(() => saveStore('limitler', Object.entries(state.limitler).map(([kategori, limit]) => ({ kategori, limit }))));
-const saveAyarlar     = () => queueSave(() => saveStore('ayarlar',  [{ id: 'settings', varsayilanRaporAraligi: state.ayarlar.varsayilanRaporAraligi }]));
+const saveAyarlar     = () => queueSave(() => saveStore('ayarlar', [{
+  id: 'settings',
+  varsayilanRaporAraligi: state.ayarlar.varsayilanRaporAraligi,
+  gramAltinFiyati: Number(state.ayarlar.gramAltinFiyati) || 0,
+  ceyrekAltinFiyati: Number(state.ayarlar.ceyrekAltinFiyati) || 0
+}]));
 const saveArchives    = () => queueSave(() => saveStore('archives', Object.entries(state.archives).map(([month, data]) => ({ month, data }))));
-const saveLogs        = () => queueSave(() => saveStore('logs', state.logs));
-const saveBackups     = () => queueSave(() => saveStore('backups', state.backups));
-const saveKategoriler = () => queueSave(() => saveStore('kategoriler', [
-  { tip: 'gelir', kategoriler: state.kategoriler.gelir },
-  { tip: 'gider', kategoriler: state.kategoriler.gider }
-]));
 
 /* Tüm store'ları yaz — sadece resetAll/import gibi nadir durumlarda */
 async function saveAllData() {
@@ -1286,8 +1292,10 @@ const Calc = {
     return state.borcalacaklar
       .filter(b => !b.odendiMi)
       .reduce((s, b) => {
-        const paid = (b.payments || []).reduce((p, pm) => p + (Number(pm.miktar) || 0), 0);
-        return s + Math.max(0, (Number(b.miktar) || 0) - paid);
+        const fiyat = this.birimFiyat(b.birim || 'tl');
+        const toplamTL = (Number(b.miktar) || 0) * fiyat;
+        const odenenTL = (b.payments || []).reduce((p, pm) => p + (Number(pm.miktar) || 0) * fiyat, 0);
+        return s + Math.max(0, toplamTL - odenenTL);
       }, 0);
   },
   kategoriGiderler(f = {}) {
@@ -1317,6 +1325,52 @@ const Calc = {
     return state.giderler
       .filter(g => g.kategori === kategori && g.tarih && g.tarih >= f.start && g.tarih <= f.end)
       .reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+  },
+
+  /* ───── Altın / Birim yardımcıları ───── */
+  birimFiyat(birim) {
+    birim = birim || 'tl';
+    if (birim === 'gram')   return Number(state.ayarlar.gramAltinFiyati) || 0;
+    if (birim === 'ceyrek') return Number(state.ayarlar.ceyrekAltinFiyati) || 0;
+    return 1;
+  },
+  birimAdi(birim) {
+    return { tl: 'TL', gram: 'Gram Altın', ceyrek: 'Çeyrek Altın' }[birim || 'tl'] || 'TL';
+  },
+  birimKisa(birim) {
+    return { tl: 'TL', gram: 'gr', ceyrek: 'çy' }[birim || 'tl'] || 'TL';
+  },
+  formatBirim(item) {
+    const birim = item.birim || 'tl';
+    const m = Number(item.miktar) || 0;
+    if (birim === 'tl')     return this.fmt(m);
+    if (birim === 'gram')   return m.toLocaleString('tr-TR', {maximumFractionDigits: 2}) + ' gr';
+    if (birim === 'ceyrek') return m.toLocaleString('tr-TR', {maximumFractionDigits: 2}) + ' çeyrek';
+    return this.fmt(m);
+  },
+  tlKarsiligi(item) {
+    return (Number(item.miktar) || 0) * this.birimFiyat(item.birim || 'tl');
+  },
+  /* Alacak/Borç birim bazlı özet */
+  borcAlacakOzet(tip) {
+    const aktif = state.borcalacaklar.filter(b => !b.odendiMi && (!tip || b.tip === tip));
+    const o = { tl: 0, gram: 0, ceyrek: 0, toplamTL: 0 };
+
+    aktif.forEach(b => {
+      const birim = b.birim || 'tl';
+      const fiyat = this.birimFiyat(birim);
+      const miktar = Number(b.miktar) || 0;
+      const odenen = (b.payments || []).reduce((s, p) => s + (Number(p.miktar) || 0), 0);
+      const kalan = Math.max(0, miktar - odenen);
+
+      if (birim === 'gram')        o.gram += kalan;
+      else if (birim === 'ceyrek') o.ceyrek += kalan;
+      else                          o.tl += kalan;
+
+      o.toplamTL += kalan * fiyat;
+    });
+
+    return o;
   },
   sonIslemler() {
     return [
@@ -1366,11 +1420,12 @@ const CRUD = {
     await createAutoBackup();
   },
 
-  async borcEkle(tip, kisiAdi, miktar, tarih, aciklama) {
-    const item = { id: Date.now(), tip, kisiAdi, miktar: parseFloat(miktar), tarih, aciklama: aciklama || '', payments: [], odendiMi: false, createdAt: new Date().toISOString() };
+  async borcEkle(tip, kisiAdi, miktar, birim, tarih, aciklama) {
+    birim = birim || 'tl';
+    const item = { id: Date.now(), tip, kisiAdi, miktar: parseFloat(miktar), birim, tarih, aciklama: aciklama || '', payments: [], odendiMi: false, createdAt: new Date().toISOString() };
     state.borcalacaklar.push(item);
     await saveBorclar();
-    await addLog(`borc_ekle_${tip}`, `${kisiAdi} · ${Calc.fmt(miktar)}`);
+    await addLog(`borc_ekle_${tip}`, `${kisiAdi} · ${Calc.formatBirim(item)}`);
     await createAutoBackup();
     return item;
   },
@@ -1605,7 +1660,14 @@ const UI = {
         <div class="tx-title">${this.escHtml(label)}</div>
         <div class="tx-date">${date}${desc}</div>
       </div>
-      <div class="tx-amount ${amtCls}">${prefix}${Calc.fmt(item.miktar)}</div>
+      <div class="tx-amount ${amtCls}">${prefix}${(() => {
+        if ((isAlacak || isBorc) && item.birim && item.birim !== 'tl') {
+          const m = Number(item.miktar) || 0;
+          const fiyat = Calc.birimFiyat(item.birim);
+          return `${m.toLocaleString('tr-TR',{maximumFractionDigits:2})} ${Calc.birimKisa(item.birim)}<div style="font-size:9.5px;color:var(--text3);font-weight:500;">≈ ${Calc.fmt(m*fiyat)}</div>`;
+        }
+        return Calc.fmt(item.miktar);
+      })()}</div>
     </div>`;
   },
 
@@ -1977,14 +2039,30 @@ const App = {
      BORÇ & ALACAK
   ══════════════════════════════════════ */
   async renderBorcalacak() {
-    const alacakToplam = state.borcalacaklar.filter(b=>b.tip==='alacak'&&!b.odendiMi).reduce((s,b)=>s+(b.miktar-(b.payments||[]).reduce((p,pm)=>p+pm.miktar,0)),0);
-    const borcToplam   = state.borcalacaklar.filter(b=>b.tip==='borc'&&!b.odendiMi).reduce((s,b)=>s+(b.miktar-(b.payments||[]).reduce((p,pm)=>p+pm.miktar,0)),0);
+    const alacakOzet = Calc.borcAlacakOzet('alacak');
+    const borcOzet   = Calc.borcAlacakOzet('borc');
     const filterLabels = { tum:'Tümü', alacak:'Alacak', borc:'Borç', odendi:'Ödendi' };
+
+    const altinOzetHTML = (o, renk) => {
+      const parts = [];
+      if (o.gram > 0)   parts.push(`<span style="color:${renk};font-weight:700;">${o.gram.toLocaleString('tr-TR',{maximumFractionDigits:2})} gr</span>`);
+      if (o.ceyrek > 0) parts.push(`<span style="color:${renk};font-weight:700;">${o.ceyrek.toLocaleString('tr-TR',{maximumFractionDigits:2})} çeyrek</span>`);
+      if (o.tl > 0)     parts.push(`<span style="color:${renk};font-weight:700;">${Calc.fmt(o.tl)}</span>`);
+      return parts.length ? parts.join(' · ') : '<span style="color:var(--text3);">—</span>';
+    };
 
     document.getElementById('view').innerHTML = `<div class="page-in">
       <div class="stat-grid">
-        <div class="stat-card"><div class="card-label">Toplam Alacak</div><div class="stat-amount green">${Calc.fmt(alacakToplam)}</div></div>
-        <div class="stat-card"><div class="card-label">Toplam Borç</div><div class="stat-amount red">${Calc.fmt(borcToplam)}</div></div>
+        <div class="stat-card">
+          <div class="card-label">Toplam Alacak</div>
+          <div class="stat-amount green">${Calc.fmt(alacakOzet.toplamTL)}</div>
+          <div style="font-size:11px;margin-top:6px;">${altinOzetHTML(alacakOzet, 'var(--accent)')}</div>
+        </div>
+        <div class="stat-card">
+          <div class="card-label">Toplam Borç</div>
+          <div class="stat-amount red">${Calc.fmt(borcOzet.toplamTL)}</div>
+          <div style="font-size:11px;margin-top:6px;">${altinOzetHTML(borcOzet, 'var(--danger)')}</div>
+        </div>
       </div>
 
       <div class="card">
@@ -2001,8 +2079,17 @@ const App = {
           <input type="text" id="borcKisi" class="form-input" placeholder="Ad Soyad">
         </div>
         <div class="form-group">
-          <label class="form-label">Miktar (${PARA})</label>
+          <label class="form-label">Birim</label>
+          <select id="borcBirim" class="form-select" onchange="App._borcBirimChanged()">
+            <option value="tl">💵 Türk Lirası (TL)</option>
+            <option value="gram">🪙 Gram Altın (gr)</option>
+            <option value="ceyrek">🥇 Çeyrek Altın (çy)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" id="borcMiktarLabel">Miktar (TL)</label>
           <input type="number" id="borcMiktar" class="form-input" step="0.01" min="0.01" placeholder="0,00" inputmode="decimal">
+          <div id="borcMiktarHint" style="font-size:10.5px;color:var(--text3);margin-top:4px;display:none;"></div>
         </div>
         <div class="form-group">
           <label class="form-label">Tarih</label>
@@ -2022,7 +2109,25 @@ const App = {
       <div id="borcList"></div>
     </div>`;
 
+    this._borcBirimChanged();
     await this.renderBorcList();
+  },
+
+  _borcBirimChanged() {
+    const birim = document.getElementById('borcBirim')?.value || 'tl';
+    const label = document.getElementById('borcMiktarLabel');
+    const hint  = document.getElementById('borcMiktarHint');
+    if (!label || !hint) return;
+
+    if (birim === 'tl') {
+      label.textContent = 'Miktar (TL)';
+      hint.style.display = 'none';
+    } else {
+      label.textContent = `Miktar (${Calc.birimAdi(birim)})`;
+      hint.style.display = 'block';
+      const fiyat = Calc.birimFiyat(birim);
+      hint.innerHTML = `1 ${Calc.birimKisa(birim)} = <strong>${Calc.fmt(fiyat)}</strong> · <a href="#" onclick="event.preventDefault();App.openSettingsModal()" style="color:var(--primary);">Ayarlardan değiştir</a>`;
+    }
   },
 
   setBorcFilter(f) { this._borcFilter = f; UI.updateChips(document.getElementById('borcTabs'), f); this.renderBorcList(); },
@@ -2039,17 +2144,50 @@ const App = {
     if (!all.length) { el.innerHTML = UI.empty('Kayıt yok'); return; }
 
     el.innerHTML = all.map(b => {
-      const paid    = (b.payments||[]).reduce((s,p)=>s+p.miktar,0);
-      const kalan   = Math.max(0, b.miktar - paid);
-      const percent = b.miktar > 0 ? Math.min(100, Math.round((paid/b.miktar)*100)) : 0;
-      const isAl    = b.tip === 'alacak';
-      const barColor= isAl ? 'var(--accent)' : 'var(--warning)';
+      const birim      = b.birim || 'tl';
+      const birimFiyat = Calc.birimFiyat(birim);
+      const birimKisa  = Calc.birimKisa(birim);
+      const toplamBirim = Number(b.miktar) || 0;
+      const paidBirim   = (b.payments||[]).reduce((s,p)=>s + (Number(p.miktar)||0), 0);
+      const kalanBirim  = Math.max(0, toplamBirim - paidBirim);
+      const percent     = toplamBirim > 0 ? Math.min(100, Math.round((paidBirim/toplamBirim)*100)) : 0;
+      const isAl        = b.tip === 'alacak';
+      const barColor    = isAl ? 'var(--accent)' : 'var(--warning)';
 
-      const payRows = (b.payments||[]).map(p =>
-        `<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);padding:5px 0;border-bottom:1px solid var(--border);">
+      const toplamTL = toplamBirim * birimFiyat;
+      const kalanTL  = kalanBirim * birimFiyat;
+      const paidTL   = paidBirim * birimFiyat;
+
+      const toplamGosterim = birim === 'tl'
+        ? Calc.fmt(toplamTL)
+        : `${toplamBirim.toLocaleString('tr-TR',{maximumFractionDigits:2})} ${birimKisa}`;
+      const toplamAltGosterim = birim === 'tl' ? '' : `≈ ${Calc.fmt(toplamTL)}`;
+
+      const kalanGosterim = kalanBirim > 0
+        ? (birim === 'tl'
+            ? `Kalan: ${Calc.fmt(kalanTL)}`
+            : `Kalan: ${kalanBirim.toLocaleString('tr-TR',{maximumFractionDigits:2})} ${birimKisa} ≈ ${Calc.fmt(kalanTL)}`)
+        : '✓ Tamamlandı';
+
+      const odemeGosterim = birim === 'tl'
+        ? `${Calc.fmt(paidTL)} / ${Calc.fmt(toplamTL)}`
+        : `${paidBirim.toLocaleString('tr-TR',{maximumFractionDigits:2})} / ${toplamBirim.toLocaleString('tr-TR',{maximumFractionDigits:2})} ${birimKisa}`;
+
+      const payRows = (b.payments||[]).map(p => {
+        const pmBirim = Number(p.miktar) || 0;
+        const pmTL = pmBirim * birimFiyat;
+        const pmStr = birim === 'tl'
+          ? Calc.fmt(pmTL)
+          : `${pmBirim.toLocaleString('tr-TR',{maximumFractionDigits:2})} ${birimKisa} <span style="color:var(--text3);">≈ ${Calc.fmt(pmTL)}</span>`;
+        return `<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);padding:5px 0;border-bottom:1px solid var(--border);">
           <span>${dayjs(p.tarih||b.tarih).format('DD MMM')} ${p.aciklama?'· '+UI.escHtml(p.aciklama):''}</span>
-          <span style="color:var(--accent);font-weight:700;">+${Calc.fmt(p.miktar)}</span>
-        </div>`).join('');
+          <span style="color:var(--accent);font-weight:700;">+${pmStr}</span>
+        </div>`;
+      }).join('');
+
+      const birimBilgi = birim === 'tl'
+        ? ''
+        : `<div style="font-size:10px;color:var(--text3);margin-top:2px;">(${birimFiyat.toLocaleString('tr-TR')} TL/${birimKisa})</div>`;
 
       return `<div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
@@ -2059,14 +2197,16 @@ const App = {
             <div style="font-size:11px;color:var(--text3);margin-top:2px;">${dayjs(b.tarih).format('DD MMMM YYYY')}${b.aciklama?' · '+UI.escHtml(b.aciklama):''}</div>
           </div>
           <div style="text-align:right;flex-shrink:0;">
-            <div style="font-family:'Plus Jakarta Sans';font-size:20px;font-weight:900;color:${isAl?'var(--accent)':'var(--danger)'};">${Calc.fmt(b.miktar)}</div>
-            <div style="font-size:11px;margin-top:2px;color:${kalan>0?'var(--warning)':'var(--accent)'};">${kalan>0?'Kalan: '+Calc.fmt(kalan):'✓ Tamamlandı'}</div>
+            <div style="font-family:'Plus Jakarta Sans';font-size:${birim==='tl'?'20px':'16px'};font-weight:900;color:${isAl?'var(--accent)':'var(--danger)'};">${toplamGosterim}</div>
+            ${toplamAltGosterim ? `<div style="font-size:10.5px;color:var(--text3);margin-top:1px;">${toplamAltGosterim}</div>` : ''}
+            ${birimBilgi}
+            <div style="font-size:11px;margin-top:4px;color:${kalanBirim>0?'var(--warning)':'var(--accent)'};">${kalanGosterim}</div>
           </div>
         </div>
         <div class="progress-track"><div class="progress-bar" style="width:${percent}%;background:${barColor};"></div></div>
         <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:8px;">
           <span>%${percent} ödendi</span>
-          <span>${Calc.fmt(paid)} / ${Calc.fmt(b.miktar)}</span>
+          <span>${odemeGosterim}</span>
         </div>
         ${payRows}
         ${!b.odendiMi
@@ -2087,26 +2227,41 @@ const App = {
   async submitBorc() {
     const tip      = document.getElementById('borcTip')?.value;
     const kisi     = document.getElementById('borcKisi')?.value?.trim();
+    const birim    = document.getElementById('borcBirim')?.value || 'tl';
     const miktar   = parseFloat(document.getElementById('borcMiktar')?.value);
     const tarih    = document.getElementById('borcTarih')?.value;
     const aciklama = document.getElementById('borcAciklama')?.value || '';
     if (!kisi)           { Swal.fire({ icon:'warning', title:'Kişi adı gerekli!', timer:1800, showConfirmButton:false }); return; }
     if (!miktar||miktar<=0) { Swal.fire({ icon:'warning', title:'Geçersiz miktar!', timer:1800, showConfirmButton:false }); return; }
-    await CRUD.borcEkle(tip, kisi, miktar, tarih, aciklama);
+    await CRUD.borcEkle(tip, kisi, miktar, birim, tarih, aciklama);
     document.getElementById('borcKisi').value = '';
     document.getElementById('borcMiktar').value = '';
     document.getElementById('borcAciklama').value = '';
-    showToast(`${tip==='alacak'?'📥 Alacak':'📤 Borç'} eklendi: ${kisi} — ${Calc.fmt(miktar)}`);
-    await this.renderBorcList();
-    if (this.currentPage === 'dashboard') await this.renderRecentList();
+
+    const gosterim = birim === 'tl'
+      ? Calc.fmt(miktar)
+      : `${miktar.toLocaleString('tr-TR',{maximumFractionDigits:2})} ${Calc.birimKisa(birim)} ≈ ${Calc.fmt(miktar * Calc.birimFiyat(birim))}`;
+    showToast(`${tip==='alacak'?'📥 Alacak':'📤 Borç'} eklendi: ${kisi} — ${gosterim}`);
+
+    // Özet kartlarını da yenile
+    await this.renderBorcalacak();
   },
 
   async araOdeme(id) {
+    const item = state.borcalacaklar.find(b => b.id == id);
+    if (!item) return;
+    const birim = item.birim || 'tl';
+    const birimKisa = Calc.birimKisa(birim);
+    const birimFiyat = Calc.birimFiyat(birim);
+    const etiket = birim === 'tl' ? 'Miktar (TL)' : `Miktar (${Calc.birimAdi(birim)})`;
+    const hint = birim === 'tl' ? '' : `<div style="font-size:11px;color:#94a3b8;margin-top:4px;">1 ${birimKisa} = ${Calc.fmt(birimFiyat)}</div>`;
+
     const { value } = await Swal.fire({
       title: '💸 Ara Ödeme Ekle',
       html: `<div style="text-align:left;">
-        <label style="font-size:12px;font-weight:600;color:#475569;">Miktar (${PARA})</label>
+        <label style="font-size:12px;font-weight:600;color:#475569;">${etiket}</label>
         <input type="number" id="oPay" step="0.01" class="swal2-input" placeholder="0,00">
+        ${hint}
         <label style="font-size:12px;font-weight:600;color:#475569;margin-top:10px;display:block;">Tarih</label>
         <input type="date" id="oTarih" value="${dayjs().format('YYYY-MM-DD')}" class="swal2-input">
         <label style="font-size:12px;font-weight:600;color:#475569;margin-top:10px;display:block;">Not (isteğe bağlı)</label>
@@ -2123,9 +2278,12 @@ const App = {
     });
     if (value && value.miktar > 0) {
       await CRUD.araOdemeEkle(id, value.miktar, value.tarih, value.aciklama);
-      showToast(`✅ Ara ödeme eklendi: ${Calc.fmt(value.miktar)}`);
+      const gosterim = birim === 'tl'
+        ? Calc.fmt(value.miktar)
+        : `${value.miktar.toLocaleString('tr-TR',{maximumFractionDigits:2})} ${birimKisa} ≈ ${Calc.fmt(value.miktar * birimFiyat)}`;
+      showToast(`✅ Ara ödeme eklendi: ${gosterim}`);
       await this.renderBorcList();
-      if (this.currentPage === 'dashboard') await this.renderRecentList();
+      await this.renderBorcalacak();  // özetleri de yenile
     }
   },
 
@@ -2612,6 +2770,18 @@ const App = {
         <select id="sRa" class="swal2-select">
           ${[['bugun','Bugün'],['hafta','Bu Hafta'],['ay','Bu Ay'],['3ay','Son 3 Ay']].map(([v,l])=>`<option value="${v}"${v===state.ayarlar.varsayilanRaporAraligi?' selected':''}>${l}</option>`).join('')}
         </select>
+
+        <div style="margin-top:20px;padding:14px;background:var(--warning-light);border-radius:12px;border:1px solid #FDE68A;">
+          <div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:10px;">🪙 Altın Fiyatları</div>
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Gram Altın (TL)</label>
+          <input type="number" id="sGramAltin" class="swal2-input" step="0.01" min="0" value="${state.ayarlar.gramAltinFiyati||0}" style="margin:0 0 10px 0;width:100%;">
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Çeyrek Altın (TL)</label>
+          <input type="number" id="sCeyrekAltin" class="swal2-input" step="0.01" min="0" value="${state.ayarlar.ceyrekAltinFiyati||0}" style="margin:0;width:100%;">
+          <p style="font-size:10.5px;color:#92400e;margin-top:8px;">
+            <i class="fas fa-info-circle"></i> Değişiklik yaptığınızda tüm borç/alacak TL karşılıkları otomatik güncellenir.
+          </p>
+        </div>
+
         <div style="margin-top:20px;padding:14px;background:var(--primary-light);border-radius:12px;border:1px solid #BFDBFE;">
           <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;">📲 Uygulamayı Yükle</div>
           <p style="font-size:11px;color:var(--text2);margin-bottom:10px;">Ana ekrana ekleyip çevrimdışı kullanın.</p>
@@ -2626,12 +2796,18 @@ const App = {
       confirmButtonText: 'Kaydet',
       showCancelButton: true,
       cancelButtonText: 'İptal',
-      preConfirm: () => ({ varsayilanRaporAraligi: document.getElementById('sRa').value })
+      preConfirm: () => ({
+        varsayilanRaporAraligi: document.getElementById('sRa').value,
+        gramAltinFiyati: parseFloat(document.getElementById('sGramAltin').value) || 0,
+        ceyrekAltinFiyati: parseFloat(document.getElementById('sCeyrekAltin').value) || 0
+      })
     });
     if (value) {
       state.ayarlar = { ...state.ayarlar, ...value };
       await saveAllData();
-      showToast('✅ Ayarlar kaydedildi');
+      showToast('✅ Ayarlar kaydedildi — TL karşılıkları güncellendi');
+      // Tüm sayfayı yenile ki tüm hesaplamalar yeni kurla çalışsın
+      await this.loadPage(this.currentPage);
     }
   },
 
@@ -2670,7 +2846,11 @@ const App = {
       gelir: ['Maaş','Serbest Çalışma','Yatırım','Hediye','Kira Geliri','Diğer'],
       gider: ['Market','Fatura','Eğlence','Ulaşım','Sağlık','Eğitim','Yemek','Alışveriş','Diğer']
     };
-    state.ayarlar = { varsayilanRaporAraligi: 'ay' };
+    state.ayarlar = {
+      varsayilanRaporAraligi: 'ay',
+      gramAltinFiyati: 6400,
+      ceyrekAltinFiyati: 10500
+    };
     localStorage.removeItem('butcem_migrate_done');
 
     Swal.close();
