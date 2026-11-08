@@ -2565,8 +2565,12 @@ const App = {
     const val = document.getElementById(id)?.value?.trim();
     if (!val) return;
     const ok = await CRUD.kategoriEkle(tip, val);
-    if (ok) { Swal.close(); this.openKategoriModal(); }
-    else    Swal.showValidationMessage('Bu kategori zaten mevcut!');
+    if (ok) {
+      Swal.close();
+      this.openKategoriModal();
+    } else {
+      showToast('⚠️ Bu kategori zaten mevcut!');
+    }
   },
 
   /* ══════════════════════════════════════
@@ -3319,8 +3323,13 @@ document.addEventListener('click', () => { requestPersistentStorage(); }, { once
   try {
     await openDB();
     await loadAllData();
-    await migrateOldData();
-    await App.loadPage('dashboard');
+    await App.loadPage('dashboard');    // ← ÖNCE dashboard açılsın
+
+    /* Migration arka planda — dashboard'u bloklamasın */
+    setTimeout(async () => {
+      try { await migrateOldData(); }
+      catch (e) { console.warn('[init] migrate:', e); }
+    }, 800);
 
     /* iOS'a özgü uyarı — 7 günlük ITP temizliği hakkında */
     if (isIOS && !localStorage.getItem('ios_install_hint_shown')) {
@@ -3341,7 +3350,11 @@ document.addEventListener('click', () => { requestPersistentStorage(); }, { once
     }
 
     /* 7 günden eski yedeği olanlara hatırlatıcı */
-    await checkBackupReminder();
+    /* 7 günden eski yedeği olanlara hatırlatıcı — dashboard açıldıktan sonra */
+    setTimeout(async () => {
+      try { await checkBackupReminder(); }
+      catch (e) { console.warn('[init] reminder:', e); }
+    }, 2500);
 
   } catch(e) {
     console.error('Başlatma hatası:', e);
