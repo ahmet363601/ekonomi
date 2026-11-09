@@ -4459,9 +4459,9 @@ async function _loadPdfFonts(doc) {
   if (_pdfFontsReady) return true;
   const sources = [
     { name: 'Roboto-Regular.ttf', alias: 'Roboto', style: 'normal',
-      url: 'https://cdn.jsdelivr.net/npm/roboto-fontface@0.10.0/fonts/roboto/Roboto-Regular.ttf' },
+      url: 'https://cdn.jsdelivr.net/gh/googlefonts/roboto-2@main/src/hinted/Roboto-Regular.ttf' },
     { name: 'Roboto-Bold.ttf',    alias: 'Roboto', style: 'bold',
-      url: 'https://cdn.jsdelivr.net/npm/roboto-fontface@0.10.0/fonts/roboto/Roboto-Bold.ttf' }
+      url: 'https://cdn.jsdelivr.net/gh/googlefonts/roboto-2@main/src/hinted/Roboto-Bold.ttf' }
   ];
   try {
     for (const f of sources) {
