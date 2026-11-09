@@ -1564,7 +1564,7 @@ const Calc = {
       ...state.giderler.map(g => ({ ...g, _tip: 'gider' })),
       ...state.borcalacaklar.filter(b => !b.odendiMi).map(b => ({ ...b, _tip: b.tip }))
     ].sort((a, b) => (b.tarih || '') > (a.tarih || '') ? 1 : -1);
-  }
+  },
     finansalSaglikSkoru() {
     const ayF = this.ayFilter();
     const gelir = this.toplamGelir(ayF);
@@ -2300,7 +2300,6 @@ const App = {
         </div>
       ` : ''}
 
-      ${SalaryMonth.isOverdue() ? `
       ${SalaryMonth.isOverdue() ? `
         <div class="alert" style="background:#FEF3C7;border:1px solid #FCD34D;color:#92400E;cursor:pointer;" onclick="App.loadPage('arsiv')">
           <i class="fas fa-exclamation-triangle"></i>
@@ -4353,7 +4352,7 @@ const App = {
       _baslik(doc, 'GİDER DAĞILIMI', y, hasUni, FONT);
       y += 10;
 
-      const katG = Calc.kategoriGiderler(ayF);
+      const katG = Calc.kategoriGiderler({ start: rStart, end: rEnd });
       const sortedKat = Object.entries(katG).sort((a, b) => b[1] - a[1]).slice(0, 8);
       const maxKat = sortedKat.length ? sortedKat[0][1] : 1;
       const palet = [
@@ -4641,7 +4640,7 @@ const App = {
     const a    = Object.assign(document.createElement('a'), { href:url, download:`ebhamani_backup_${dayjs(backup.createdAt).format('YYYY-MM-DD_HHmm')}.json` });
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }
+  },
     async downloadChart(chartId, title) {
     const chart = Charts.instances[chartId];
     if (!chart) { showToast('⚠️ Grafik bulunamadı'); return; }
