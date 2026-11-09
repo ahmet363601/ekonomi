@@ -1559,13 +1559,20 @@ const Calc = {
 
     return o;
   },
-  sonIslemler() {
-    return [
-      ...state.gelirler.map(g => ({ ...g, _tip: 'gelir' })),
-      ...state.giderler.map(g => ({ ...g, _tip: 'gider' })),
-      ...state.borcalacaklar.filter(b => !b.odendiMi).map(b => ({ ...b, _tip: b.tip }))
-    ].sort((a, b) => (b.tarih || '') > (a.tarih || '') ? 1 : -1);
-  },
+sonIslemler() {
+  return [
+    ...state.gelirler.map(g => ({ ...g, _tip: 'gelir' })),
+    ...state.giderler.map(g => ({ ...g, _tip: 'gider' })),
+    ...state.borcalacaklar.filter(b => !b.odendiMi).map(b => ({ ...b, _tip: b.tip }))
+  ].sort((a, b) => {
+    // 1️⃣ Önce tarihe göre (en yeni tarih üstte)
+    const dateCmp = (b.tarih || '').localeCompare(a.tarih || '');
+    if (dateCmp !== 0) return dateCmp;
+
+    // 2️⃣ Aynı tarihte: en son eklenen üstte
+    return (b.createdAt || '').localeCompare(a.createdAt || '');
+  });
+}
     finansalSaglikSkoru() {
     const ayF = this.ayFilter();
     const gelir = this.toplamGelir(ayF);
@@ -3053,7 +3060,10 @@ const App = {
     let all = [];
     if (this._islemListTab !== 'gider') all = all.concat(state.gelirler.map(g => ({ ...g, _tip:'gelir' })));
     if (this._islemListTab !== 'gelir') all = all.concat(state.giderler.map(g => ({ ...g, _tip:'gider' })));
-    all.sort((a, b) => b.tarih > a.tarih ? 1 : -1);
+    all.sort((a, b) => {
+  const dc = (b.tarih || '').localeCompare(a.tarih || '');
+  return dc !== 0 ? dc : (b.createdAt || '').localeCompare(a.createdAt || '');
+});
     if (q) all = all.filter(i => (i.kategori+' '+(i.aciklama||'')).toLowerCase().includes(q));
 
     const { items, page, total, hasPrev, hasNext } = UI.paginate(all, this._islemListPage, 10);
@@ -3508,7 +3518,10 @@ const App = {
   setBorcFilter(f) { this._borcFilter = f; UI.updateChips(document.getElementById('borcTabs'), f); this.renderBorcList(); },
 
   async renderBorcList() {
-    let all = [...state.borcalacaklar].sort((a,b) => b.tarih > a.tarih ? 1 : -1);
+    let all = [...state.borcalacaklar].sort((a, b) => {
+  const dc = (b.tarih || '').localeCompare(a.tarih || '');
+  return dc !== 0 ? dc : (b.createdAt || '').localeCompare(a.createdAt || '');
+});
     if      (this._borcFilter === 'alacak') all = all.filter(b => b.tip==='alacak' && !b.odendiMi);
     else if (this._borcFilter === 'borc')   all = all.filter(b => b.tip==='borc'   && !b.odendiMi);
     else if (this._borcFilter === 'odendi') all = all.filter(b => b.odendiMi);
