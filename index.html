@@ -1648,9 +1648,7 @@ const Calc = {
     bulgular.sort((a, b) => b.artisYuzde - a.artisYuzde);
     return bulgular;
   },
-      bulgular.sort((a, b) => b.artisYuzde - a.artisYuzde);
-    return bulgular;
-  },
+
 
   /* ═══════════════════════════════════════════════════════
      FAZ 2 — GÖRSEL GENİŞLEME HESAPLAMALARI
@@ -1790,17 +1788,15 @@ const Calc = {
         tasarrufOrani: gelir > 0 ? (gelir - gider) / gelir : 0
       };
     };
-
     return {
       key1, key2,
       label1: SalaryMonth.shortLabel(key1),
-      label2: SalaryMonth.shortLabel(key2),
+      label2: SalaryMonth.shortLabel(k2),
       data1: olustur(r1),
       data2: olustur(r2)
     };
   },
 };
-};   // ← EKLENMESİ GEREKEN TEK SATIR BU
 
 
 const CRUD = {
@@ -2203,8 +2199,7 @@ const Charts = {
         }
       }
     });
-  }
-};
+  },
 
   line(canvasId, data) {
     this.destroy(canvasId);
@@ -2603,7 +2598,6 @@ const App = {
       </div>
 
       <!-- 🆕 ANOMALİLER -->
-      ${anomaliler.length > 0 ? `
       ${anomaliler.length > 0 ? `
         <div class="card" style="border-left:4px solid var(--warning);">
           <div class="section-header">
@@ -5117,7 +5111,6 @@ const App = {
   },
 
   async downloadChart(chartId, title) {
-    async downloadChart(chartId, title) {
     const chart = Charts.instances[chartId];
     if (!chart) { showToast('⚠️ Grafik bulunamadı'); return; }
     try {
@@ -5133,16 +5126,6 @@ const App = {
       showToast('⚠️ Grafik indirilemedi');
     }
   },
-};
-
-/* ─────────────────────────────────────────────
-   MİGRASYON (Eski ayların otomatik arşivlenmesi)
-───────────────────────────────────────────── */
-/* Geçmiş ay arşivleme — SADECE kullanıcı onayıyla, tek seferlik */
-/* ─────────────────────────────────────────────
-   OTOMATİK ARŞİV KONTROLÜ — uygulama açılışında çalışır
-   Geçmiş dönem arşivlenmemişse kullanıcıya tek tıkla arşivleme sunar
-───────────────────────────────────────────── */
 async function autoArchiveCheck() {
   try {
     /* 🆕 TÜM bekleyen dönemleri al (sadece bir önceki değil) */
