@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="EBHA Mani">
   <meta name="format-detection" content="telephone=no">
-  <meta name="description" content="EBHA Mani - Gelir, Gider ve Borç Takip Uygulaması">
+  <meta name="description" content="EBHA Mani — Paranı gör, geleceğini planla. Gelir, gider ve borç takip uygulaması.">
   <title>EBHA Mani · Finans Takip</title>
   <link rel="manifest" href="/ekonomi/manifest.json">
   <meta name="theme-color" content="#3b82f6">
@@ -1565,6 +1565,89 @@ const Calc = {
       ...state.borcalacaklar.filter(b => !b.odendiMi).map(b => ({ ...b, _tip: b.tip }))
     ].sort((a, b) => (b.tarih || '') > (a.tarih || '') ? 1 : -1);
   }
+    finansalSaglikSkoru() {
+    const ayF = this.ayFilter();
+    const gelir = this.toplamGelir(ayF);
+    const gider = this.toplamGider(ayF);
+    const borc = this.aktifBorcAlacak();
+
+    let tasarrufPuan = 0;
+    if (gelir > 0) {
+      const oran = (gelir - gider) / gelir;
+      if (oran >= 0.30) tasarrufPuan = 40;
+      else if (oran >= 0.20) tasarrufPuan = 30;
+      else if (oran >= 0.10) tasarrufPuan = 20;
+      else if (oran >= 0) tasarrufPuan = 10;
+    }
+
+    let borcPuan = 30;
+    if (gelir > 0 && borc > 0) {
+      const kat = borc / gelir;
+      if (kat <= 1) borcPuan = 22;
+      else if (kat <= 2) borcPuan = 15;
+      else if (kat <= 3) borcPuan = 8;
+      else borcPuan = 0;
+    }
+
+    let duzenPuan = 0;
+    const bugun = dayjs();
+    const son30 = new Set();
+    state.gelirler.forEach(g => { if (g.tarih && dayjs(g.tarih).isAfter(bugun.subtract(30, 'day'))) son30.add(g.tarih); });
+    state.giderler.forEach(g => { if (g.tarih && dayjs(g.tarih).isAfter(bugun.subtract(30, 'day'))) son30.add(g.tarih); });
+    const gunSayisi = son30.size;
+    if (gunSayisi >= 20) duzenPuan = 30;
+    else if (gunSayisi >= 15) duzenPuan = 20;
+    else if (gunSayisi >= 10) duzenPuan = 12;
+    else if (gunSayisi >= 5)  duzenPuan = 6;
+
+    const skor = tasarrufPuan + borcPuan + duzenPuan;
+    let etiket, renk;
+    if (skor >= 80) { etiket = 'Mükemmel'; renk = '#059669'; }
+    else if (skor >= 65) { etiket = 'İyi'; renk = '#0891B2'; }
+    else if (skor >= 50) { etiket = 'Orta'; renk = '#D97706'; }
+    else if (skor >= 30) { etiket = 'Zayıf'; renk = '#EA580C'; }
+    else { etiket = 'Kritik'; renk = '#DC2626'; }
+
+    return { skor, etiket, renk, tasarrufPuan, borcPuan, duzenPuan, gunSayisi };
+  },
+
+  safeToSpend() {
+    const ayF = this.ayFilter();
+    const gelir = this.toplamGelir(ayF);
+    const gider = this.toplamGider(ayF);
+    const bugun = dayjs();
+    const bitis = dayjs(ayF.end);
+    const kalanGun = Math.max(1, bitis.diff(bugun, 'day') + 1);
+    const kalanButce = gelir - gider;
+    const gunlukLimit = kalanButce / kalanGun;
+    const bugunHarcanan = state.giderler
+      .filter(g => g.tarih === bugun.format('YYYY-MM-DD'))
+      .reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+    const bugunKalan = gunlukLimit - bugunHarcanan;
+    return { gelir, gider, kalanButce, kalanGun, gunlukLimit, bugunHarcanan, bugunKalan };
+  },
+
+  anomaliTespit() {
+    const buAy = SalaryMonth.currentKey();
+    const gecenAy = SalaryMonth.previousKey();
+    const ikiAy = dayjs(buAy + '-15').subtract(2, 'month').format('YYYY-MM');
+    const ucAy = dayjs(buAy + '-15').subtract(3, 'month').format('YYYY-MM');
+    const ay = (key) => { const r = SalaryMonth.range(key); return this.kategoriGiderler({ start: r.start, end: r.end }); };
+    const bu = ay(buAy), g1 = ay(gecenAy), g2 = ay(ikiAy), g3 = ay(ucAy);
+    const bulgular = [];
+    Object.entries(bu).forEach(([kat, val]) => {
+      if (val < 100) return;
+      const gecmis = [g1[kat] || 0, g2[kat] || 0, g3[kat] || 0].filter(v => v > 0);
+      if (gecmis.length < 2) return;
+      const ort = gecmis.reduce((s, v) => s + v, 0) / gecmis.length;
+      if (ort > 0 && val > ort * 1.3) {
+        const yuzde = Math.round(((val - ort) / ort) * 100);
+        bulgular.push({ kategori: kat, bu: val, ortalama: ort, artisYuzde: yuzde });
+      }
+    });
+    bulgular.sort((a, b) => b.artisYuzde - a.artisYuzde);
+    return bulgular;
+  },
 };   // ← EKLENMESİ GEREKEN TEK SATIR BU
 
 
@@ -1897,6 +1980,36 @@ const Charts = {
   }
 };
 
+
+/* ═══════════════════════════════════════════════════════════
+   KATEGORİ RENK/İKON PALETİ
+   ═══════════════════════════════════════════════════════════ */
+const KATEGORI_RENK = {
+  gelir: {
+    'Maaş':            { icon: 'fa-briefcase',      color: '#059669', bg: '#ECFDF5' },
+    'Serbest Çalışma': { icon: 'fa-laptop-code',    color: '#0891B2', bg: '#ECFEFF' },
+    'Yatırım':         { icon: 'fa-chart-line',     color: '#7C3AED', bg: '#F3E8FF' },
+    'Hediye':          { icon: 'fa-gift',           color: '#DB2777', bg: '#FCE7F3' },
+    'Kira Geliri':     { icon: 'fa-home',           color: '#D97706', bg: '#FEF3C7' },
+    'Diğer':           { icon: 'fa-plus-circle',    color: '#64748B', bg: '#F1F5F9' }
+  },
+  gider: {
+    'Market':          { icon: 'fa-shopping-cart',  color: '#059669', bg: '#ECFDF5' },
+    'Fatura':          { icon: 'fa-file-invoice',   color: '#2563EB', bg: '#EFF6FF' },
+    'Eğlence':         { icon: 'fa-film',           color: '#EA580C', bg: '#FFF7ED' },
+    'Ulaşım':          { icon: 'fa-car',            color: '#0891B2', bg: '#ECFEFF' },
+    'Sağlık':          { icon: 'fa-heart-pulse',    color: '#DC2626', bg: '#FEF2F2' },
+    'Eğitim':          { icon: 'fa-graduation-cap', color: '#7C3AED', bg: '#F3E8FF' },
+    'Yemek':           { icon: 'fa-utensils',       color: '#D97706', bg: '#FFFBEB' },
+    'Alışveriş':       { icon: 'fa-bag-shopping',   color: '#DB2777', bg: '#FCE7F3' },
+    'Diğer':           { icon: 'fa-ellipsis',       color: '#64748B', bg: '#F1F5F9' }
+  }
+};
+
+function kategoriMeta(tip, kategori) {
+  const grp = KATEGORI_RENK[tip] || KATEGORI_RENK.gider;
+  return grp[kategori] || { icon: 'fa-tag', color: '#64748B', bg: '#F1F5F9' };
+}
 /* ─────────────────────────────────────────────
    UI HELPERS
 ───────────────────────────────────────────── */
@@ -1938,7 +2051,13 @@ const UI = {
     const click = clickCb ? ` onclick="${clickCb}"` : '';
 
     return `<div class="tx-item${clickCb ? ' tx-item-clickable' : ''}" data-id="${item.id}"${click}>
-      <div class="tx-icon ${iconCls}"><i class="fas ${iconFa}"></i></div>
+            ${(isAlacak || isBorc)
+        ? `<div class="tx-icon ${iconCls}"><i class="fas ${iconFa}"></i></div>`
+        : (() => {
+            const meta = kategoriMeta(isGelir ? 'gelir' : 'gider', label);
+            return `<div class="tx-icon" style="background:${meta.bg};color:${meta.color};"><i class="fas ${meta.icon}"></i></div>`;
+          })()
+      }
       <div class="tx-info">
         <div class="tx-title">${this.escHtml(label)}</div>
         <div class="tx-date">${date}${desc}</div>
@@ -2075,6 +2194,10 @@ const App = {
         <div><strong>${UI.escHtml(k)}</strong> limiti aşıldı — Limit: ${Calc.fmt(l)} · Harcanan: ${Calc.fmt(Calc.aylikGiderKategori(k))}</div>
       </div>`)
       .join('');
+    /* 🆕 Yeni hesaplamalar */
+    const saglik = Calc.finansalSaglikSkoru();
+    const safe = Calc.safeToSpend();
+    const anomaliler = Calc.anomaliTespit();
 
     const tabs = ['tum','gelir','gider','borc'];
     const tabLabels = { tum:'Tümü', gelir:'Gelir', gider:'Gider', borc:'Borç/Alacak' };
@@ -2086,6 +2209,9 @@ const App = {
         <div class="hero-meta">
           <span><i class="fas fa-arrow-up"></i> Toplam: ${Calc.fmt(gelirT)}</span>
           <span><i class="fas fa-arrow-down"></i> Toplam: ${Calc.fmt(giderT)}</span>
+        </div>
+        <div style="font-size:10px;opacity:.65;margin-top:8px;letter-spacing:.3px;font-style:italic;">
+          Paranı gör, geleceğini planla
         </div>
       </div>
 
@@ -2112,6 +2238,69 @@ const App = {
 
       ${limitAlerts}
 
+      <!-- 🆕 FİNANSAL SAĞLIK SKORU -->
+      <div class="card" style="background:linear-gradient(135deg, ${saglik.renk}15, var(--surface));border-left:4px solid ${saglik.renk};">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div class="card-label" style="margin-bottom:0;">Finansal Sağlık</div>
+          <span class="badge" style="background:${saglik.renk};color:#fff;font-size:11px;padding:4px 10px;">${saglik.etiket}</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;">
+          <div style="font-family:'Plus Jakarta Sans';font-size:32px;font-weight:900;color:${saglik.renk};letter-spacing:-1.5px;">${saglik.skor}</div>
+          <div style="font-size:13px;color:var(--text3);">/ 100</div>
+        </div>
+        <div class="progress-track" style="margin:6px 0;">
+          <div class="progress-bar" style="width:${saglik.skor}%;background:${saglik.renk};"></div>
+        </div>
+        <div style="display:flex;gap:12px;font-size:10px;color:var(--text3);margin-top:6px;flex-wrap:wrap;">
+          <span>Tasarruf: <strong style="color:var(--text2);">${saglik.tasarrufPuan}/40</strong></span>
+          <span>Borç: <strong style="color:var(--text2);">${saglik.borcPuan}/30</strong></span>
+          <span>Düzen: <strong style="color:var(--text2);">${saglik.duzenPuan}/30</strong></span>
+        </div>
+      </div>
+
+      <!-- 🆕 SAFE-TO-SPEND -->
+      <div class="card" style="border-left:4px solid ${safe.bugunKalan >= 0 ? 'var(--accent)' : 'var(--danger)'};">
+        <div class="card-label">Bugün Harcayabilirsin</div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:4px;">
+          <div class="stat-amount ${safe.bugunKalan >= 0 ? 'green' : 'red'}" style="font-size:26px;">${Calc.fmt(Math.max(0, safe.bugunKalan))}</div>
+          <div style="font-size:10px;color:var(--text3);text-align:right;line-height:1.4;">
+            <div>Bugün: ${Calc.fmt(safe.bugunHarcanan)}</div>
+            <div>Limit: ${Calc.fmt(safe.gunlukLimit)}</div>
+            <div>${safe.kalanGun} gün kaldı</div>
+          </div>
+        </div>
+        <div style="font-size:10.5px;color:var(--text3);margin-top:6px;">
+          ${safe.kalanButce > 0
+            ? `${Calc.fmt(safe.kalanButce)} bütçen kaldı · günlük ${Calc.fmt(safe.gunlukLimit)}`
+            : `⚠️ Bütçe aşımı: ${Calc.fmt(Math.abs(safe.kalanButce))}`}
+        </div>
+      </div>
+
+      <!-- 🆕 ANOMALİLER -->
+      ${anomaliler.length > 0 ? `
+        <div class="card" style="border-left:4px solid var(--warning);">
+          <div class="section-header">
+            <span class="section-title" style="display:flex;align-items:center;gap:8px;">
+              <i class="fas fa-chart-line" style="color:var(--warning);"></i>
+              Anormal Harcama Artışı
+            </span>
+            <span class="badge badge-amber">${anomaliler.length}</span>
+          </div>
+          ${anomaliler.slice(0, 3).map(a => `
+            <div style="padding:8px 10px;background:var(--warning-light);border-radius:8px;margin-bottom:6px;font-size:12px;">
+              <div style="display:flex;justify-content:space-between;">
+                <strong>${UI.escHtml(a.kategori)}</strong>
+                <span style="color:var(--danger);font-weight:700;">+%${a.artisYuzde}</span>
+              </div>
+              <div style="font-size:10.5px;color:var(--text3);margin-top:2px;">
+                ${Calc.fmt(a.bu)} · ortalama ${Calc.fmt(a.ortalama)}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      ${SalaryMonth.isOverdue() ? `
       ${SalaryMonth.isOverdue() ? `
         <div class="alert" style="background:#FEF3C7;border:1px solid #FCD34D;color:#92400E;cursor:pointer;" onclick="App.loadPage('arsiv')">
           <i class="fas fa-exclamation-triangle"></i>
@@ -2123,12 +2312,22 @@ const App = {
       ` : ''}
 
       <div class="card">
-        <div class="section-header"><span class="section-title">Aylık Trend</span></div>
+        <div class="section-header">
+          <span class="section-title">Aylık Trend</span>
+          <button onclick="App.downloadChart('dashBarChart', 'Gelir_Gider_Trendi')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;" title="PNG İndir">
+            <i class="fas fa-download"></i>
+          </button>
+        </div>
         <div class="chart-wrap"><canvas id="dashBarChart"></canvas></div>
       </div>
 
       <div class="card">
-        <div class="section-header"><span class="section-title">Gider Dağılımı (Bu Ay)</span></div>
+        <div class="section-header">
+          <span class="section-title">Gider Dağılımı (Bu Ay)</span>
+          <button onclick="App.downloadChart('dashDonutChart', 'Gider_Dagilimi')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;" title="PNG İndir">
+            <i class="fas fa-download"></i>
+          </button>
+        </div>
         <div class="chart-wrap"><canvas id="dashDonutChart"></canvas></div>
       </div>
 
@@ -2274,7 +2473,10 @@ const App = {
       else {
         el.innerHTML = items.map(i => `
           <div class="tx-item tx-item-clickable" onclick="App.showTransactionDetail(${i.id},'${i._tip}')">
-            <div class="tx-icon ${i._tip}"><i class="fas ${i._tip==='gelir'?'fa-arrow-up':'fa-arrow-down'}"></i></div>
+                        ${(() => {
+              const meta = kategoriMeta(i._tip, i.kategori);
+              return `<div class="tx-icon" style="background:${meta.bg};color:${meta.color};"><i class="fas ${meta.icon}"></i></div>`;
+            })()}
             <div class="tx-info">
               <div class="tx-title">${UI.escHtml(i.kategori)}</div>
               <div class="tx-date">${dayjs(i.tarih).format('DD MMM YYYY')}${i.aciklama?' · '+UI.escHtml(i.aciklama.substring(0,20)):''}</div>
@@ -4085,6 +4287,10 @@ const App = {
       showToast('❌ PDF motoru yüklenemedi. İnternet bağlantınızı kontrol edin.');
       return;
     }
+    const rStart = this._raporStart;
+    const rEnd   = this._raporEnd;
+    const gelirlerFiltre = state.gelirler.filter(g => g.tarih >= rStart && g.tarih <= rEnd);
+    const giderlerFiltre = state.giderler.filter(g => g.tarih >= rStart && g.tarih <= rEnd);
 
     Swal.fire({
       title: 'PDF hazırlanıyor...',
@@ -4128,9 +4334,8 @@ const App = {
 
       /* ═══ ÖZET KARTLARI ═══ */
       let y = 58;
-      const ayF = Calc.ayFilter();
-      const gelirT = Calc.toplamGelir(ayF);
-      const giderT = Calc.toplamGider(ayF);
+      const gelirT = Calc.toplamGelir({ start: rStart, end: rEnd });
+      const giderT = Calc.toplamGider({ start: rStart, end: rEnd });
       const bakiye = gelirT - giderT;
       const borcT = Calc.aktifBorcAlacak();
 
@@ -4230,8 +4435,8 @@ const App = {
         }
       };
 
-      tablo(state.gelirler, 'GELİRLER', [5, 150, 105], '+');
-      tablo(state.giderler, 'GİDERLER', [220, 38, 38], '-');
+      tablo(gelirlerFiltre, 'GELİRLER', [5, 150, 105], '+');
+      tablo(giderlerFiltre, 'GİDERLER', [220, 38, 38], '-');
 
       /* ═══ BORÇ / ALACAK — birim farkındalı ═══ */
       const aktifBorclar = state.borcalacaklar.filter(x => !x.odendiMi);
@@ -4326,12 +4531,17 @@ const App = {
       return;
     }
     try {
+      const rStart = this._raporStart;
+      const rEnd   = this._raporEnd;
+      const gelirlerFiltre = state.gelirler.filter(g => g.tarih >= rStart && g.tarih <= rEnd);
+      const giderlerFiltre = state.giderler.filter(g => g.tarih >= rStart && g.tarih <= rEnd);
+
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
-        state.gelirler.map(g=>({ Tip:'Gelir', Miktar:g.miktar, Kategori:g.kategori, Tarih:g.tarih, Aciklama:g.aciklama||'' }))
+        gelirlerFiltre.map(g=>({ Tip:'Gelir', Miktar:g.miktar, Kategori:g.kategori, Tarih:g.tarih, Aciklama:g.aciklama||'' }))
       ), 'Gelirler');
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
-        state.giderler.map(g=>({ Tip:'Gider', Miktar:g.miktar, Kategori:g.kategori, Tarih:g.tarih, Aciklama:g.aciklama||'' }))
+        giderlerFiltre.map(g=>({ Tip:'Gider', Miktar:g.miktar, Kategori:g.kategori, Tarih:g.tarih, Aciklama:g.aciklama||'' }))
       ), 'Giderler');
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
         state.borcalacaklar.map(b=>({
@@ -4432,6 +4642,22 @@ const App = {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
+    async downloadChart(chartId, title) {
+    const chart = Charts.instances[chartId];
+    if (!chart) { showToast('⚠️ Grafik bulunamadı'); return; }
+    try {
+      const url = chart.toBase64Image('image/png', 1);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${(title || 'grafik').replace(/\s+/g, '_')}_${dayjs().format('YYYY-MM-DD_HHmm')}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('📊 Grafik indirildi');
+    } catch (e) {
+      showToast('⚠️ Grafik indirilemedi');
+    }
+  },
 };
 
 /* ─────────────────────────────────────────────
@@ -4732,7 +4958,7 @@ function _footer(doc, pg, total, hasUni, FONT) {
   doc.setFont(FONT, 'normal');
   doc.setFontSize(7);
   doc.setTextColor(148,163,184);
-  _txt(doc, 'EBHA Mani  ·  Finansal Rapor', 20, H - 9.5, null, hasUni);
+  _txt(doc, 'EBHA Mani  ·  Paranı gör, geleceğini planla', 20, H - 9.5, null, hasUni);
   _txt(doc, `Sayfa ${pg} / ${total}`, W - 20, H - 9.5, { align: 'right' }, hasUni);
 }
 
