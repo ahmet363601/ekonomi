@@ -136,7 +136,7 @@ button, input, select, textarea {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border);
-  height: var(--header-h);
+  height: calc(var(--header-h) + env(safe-area-inset-top));
   padding: 0 16px;
   padding-top: env(safe-area-inset-top);
 }
@@ -2043,6 +2043,7 @@ const App = {
     const ayGelir= Calc.toplamGelir(ayF);
     const ayGider= Calc.toplamGider(ayF);
     const borcT  = Calc.aktifBorcAlacak();
+    const baOzet = Calc.borcAlacakOzet();  // toplam kırılım (gram/çeyrek/TL)
 
     const limitAlerts = Object.entries(state.limitler)
       .filter(([k, l]) => Calc.aylikGiderKategori(k) > l)
@@ -2068,8 +2069,23 @@ const App = {
       <div class="stat-grid">
         <div class="stat-card"><div class="card-label">Bu Ay Gelir</div><div class="stat-amount green">${Calc.fmt(ayGelir)}</div></div>
         <div class="stat-card"><div class="card-label">Bu Ay Gider</div><div class="stat-amount red">${Calc.fmt(ayGider)}</div></div>
-        <div class="stat-card full"><div class="card-label">Aktif Borç & Alacak</div><div class="stat-amount amber">${Calc.fmt(borcT)}</div></div>
-      </div>
+<div class="stat-card full">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+    <div class="card-label" style="margin-bottom:0;">Aktif Borç & Alacak</div>
+    <button onclick="App.openGoldRateModal()" title="Altın Kuru Güncelle"
+      style="background:var(--warning-light);color:var(--warning);border:1px solid var(--warning);width:26px;height:26px;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;padding:0;transition:var(--transition);flex-shrink:0;">
+      <i class="fas fa-coins"></i>
+    </button>
+  </div>
+  <div class="stat-amount amber">${Calc.fmt(borcT)}</div>
+  ${(baOzet.gram > 0 || baOzet.ceyrek > 0) ? `
+    <div style="font-size:11px;color:var(--text3);margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      ${baOzet.gram > 0 ? `<span><strong style="color:var(--warning);">${baOzet.gram.toLocaleString('tr-TR',{maximumFractionDigits:2})}</strong> gram</span>` : ''}
+      ${baOzet.gram > 0 && baOzet.ceyrek > 0 ? '<span style="opacity:.4;">·</span>' : ''}
+      ${baOzet.ceyrek > 0 ? `<span><strong style="color:var(--warning);">${baOzet.ceyrek.toLocaleString('tr-TR',{maximumFractionDigits:2})}</strong> çeyrek</span>` : ''}
+    </div>
+  ` : ''}
+</div>      </div>
 
       ${limitAlerts}
 
@@ -3779,6 +3795,32 @@ const App = {
   /* ══════════════════════════════════════
      AYARLAR
   ══════════════════════════════════════ */
+  async openGoldRateModal() {
+  const { value } = await Swal.fire({
+    title: '🪙 Altın Kurları',
+    html: `<div style="text-align:left;">
+      <p style="font-size:12px;color:#64748b;margin:0 0 14px 0;">Güncel altın fiyatlarını girin. Tüm borç/alacak TL karşılıkları otomatik güncellenecek.</p>
+      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:5px;">Gram Altın (TL)</label>
+      <input type="number" id="gGram" class="swal2-input" step="0.01" min="0" value="${state.ayarlar.gramAltinFiyati||0}" style="margin:0 0 12px 0;width:100%;">
+      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:5px;">Çeyrek Altın (TL)</label>
+      <input type="number" id="gCeyrek" class="swal2-input" step="0.01" min="0" value="${state.ayarlar.ceyrekAltinFiyati||0}" style="margin:0;width:100%;">
+      <p style="font-size:10.5px;color:#94a3b8;margin-top:12px;"><i class="fas fa-info-circle"></i> Kaydettiğinizde dashboard, arşiv ve PDF raporu otomatik olarak yeni kurlarla güncellenecek.</p>
+    </div>`,
+    confirmButtonText: 'Kaydet',
+    showCancelButton: true,
+    cancelButtonText: 'İptal',
+    preConfirm: () => ({
+      gramAltinFiyati: parseFloat(document.getElementById('gGram').value) || 0,
+      ceyrekAltinFiyati: parseFloat(document.getElementById('gCeyrek').value) || 0
+    })
+  });
+  if (value) {
+    state.ayarlar = { ...state.ayarlar, ...value };
+    await saveAyarlar();
+    showToast('✅ Altın kurları güncellendi');
+    await this.loadPage(this.currentPage);
+  }
+},
   async openSettingsModal() {
     const { value } = await Swal.fire({
       title: '⚙️ Ayarlar',
@@ -3925,9 +3967,15 @@ const App = {
       _txt(doc, 'EBHA MANİ', M, 22, null, hasUni);
 
       doc.setFont(FONT, 'normal');
+      const birim = b.birim || 'tl';
+      const birimFiyat = Calc.birimFiyat(birim);
+      const miktarAna = birim === 'tl'
+        ? Calc.fmt(b.miktar)
+        : `${(Number(b.miktar)||0).toLocaleString('tr-TR',{maximumFractionDigits:2})} ${Calc.birimKisa(birim)} (${Calc.fmt((Number(b.miktar)||0) * birimFiyat)})`;
+      
       doc.setFontSize(10);
-      doc.setTextColor(219, 234, 254);
-      _txt(doc, 'Finansal Rapor', M, 31, null, hasUni);
+      doc.setTextColor(...renk);
+      _txt(doc, miktarAna, W - M - 3, y + 1, { align: 'right' }, hasUni);
 
       doc.setFontSize(9);
       _txt(doc, dayjs().format('DD MMMM YYYY · HH:mm'), W - M, 42, { align: 'right' }, hasUni);
@@ -4091,7 +4139,10 @@ const App = {
           _txt(doc, `%${Math.round(pct * 100)} ödendi`, M + 45, y + 6.5, null, hasUni);
 
           if (kalan > 0) {
-            _txt(doc, `Kalan: ${Calc.fmt(kalan)}`, W - M - 3, y + 6.5, { align: 'right' }, hasUni);
+            const kalanStr = birim === 'tl'
+              ? `Kalan: ${Calc.fmt(kalan)}`
+              : `Kalan: ${kalan.toLocaleString('tr-TR',{maximumFractionDigits:2})} ${Calc.birimKisa(birim)} (${Calc.fmt(kalan * birimFiyat)})`;
+            _txt(doc, kalanStr, W - M - 3, y + 6.5, { align: 'right' }, hasUni);
           } else {
             doc.setTextColor(...renk);
             doc.setFont(FONT, 'bold');
