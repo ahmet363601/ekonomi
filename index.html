@@ -1791,12 +1791,10 @@ const Calc = {
     return {
       key1, key2,
       label1: SalaryMonth.shortLabel(key1),
-      label2: SalaryMonth.shortLabel(k2),
+      label2: SalaryMonth.shortLabel(key2),   // ← k2 değil, key2
       data1: olustur(r1),
       data2: olustur(r2)
     };
-  },
-};
 
 
 const CRUD = {
@@ -5126,6 +5124,8 @@ const App = {
       showToast('⚠️ Grafik indirilemedi');
     }
   },
+};                          // ← BU SATIRI EKLE
+
 async function autoArchiveCheck() {
   try {
     /* 🆕 TÜM bekleyen dönemleri al (sadece bir önceki değil) */
