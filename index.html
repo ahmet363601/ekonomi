@@ -2996,16 +2996,11 @@ const App = {
         </div>
         <div class="form-group">
           <label class="form-label">Tarih</label>
-          <input type="date" id="borcTarih" class="form-input" value="${dayjs().format('YYYY-MM-DD')}">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Vade Tarihi (isteğe bağlı)</label>
-          <input type="date" id="borcVade" class="form-input">
-          <div style="font-size:10.5px;color:var(--text3);margin-top:3px;">Vade girilirse, 7 gün kala dashboard'da hatırlatma görünür.</div>
+          <input type="date" id="islemTarih" class="form-input" value="${dayjs().format('YYYY-MM-DD')}">
         </div>
         <div class="form-group">
           <label class="form-label">Açıklama (isteğe bağlı)</label>
-          <textarea id="borcAciklama" class="form-textarea" placeholder="Kısa not..."></textarea>
+          <textarea id="islemAciklama" class="form-textarea" placeholder="Kısa not..."></textarea>
         </div>
         <div class="btn-row">
           <button class="btn btn-primary flex-1" onclick="App.submitIslem()"><i class="fas fa-plus"></i> Kaydet</button>
@@ -3465,10 +3460,6 @@ const App = {
           <label class="form-label" id="borcMiktarLabel">Miktar (TL)</label>
           <input type="number" id="borcMiktar" class="form-input" step="0.01" min="0.01" placeholder="0,00" inputmode="decimal">
           <div id="borcMiktarHint" style="font-size:10.5px;color:var(--text3);margin-top:4px;display:none;"></div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Tarih</label>
-          <input type="date" id="borcTarih" class="form-input" value="${dayjs().format('YYYY-MM-DD')}">
         </div>
         <div class="form-group">
           <label class="form-label">Tarih</label>
