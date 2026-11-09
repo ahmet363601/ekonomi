@@ -1572,7 +1572,7 @@ sonIslemler() {
     // 2️⃣ Aynı tarihte: en son eklenen üstte
     return (b.createdAt || '').localeCompare(a.createdAt || '');
   });
-}
+},
     finansalSaglikSkoru() {
     const ayF = this.ayFilter();
     const gelir = this.toplamGelir(ayF);
