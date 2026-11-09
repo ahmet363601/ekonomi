@@ -1648,6 +1648,158 @@ const Calc = {
     bulgular.sort((a, b) => b.artisYuzde - a.artisYuzde);
     return bulgular;
   },
+      bulgular.sort((a, b) => b.artisYuzde - a.artisYuzde);
+    return bulgular;
+  },
+
+  /* ═══════════════════════════════════════════════════════
+     FAZ 2 — GÖRSEL GENİŞLEME HESAPLAMALARI
+     ═══════════════════════════════════════════════════════ */
+
+  /* 1. Finansal Kişilik Profili */
+  finansalKisilik() {
+    const saglik = this.finansalSaglikSkoru();
+    const ayF = this.ayFilter();
+    const gelir = this.toplamGelir(ayF);
+    const gider = this.toplamGider(ayF);
+    const borc = this.aktifBorcAlacak();
+    const anomaliler = this.anomaliTespit();
+
+    const tasarrufOrani = gelir > 0 ? (gelir - gider) / gelir : 0;
+    const borcOrani = gelir > 0 ? borc / gelir : 0;
+
+    let tip, emoji, renk, aciklama;
+
+    if (anomaliler.length >= 2 || (gelir > 0 && gider > gelir * 1.1)) {
+      tip = 'Cırcır Böceği'; emoji = '🦗'; renk = '#EA580C';
+      aciklama = 'Harcamalar gelirini aşıyor. Tasarrufa odaklan!';
+    } else if (tasarrufOrani >= 0.25 && borcOrani <= 0.5) {
+      tip = 'Kartal'; emoji = '🦅'; renk = '#7C3AED';
+      aciklama = 'Mükemmel denge! Yatırıma hazırsın.';
+    } else if (tasarrufOrani >= 0.10) {
+      tip = 'Sincap'; emoji = '🐿️'; renk = '#059669';
+      aciklama = 'Düzenli birikim yapıyorsun. Devam et!';
+    } else if (borcOrani > 1.5) {
+      tip = 'Karınca'; emoji = '🐜'; renk = '#DC2626';
+      aciklama = 'Borç önceliğin olmalı. Adım adım ilerleyelim.';
+    } else {
+      tip = 'Dengeli'; emoji = '🐢'; renk = '#0891B2';
+      aciklama = 'Standart gidiyorsun. Biraz daha tasarruf iyi olur.';
+    }
+
+    return { tip, emoji, renk, aciklama, tasarrufOrani, borcOrani };
+  },
+
+  /* 2. Günlük Harcama Isı Haritası */
+  gunlukHarcamaHaritasi(gunSayisi = 30) {
+    const bugun = dayjs();
+    const days = [];
+    let max = 1;
+
+    for (let i = gunSayisi - 1; i >= 0; i--) {
+      const d = bugun.subtract(i, 'day');
+      const tarih = d.format('YYYY-MM-DD');
+      const tutar = state.giderler
+        .filter(g => g.tarih === tarih)
+        .reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+      if (tutar > max) max = tutar;
+      days.push({
+        tarih,
+        gun: d.format('DD'),
+        kisaGun: d.format('dd'),
+        ay: d.format('MMM'),
+        haftaGunu: d.day(),
+        tutar
+      });
+    }
+
+    days.forEach(d => {
+      if (d.tutar === 0) d.seviye = 0;
+      else {
+        const ratio = d.tutar / max;
+        if (ratio <= 0.25) d.seviye = 1;
+        else if (ratio <= 0.5) d.seviye = 2;
+        else if (ratio <= 0.75) d.seviye = 3;
+        else d.seviye = 4;
+      }
+    });
+
+    const toplam = days.reduce((s, d) => s + d.tutar, 0);
+    const ort = toplam / days.length;
+    const harcananGun = days.filter(d => d.tutar > 0).length;
+    const enYuksek = days.reduce((a, b) => a.tutar > b.tutar ? a : b, days[0]);
+
+    return { days, max, toplam, ort, harcananGun, enYuksek };
+  },
+
+  /* 3. Cash Flow Waterfall */
+  waterfallData(range) {
+    const gelir = this.toplamGelir(range);
+    const gider = this.toplamGider(range);
+    const net = gelir - gider;
+
+    const steps = [
+      { label: 'Sıfır', start: 0, end: 0, display: 0, type: 'total' },
+      { label: 'Gelir', start: 0, end: gelir, display: gelir, type: 'increase' },
+      { label: 'Gider', start: Math.max(0, net), end: gelir, display: -gider, type: 'decrease' },
+      { label: 'Net', start: 0, end: net, display: net, type: 'result' }
+    ];
+
+    return { steps, gelir, gider, net };
+  },
+
+  /* 4. Kategori Yarışı — 6 aylık kategori trendleri */
+  kategoriTrend(aySayisi = 6) {
+    const currentStart = dayjs(SalaryMonth.currentKey() + '-15');
+    const data = [];
+
+    for (let i = aySayisi - 1; i >= 0; i--) {
+      const monthStart = currentStart.subtract(i, 'month');
+      const key = monthStart.format('YYYY-MM');
+      const r = SalaryMonth.range(key);
+      const kats = this.kategoriGiderler({ start: r.start, end: r.end });
+      data.push({ label: monthStart.format('MMM YY'), ...kats });
+    }
+
+    const allKats = new Set();
+    data.forEach(r => Object.keys(r).forEach(k => { if (k !== 'label') allKats.add(k); }));
+
+    const toplamlar = {};
+    allKats.forEach(k => {
+      toplamlar[k] = data.reduce((s, d) => s + (Number(d[k]) || 0), 0);
+    });
+    const siraliKats = [...allKats].sort((a, b) => toplamlar[b] - toplamlar[a]).slice(0, 6);
+
+    return { data, kategoriler: siraliKats };
+  },
+
+  /* 5. Dönem Karşılaştırma */
+  donemKarsilastir(key1, key2) {
+    const r1 = SalaryMonth.range(key1);
+    const r2 = SalaryMonth.range(key2);
+
+    const olustur = (r) => {
+      const gelir = this.toplamGelir({ start: r.start, end: r.end });
+      const gider = this.toplamGider({ start: r.start, end: r.end });
+      const kats = this.kategoriGiderler({ start: r.start, end: r.end });
+      const islem = state.gelirler.filter(g => g.tarih >= r.start && g.tarih <= r.end).length +
+                    state.giderler.filter(g => g.tarih >= r.start && g.tarih <= r.end).length;
+      return {
+        gelir, gider, kats, islem,
+        net: gelir - gider,
+        tasarrufOrani: gelir > 0 ? (gelir - gider) / gelir : 0
+      };
+    };
+
+    return {
+      key1, key2,
+      label1: SalaryMonth.shortLabel(key1),
+      label2: SalaryMonth.shortLabel(key2),
+      data1: olustur(r1),
+      data2: olustur(r2)
+    };
+  },
+};
 };   // ← EKLENMESİ GEREKEN TEK SATIR BU
 
 
@@ -1952,6 +2104,108 @@ const Charts = {
     });
   },
 
+  /* 🆕 FAZ 2 — Waterfall (Cash Flow) */
+  waterfall(canvasId, steps) {
+    this.destroy(canvasId);
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+
+    const labels = steps.map(s => s.label);
+    const data = steps.map(s => [s.start, s.end]);
+    const colors = steps.map(s => {
+      if (s.type === 'increase') return 'rgba(5,150,105,.85)';
+      if (s.type === 'decrease') return 'rgba(220,38,38,.85)';
+      if (s.type === 'result')   return s.display >= 0 ? 'rgba(37,99,235,.85)' : 'rgba(220,38,38,.85)';
+      return 'rgba(148,163,184,.4)';
+    });
+
+    this.instances[canvasId] = new Chart(el.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          data,
+          backgroundColor: colors,
+          borderRadius: 6,
+          borderSkipped: false
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const s = steps[ctx.dataIndex];
+                return ` ${s.label}: ${Calc.fmt(s.display)}`;
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            ticks: { callback: v => v >= 1000 ? (v/1000).toFixed(0) + 'k TL' : 'TL ' + v, font: { size: 10 } },
+            grid: { color: 'rgba(148,163,184,.12)' }
+          },
+          x: { ticks: { font: { size: 10 } }, grid: { display: false } }
+        }
+      }
+    });
+  },
+
+  /* 🆕 FAZ 2 — Kategori Yarışı (multi-line) */
+  kategoriTrend(canvasId, data, kategoriler) {
+    this.destroy(canvasId);
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+
+    const datasets = kategoriler.map((kat, i) => ({
+      label: kat,
+      data: data.map(d => d[kat] || 0),
+      borderColor: this.palette[i % this.palette.length],
+      backgroundColor: this.palette[i % this.palette.length] + '20',
+      tension: 0.35,
+      fill: false,
+      borderWidth: 2,
+      pointRadius: 3,
+      pointBackgroundColor: this.palette[i % this.palette.length]
+    }));
+
+    this.instances[canvasId] = new Chart(el.getContext('2d'), {
+      type: 'line',
+      data: { labels: data.map(d => d.label), datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              font: { size: 9, family: 'DM Sans' },
+              usePointStyle: true,
+              pointStyleWidth: 6,
+              boxWidth: 6,
+              padding: 8
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${ctx.dataset.label}: ${Calc.fmt(ctx.raw)}`
+            }
+          }
+        },
+        scales: {
+          y: {
+            ticks: { callback: v => v >= 1000 ? (v/1000).toFixed(0) + 'k' : v, font: { size: 9 } },
+            grid: { color: 'rgba(148,163,184,.12)' }
+          },
+          x: { ticks: { font: { size: 9 } }, grid: { display: false } }
+        }
+      }
+    });
+  }
+};
+
   line(canvasId, data) {
     this.destroy(canvasId);
     const el = document.getElementById(canvasId);
@@ -2195,9 +2449,14 @@ const App = {
       </div>`)
       .join('');
     /* 🆕 Yeni hesaplamalar */
+    /* 🆕 Yeni hesaplamalar (Faz 1) */
     const saglik = Calc.finansalSaglikSkoru();
     const safe = Calc.safeToSpend();
     const anomaliler = Calc.anomaliTespit();
+
+    /* 🆕 Faz 2 */
+    const kisilik = Calc.finansalKisilik();
+    const harita = Calc.gunlukHarcamaHaritasi(30);
 
     const tabs = ['tum','gelir','gider','borc'];
     const tabLabels = { tum:'Tümü', gelir:'Gelir', gider:'Gider', borc:'Borç/Alacak' };
@@ -2256,6 +2515,16 @@ const App = {
           <span>Borç: <strong style="color:var(--text2);">${saglik.borcPuan}/30</strong></span>
           <span>Düzen: <strong style="color:var(--text2);">${saglik.duzenPuan}/30</strong></span>
         </div>
+
+        <!-- 🆕 KİŞİLİK PROFİLİ -->
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;">
+          <div style="font-size:28px;line-height:1;">${kisilik.emoji}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;font-weight:600;">Finansal Kişilik</div>
+            <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:800;color:${kisilik.renk};margin-top:2px;">${kisilik.tip}</div>
+            <div style="font-size:10.5px;color:var(--text3);margin-top:2px;">${kisilik.aciklama}</div>
+          </div>
+        </div>
       </div>
 
       <!-- 🆕 SAFE-TO-SPEND -->
@@ -2277,6 +2546,64 @@ const App = {
       </div>
 
       <!-- 🆕 ANOMALİLER -->
+            <!-- 🆕 HARCAMA ISI HARİTASI -->
+      <div class="card">
+        <div class="section-header">
+          <span class="section-title" style="display:flex;align-items:center;gap:8px;">
+            <i class="fas fa-fire" style="color:var(--warning);"></i>
+            Harcama Isı Haritası (Son 30 Gün)
+          </span>
+          <span class="badge badge-amber">${harita.harcananGun} gün</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:3px;margin-bottom:10px;">
+          ${harita.days.map(d => {
+            const renkler = [
+              'var(--surface3)',
+              'rgba(37,99,235,.18)',
+              'rgba(37,99,235,.38)',
+              'rgba(37,99,235,.65)',
+              'var(--primary)'
+            ];
+            const bg = renkler[d.seviye];
+            const textColor = d.seviye >= 3 ? '#fff' : 'var(--text3)';
+            return `<div title="${d.tarih} — ${d.tutar > 0 ? Calc.fmt(d.tutar) : 'Harcama yok'}"
+                         style="aspect-ratio:1;border-radius:4px;background:${bg};
+                                display:flex;align-items:center;justify-content:center;
+                                font-size:9px;font-weight:600;color:${textColor};
+                                cursor:default;">${d.gun}</div>`;
+          }).join('')}
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+          <div style="text-align:center;padding:6px;background:var(--surface2);border-radius:8px;">
+            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">Toplam</div>
+            <div style="font-size:11px;font-weight:800;color:var(--text);margin-top:2px;">${Calc.fmt(harita.toplam)}</div>
+          </div>
+          <div style="text-align:center;padding:6px;background:var(--surface2);border-radius:8px;">
+            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">Günlük Ort.</div>
+            <div style="font-size:11px;font-weight:800;color:var(--warning);margin-top:2px;">${Calc.fmt(harita.ort)}</div>
+          </div>
+          <div style="text-align:center;padding:6px;background:var(--surface2);border-radius:8px;">
+            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">En Yüksek</div>
+            <div style="font-size:11px;font-weight:800;color:var(--danger);margin-top:2px;">${Calc.fmt(harita.enYuksek.tutar)}</div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:9.5px;color:var(--text3);">
+          <span>Az</span>
+          <div style="display:flex;gap:3px;">
+            ${[0,1,2,3,4].map(s => {
+              const renkler = ['var(--surface3)','rgba(37,99,235,.18)','rgba(37,99,235,.38)','rgba(37,99,235,.65)','var(--primary)'];
+              return `<div style="width:14px;height:14px;border-radius:3px;background:${renkler[s]};"></div>`;
+            }).join('')}
+          </div>
+          <span>Çok</span>
+        </div>
+      </div>
+
+      <!-- 🆕 ANOMALİLER -->
+      ${anomaliler.length > 0 ? `
       ${anomaliler.length > 0 ? `
         <div class="card" style="border-left:4px solid var(--warning);">
           <div class="section-header">
@@ -3239,6 +3566,50 @@ const App = {
         <div class="section-header"><span class="section-title">Aylık Trend (6 Ay)</span></div>
         <div class="chart-wrap"><canvas id="raporLineChart"></canvas></div>
       </div>
+
+      <!-- 🆕 CASH FLOW WATERFALL -->
+      <div class="card">
+        <div class="section-header">
+          <span class="section-title">Cash Flow Waterfall</span>
+          <button onclick="App.downloadChart('raporWaterfallChart', 'Cash_Flow_Waterfall')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;" title="PNG İndir">
+            <i class="fas fa-download"></i>
+          </button>
+        </div>
+        <div class="chart-wrap"><canvas id="raporWaterfallChart"></canvas></div>
+      </div>
+
+      <!-- 🆕 KATEGORİ YARIŞI -->
+      <div class="card">
+        <div class="section-header">
+          <span class="section-title">Kategori Yarışı (6 Ay)</span>
+          <button onclick="App.downloadChart('raporKategoriTrendChart', 'Kategori_Yarisi')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;" title="PNG İndir">
+            <i class="fas fa-download"></i>
+          </button>
+        </div>
+        <div class="chart-wrap" style="height:240px;"><canvas id="raporKategoriTrendChart"></canvas></div>
+      </div>
+
+      <!-- 🆕 DÖNEM KARŞILAŞTIRMA -->
+      <div class="card">
+        <div class="section-header">
+          <span class="section-title" style="display:flex;align-items:center;gap:8px;">
+            <i class="fas fa-columns" style="color:var(--info);"></i>
+            Dönem Karşılaştırma
+          </span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div>
+            <label class="form-label" style="font-size:10px;">Dönem A</label>
+            <select id="cmpKey1" class="form-select" style="font-size:12px;padding:8px 10px;" onchange="App.renderKarsilastirma()"></select>
+          </div>
+          <div>
+            <label class="form-label" style="font-size:10px;">Dönem B</label>
+            <select id="cmpKey2" class="form-select" style="font-size:12px;padding:8px 10px;" onchange="App.renderKarsilastirma()"></select>
+          </div>
+        </div>
+        <div id="karsilastirmaBody"></div>
+      </div>
+
       <div id="raporTxList"></div>
 
       <div class="card">
@@ -3310,8 +3681,20 @@ const App = {
       pieCard.style.display = '';
       requestAnimationFrame(() => Charts.donut('raporPieChart', katG));
     }
-    requestAnimationFrame(() => Charts.line('raporLineChart', Calc.aylikTrend(6)));
+    requestAnimationFrame(() => {
+      Charts.line('raporLineChart', Calc.aylikTrend(6));
 
+      /* 🆕 FAZ 2 — Waterfall */
+      const wf = Calc.waterfallData(f);
+      Charts.waterfall('raporWaterfallChart', wf.steps);
+
+      /* 🆕 FAZ 2 — Kategori Yarışı */
+      const kt = Calc.kategoriTrend(6);
+      Charts.kategoriTrend('raporKategoriTrendChart', kt.data, kt.kategoriler);
+    });
+
+    /* 🆕 FAZ 2 — Karşılaştırma select'lerini doldur */
+    this._fillKarsilastirmaSelects();
     const txData = [
       ...state.gelirler.filter(g=>g.tarih>=start&&g.tarih<=end).map(g=>({...g,_tip:'gelir'})),
       ...state.giderler.filter(g=>g.tarih>=start&&g.tarih<=end).map(g=>({...g,_tip:'gider'}))
@@ -4641,6 +5024,99 @@ const App = {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   },
+    /* 🆕 FAZ 2 — Karşılaştırma select'leri doldur */
+  _fillKarsilastirmaSelects() {
+    const keys = new Set();
+    [SalaryMonth.currentKey(), SalaryMonth.previousKey()].forEach(k => keys.add(k));
+    state.gelirler.forEach(g => { if (g.tarih) keys.add(SalaryMonth.keyOf(g.tarih)); });
+    state.giderler.forEach(g => { if (g.tarih) keys.add(SalaryMonth.keyOf(g.tarih)); });
+    Object.keys(state.archives).forEach(k => keys.add(k));
+
+    const sorted = [...keys].sort().reverse();
+    const opts = sorted.map(k => `<option value="${k}">${SalaryMonth.shortLabel(k)}</option>`).join('');
+
+    const s1 = document.getElementById('cmpKey1');
+    const s2 = document.getElementById('cmpKey2');
+    if (s1) { s1.innerHTML = opts; if (!s1.value) s1.value = SalaryMonth.currentKey(); }
+    if (s2) { s2.innerHTML = opts; if (!s2.value) s2.value = SalaryMonth.previousKey(); }
+
+    this.renderKarsilastirma();
+  },
+
+  /* 🆕 FAZ 2 — Karşılaştırma render */
+  renderKarsilastirma() {
+    const k1 = document.getElementById('cmpKey1')?.value;
+    const k2 = document.getElementById('cmpKey2')?.value;
+    if (!k1 || !k2) return;
+
+    const c = Calc.donemKarsilastir(k1, k2);
+    const el = document.getElementById('karsilastirmaBody');
+    if (!el) return;
+
+    const fark = (a, b) => {
+      const d = a - b;
+      if (Math.abs(d) < 0.01) return { text: '≈', renk: 'var(--text3)', ok: true };
+      const pct = b !== 0 ? Math.round((d / b) * 100) : 0;
+      return {
+        text: `${d > 0 ? '+' : ''}${pct}%`,
+        renk: d > 0 ? 'var(--danger)' : 'var(--accent)',
+        ok: d < 0
+      };
+    };
+
+    const satir = (label, v1, v2, tersMi = false) => {
+      let f = fark(v1, v2);
+      if (tersMi) f.renk = v1 > v2 ? 'var(--accent)' : (v1 < v2 ? 'var(--danger)' : 'var(--text3)');
+      return `<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);align-items:center;">
+        <div style="text-align:right;font-size:12px;font-weight:700;color:var(--text);">${Calc.fmt(v1)}</div>
+        <div style="text-align:center;min-width:60px;">
+          <div style="font-size:9.5px;color:var(--text3);text-transform:uppercase;font-weight:600;">${label}</div>
+          <div style="font-size:10.5px;font-weight:800;color:${f.renk};">${f.text}</div>
+        </div>
+        <div style="text-align:left;font-size:12px;font-weight:700;color:var(--text);">${Calc.fmt(v2)}</div>
+      </div>`;
+    };
+
+    const katFark = (() => {
+      const t1 = Object.entries(c.data1.kats).sort((a,b)=>b[1]-a[1]).slice(0,3);
+      const t2 = Object.entries(c.data2.kats).sort((a,b)=>b[1]-a[1]).slice(0,3);
+      const allKats = new Set([...t1.map(x=>x[0]), ...t2.map(x=>x[0])]);
+      return [...allKats].map(k => ({
+        kat: k,
+        v1: c.data1.kats[k] || 0,
+        v2: c.data2.kats[k] || 0
+      })).sort((a, b) => Math.max(b.v1, b.v2) - Math.max(a.v1, a.v2)).slice(0, 5);
+    })();
+
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;margin-bottom:10px;padding:0 4px;">
+        <div style="text-align:right;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;">${c.label1}</div>
+        <div></div>
+        <div style="text-align:left;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;">${c.label2}</div>
+      </div>
+      ${satir('Gelir', c.data1.gelir, c.data2.gelir, true)}
+      ${satir('Gider', c.data1.gider, c.data2.gider)}
+      ${satir('Net', c.data1.net, c.data2.net, true)}
+      ${satir('İşlem', c.data1.islem, c.data2.islem, true)}
+
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+        <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px;">Kategori Karşılaştırma (Top 5)</div>
+        ${katFark.map(k => {
+          const f = fark(k.v1, k.v2);
+          return `<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;padding:6px 0;align-items:center;">
+            <div style="text-align:right;font-size:11px;color:var(--text);">${Calc.fmt(k.v1)}</div>
+            <div style="text-align:center;min-width:70px;">
+              <div style="font-size:10px;color:var(--text2);font-weight:600;">${UI.escHtml(k.kat)}</div>
+              <div style="font-size:9.5px;font-weight:800;color:${f.renk};">${f.text}</div>
+            </div>
+            <div style="text-align:left;font-size:11px;color:var(--text);">${Calc.fmt(k.v2)}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+  },
+
+  async downloadChart(chartId, title) {
     async downloadChart(chartId, title) {
     const chart = Charts.instances[chartId];
     if (!chart) { showToast('⚠️ Grafik bulunamadı'); return; }
