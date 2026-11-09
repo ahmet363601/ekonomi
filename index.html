@@ -4096,7 +4096,10 @@ const App = {
       /* ═══════════════════════
          BORÇ / ALACAK — Sadece aktif olanlar
          ═══════════════════════ */
-      const aktifBorclar = state.borcalacaklar.filter(b => !b.odendiMi);
+      /* ═══════════════════════
+         BORÇ / ALACAK — Sadece aktif olanlar
+         ═══════════════════════ */
+      const aktifBorclar = state.borcalacaklar.filter(x => !x.odendiMi);
 
       if (aktifBorclar.length) {
         if (y > H - 50) { doc.addPage(); y = 20; }
@@ -4104,16 +4107,20 @@ const App = {
         _baslik(doc, 'BORÇ & ALACAK', y, hasUni, FONT);
         y += 10;
 
-        aktifBorclar.slice(0, 20).forEach(b => {
+        aktifBorclar.slice(0, 20).forEach(function(borcItem) {
           if (y > H - 30) { doc.addPage(); y = 20; }
 
-          const paid  = (b.payments || []).reduce((s, p) => s + (Number(p.miktar) || 0), 0);
-          const kalan = Math.max(0, (Number(b.miktar) || 0) - paid);
-          const isAl  = b.tip === 'alacak';
-          const renk  = isAl ? [5, 150, 105] : [217, 119, 6];
+          const birim      = borcItem.birim || 'tl';
+          const birimFiyat = Calc.birimFiyat(birim);
+          const miktarNum  = Number(borcItem.miktar) || 0;
+          const paid       = (borcItem.payments || []).reduce((s, p) => s + (Number(p.miktar) || 0), 0);
+          const kalan      = Math.max(0, miktarNum - paid);
+          const isAl       = borcItem.tip === 'alacak';
+          const renk       = isAl ? [5, 150, 105] : [217, 119, 6];
 
           _roundRect(doc, M, y - 4, W - 2 * M, 15, 2, [252, 253, 255], [226, 232, 240]);
 
+          /* Tip badge */
           doc.setFillColor(...renk);
           doc.roundedRect(M + 3, y - 2, 14, 4.5, 1, 1, 'F');
           doc.setFont(FONT, 'bold');
@@ -4121,16 +4128,23 @@ const App = {
           doc.setTextColor(255, 255, 255);
           _txt(doc, isAl ? 'ALACAK' : 'BORÇ', M + 10, y + 0.5, { align: 'center' }, hasUni);
 
+          /* Kişi adı */
           doc.setFont(FONT, 'bold');
           doc.setFontSize(9);
           doc.setTextColor(15, 23, 42);
-          _txt(doc, String(b.kisiAdi || '').substring(0, 30), M + 20, y + 1, null, hasUni);
+          _txt(doc, String(borcItem.kisiAdi || '').substring(0, 30), M + 20, y + 1, null, hasUni);
 
-          doc.setFontSize(10);
+          /* Miktar — birim farkındalı */
+          const miktarGosterim = birim === 'tl'
+            ? Calc.fmt(miktarNum)
+            : `${miktarNum.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} ${Calc.birimKisa(birim)} (${Calc.fmt(miktarNum * birimFiyat)})`;
+
+          doc.setFontSize(9);
           doc.setTextColor(...renk);
-          _txt(doc, Calc.fmt(b.miktar), W - M - 3, y + 1, { align: 'right' }, hasUni);
+          _txt(doc, miktarGosterim, W - M - 3, y + 1, { align: 'right' }, hasUni);
 
-          const pct = (Number(b.miktar) || 0) > 0 ? Math.min(1, paid / Number(b.miktar)) : 0;
+          /* Progress bar */
+          const pct = miktarNum > 0 ? Math.min(1, paid / miktarNum) : 0;
           _bar(doc, M + 3, y + 5, 40, 2, pct, renk);
 
           doc.setFont(FONT, 'normal');
@@ -4138,11 +4152,12 @@ const App = {
           doc.setTextColor(148, 163, 184);
           _txt(doc, `%${Math.round(pct * 100)} ödendi`, M + 45, y + 6.5, null, hasUni);
 
+          /* Kalan — birim farkındalı */
           if (kalan > 0) {
-            const kalanStr = birim === 'tl'
+            const kalanGosterim = birim === 'tl'
               ? `Kalan: ${Calc.fmt(kalan)}`
-              : `Kalan: ${kalan.toLocaleString('tr-TR',{maximumFractionDigits:2})} ${Calc.birimKisa(birim)} (${Calc.fmt(kalan * birimFiyat)})`;
-            _txt(doc, kalanStr, W - M - 3, y + 6.5, { align: 'right' }, hasUni);
+              : `Kalan: ${kalan.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} ${Calc.birimKisa(birim)} (${Calc.fmt(kalan * birimFiyat)})`;
+            _txt(doc, kalanGosterim, W - M - 3, y + 6.5, { align: 'right' }, hasUni);
           } else {
             doc.setTextColor(...renk);
             doc.setFont(FONT, 'bold');
