@@ -1791,10 +1791,12 @@ const Calc = {
     return {
       key1, key2,
       label1: SalaryMonth.shortLabel(key1),
-      label2: SalaryMonth.shortLabel(key2),   // ← k2 değil, key2
+      label2: SalaryMonth.shortLabel(key2),
       data1: olustur(r1),
       data2: olustur(r2)
     };
+  },                          // ← EKLE: donemKarsilastir'i kapat
+};                            // ← EKLE: Calc objesini kapat
 
 
 const CRUD = {
