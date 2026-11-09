@@ -959,6 +959,7 @@ button, input, select, textarea {
   <div class="inner">
     <h1 id="page-title">Dashboard</h1>
     <div class="header-actions">
+      <button class="header-btn" onclick="App.openGlobalSearch()" title="Global Arama"><i class="fas fa-search"></i></button>
       <button class="header-btn" onclick="App.openLogModal()" title="Loglar"><i class="fas fa-history"></i></button>
       <button class="header-btn" onclick="App.openSettingsModal()" title="Ayarlar"><i class="fas fa-sliders-h"></i></button>
     </div>
@@ -1795,10 +1796,166 @@ const Calc = {
       data1: olustur(r1),
       data2: olustur(r2)
     };
-  },                          // ← EKLE: donemKarsilastir'i kapat
-};                            // ← EKLE: Calc objesini kapat
+  },
 
+  /* 🆕 FAZ 3 — Finansal Yaş Hesaplayıcı */
+  finansalYas() {
+    const ayF = this.ayFilter();
+    const gelir = this.toplamGelir(ayF);
+    const gider = this.toplamGider(ayF);
+    const borc = this.aktifBorcAlacak();
+    const saglik = this.finansalSaglikSkoru();
 
+    let yas = 40; /* Başlangıç: ortalama finansal olgunluk */
+
+    /* Tasarruf oranı etkisi */
+    const tasarrufOrani = gelir > 0 ? (gelir - gider) / gelir : 0;
+    if (tasarrufOrani >= 0.30) yas -= 15;
+    else if (tasarrufOrani >= 0.20) yas -= 10;
+    else if (tasarrufOrani >= 0.10) yas -= 5;
+    else if (tasarrufOrani < 0) yas += 15;
+    else yas += 5;
+
+    /* Borç/gelir oranı etkisi */
+    const borcOrani = gelir > 0 ? borc / gelir : 0;
+    if (borcOrani <= 0.5) yas -= 5;
+    else if (borcOrani <= 1.5) yas += 0;
+    else if (borcOrani <= 3) yas += 5;
+    else yas += 15;
+
+    /* Düzen/takip alışkanlığı etkisi */
+    if (saglik.gunSayisi >= 20) yas -= 5;
+    else if (saglik.gunSayisi <= 5) yas += 5;
+
+    yas = Math.max(18, Math.min(80, Math.round(yas)));
+
+    let etiket, renk, aciklama;
+    if (yas < 30) { etiket = 'Finansal Genç'; renk = '#059669'; aciklama = 'Erken yaşta para yönetimini çözmüşsün!'; }
+    else if (yas < 45) { etiket = 'Dengeli'; renk = '#0891B2'; aciklama = 'Sağlıklı bir finansal olgunluk seviyesindesin.'; }
+    else if (yas < 60) { etiket = 'Olgun'; renk = '#D97706'; aciklama = 'Tasarruf ve borç dengesinde iyileştirme alanı var.'; }
+    else { etiket = 'Kıdemli'; renk = '#DC2626'; aciklama = 'Finansal düzen ve tasarruf öncelikli hedefin olmalı.'; }
+
+    return { yas, etiket, renk, aciklama, tasarrufOrani, borcOrani, gunSayisi: saglik.gunSayisi };
+  },
+
+  /* 🆕 FAZ 3 — 50/30/20 Kuralı Analizi */
+  ellilikKural() {
+    const ayF = this.ayFilter();
+    const gelir = this.toplamGelir(ayF);
+    const kats = this.kategoriGiderler(ayF);
+
+    /* İhtiyaç (50%): Market, Fatura, Ulaşım, Sağlık, Eğitim */
+    const ihtiyacKats = ['Market', 'Fatura', 'Ulaşım', 'Sağlık', 'Eğitim'];
+    /* İstek (30%): Eğlence, Alışveriş, Yemek, Diğer */
+    const istekKats = ['Eğlence', 'Alışveriş', 'Yemek', 'Diğer'];
+
+    let ihtiyac = 0, istek = 0;
+    Object.entries(kats).forEach(([k, v]) => {
+      if (ihtiyacKats.includes(k)) ihtiyac += v;
+      else if (istekKats.includes(k)) istek += v;
+      else istek += v; /* Bilinmeyen kategoriler istek sayılır */
+    });
+
+    const tasarruf = gelir - ihtiyac - istek;
+    const ihtiyacHedef = gelir * 0.5;
+    const istekHedef = gelir * 0.3;
+    const tasarrufHedef = gelir * 0.2;
+
+    const ihtiyacPct = gelir > 0 ? (ihtiyac / gelir) * 100 : 0;
+    const istekPct = gelir > 0 ? (istek / gelir) * 100 : 0;
+    const tasarrufPct = gelir > 0 ? (tasarruf / gelir) * 100 : 0;
+
+    let durum, durumRenk;
+    if (tasarrufPct >= 20 && istekPct <= 35 && ihtiyacPct <= 55) {
+      durum = 'Mükemmel uyum'; durumRenk = '#059669';
+    } else if (tasarrufPct >= 10 && istekPct <= 40) {
+      durum = 'İyi gidiyorsun'; durumRenk = '#0891B2';
+    } else if (istekPct > 40) {
+      durum = 'İstek harcamaları fazla'; durumRenk = '#DC2626';
+    } else if (tasarrufPct < 10) {
+      durum = 'Tasarrufu artır'; durumRenk = '#D97706';
+    } else {
+      durum = 'Dengede tut'; durumRenk = '#D97706';
+    }
+
+    return {
+      gelir,
+      ihtiyac, istek, tasarruf,
+      ihtiyacHedef, istekHedef, tasarrufHedef,
+      ihtiyacPct, istekPct, tasarrufPct,
+      durum, durumRenk
+    };
+  },
+
+  /* 🆕 FAZ 3 — Vadesi Yaklaşan Borçlar */
+  vadeleriGelenBorclar(gunEsik = 7) {
+    const bugun = dayjs();
+    return state.borcalacaklar
+      .filter(b => !b.odendiMi && b.vadeTarihi)
+      .map(b => {
+        const kalanGun = dayjs(b.vadeTarihi).diff(bugun, 'day');
+        return {
+          ...b,
+          kalanGun,
+          gecti: kalanGun < 0,
+          bugun: kalanGun === 0
+        };
+      })
+      .filter(b => b.kalanGun <= gunEsik)
+      .sort((a, b) => a.kalanGun - b.kalanGun);
+  },
+
+  /* 🆕 FAZ 3 — Senaryo Simülatörü */
+  senaryoSimulasyon(params) {
+    /* Son 3 ayın ortalama gelir/gider/kategori dağılımı */
+    const bugun = dayjs();
+    const aylik = [];
+    for (let i = 0; i < 3; i++) {
+      const key = bugun.subtract(i, 'month').format('YYYY-MM');
+      const r = SalaryMonth.range(key);
+      aylik.push({
+        gelir: this.toplamGelir({ start: r.start, end: r.end }),
+        gider: this.toplamGider({ start: r.start, end: r.end }),
+        kats: this.kategoriGiderler({ start: r.start, end: r.end })
+      });
+    }
+
+    const ortGelir = aylik.reduce((s, m) => s + m.gelir, 0) / 3;
+    const ortGider = aylik.reduce((s, m) => s + m.gider, 0) / 3;
+    const ortKats = {};
+    aylik.forEach(m => {
+      Object.entries(m.kats).forEach(([k, v]) => {
+        ortKats[k] = (ortKats[k] || 0) + v / 3;
+      });
+    });
+
+    /* Senaryo uygulama */
+    const yeniKats = { ...ortKats };
+    const maasZam = (params.maasZamPct || 0) / 100;
+    const kiraArt = (params.kiraArtisPct || 0) / 100;
+    const yemekAz = (params.yemekAzaltmaPct || 0) / 100;
+    const alisverisAz = (params.alisverisAzaltmaPct || 0) / 100;
+
+    if (yeniKats['Fatura'])    yeniKats['Fatura']    *= (1 + kiraArt);
+    if (yeniKats['Yemek'])     yeniKats['Yemek']     *= (1 - yemekAz);
+    if (yeniKats['Alışveriş']) yeniKats['Alışveriş'] *= (1 - alisverisAz);
+
+    const yeniGelir = ortGelir * (1 + maasZam);
+    const yeniGider = Object.values(yeniKats).reduce((s, v) => s + v, 0);
+    const yeniNet = yeniGelir - yeniGider;
+    const mevcutNet = ortGelir - ortGider;
+    const fark = yeniNet - mevcutNet;
+
+    return {
+      mevcutGelir: ortGelir, yeniGelir,
+      mevcutGider: ortGider, yeniGider,
+      mevcutNet, yeniNet, fark,
+      altiAyBirikim: yeniNet * 6,
+      mevcutAltiAyBirikim: mevcutNet * 6,
+      altiAyFark: (yeniNet - mevcutNet) * 6
+    };
+  },
+};
 const CRUD = {
   async islemEkle(tip, miktar, kategori, tarih, aciklama) {
     const item = { id: Date.now(), miktar: parseFloat(miktar), kategori, tarih, aciklama: aciklama || '', createdAt: new Date().toISOString() };
@@ -1856,9 +2013,9 @@ const CRUD = {
     await createAutoBackup();
   },
 
-  async borcEkle(tip, kisiAdi, miktar, birim, tarih, aciklama) {
+  async borcEkle(tip, kisiAdi, miktar, birim, tarih, aciklama, vadeTarihi) {
     birim = birim || 'tl';
-    const item = { id: Date.now(), tip, kisiAdi, miktar: parseFloat(miktar), birim, tarih, aciklama: aciklama || '', payments: [], odendiMi: false, createdAt: new Date().toISOString() };
+    const item = { id: Date.now(), tip, kisiAdi, miktar: parseFloat(miktar), birim, tarih, aciklama: aciklama || '', vadeTarihi: vadeTarihi || null, payments: [], odendiMi: false, createdAt: new Date().toISOString() };
     state.borcalacaklar.push(item);
     await saveBorclar();
     await addLog(`borc_ekle_${tip}`,
@@ -2387,7 +2544,7 @@ const App = {
   currentPage:   'dashboard',
   _recentTab:    'tum',
   _recentPage:   1,
-  _islemTip:     'gelir',
+  _islemTip:     'gider',
   _islemListTab: 'tum',
   _islemListPage:1,
   _borcFilter:   'tum',
@@ -2450,8 +2607,12 @@ const App = {
     const anomaliler = Calc.anomaliTespit();
 
     /* 🆕 Faz 2 */
+    /* 🆕 Faz 2 */
     const kisilik = Calc.finansalKisilik();
     const harita = Calc.gunlukHarcamaHaritasi(30);
+
+    /* 🆕 Faz 3 — Vadesi yaklaşan borçlar */
+    const vadeler = Calc.vadeleriGelenBorclar(7);
 
     const tabs = ['tum','gelir','gider','borc'];
     const tabLabels = { tum:'Tümü', gelir:'Gelir', gider:'Gider', borc:'Borç/Alacak' };
@@ -2492,6 +2653,38 @@ const App = {
 
       ${limitAlerts}
 
+      <!-- 🆕 VADESİ YAKLAŞAN BORÇLAR -->
+      ${vadeler.length > 0 ? `
+        <div class="card" style="border-left:4px solid ${vadeler.some(v => v.gecti) ? 'var(--danger)' : 'var(--warning)'};">
+          <div class="section-header">
+            <span class="section-title" style="display:flex;align-items:center;gap:8px;">
+              <i class="fas fa-bell" style="color:${vadeler.some(v => v.gecti) ? 'var(--danger)' : 'var(--warning)'};"></i>
+              Vadesi Yaklaşan Borçlar
+            </span>
+            <span class="badge ${vadeler.some(v => v.gecti) ? 'badge-danger' : 'badge-amber'}">${vadeler.length}</span>
+          </div>
+          ${vadeler.map(b => {
+            const durum = b.gecti 
+              ? `<span style="color:var(--danger);font-weight:800;">${Math.abs(b.kalanGun)} gün gecikti!</span>`
+              : b.bugun
+              ? '<span style="color:var(--warning);font-weight:800;">Bugün vade!</span>'
+              : `<span style="color:var(--warning);font-weight:700;">${b.kalanGun} gün kaldı</span>`;
+            const bg = b.gecti ? 'var(--danger-light)' : 'var(--warning-light)';
+            return `<div onclick="App.showTransactionDetail(${b.id},'${b.tip}')"
+                    style="padding:10px;background:${bg};border-radius:8px;margin-bottom:6px;cursor:pointer;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+                <strong style="font-size:13px;">${UI.escHtml(b.kisiAdi)}</strong>
+                <span style="color:${b.tip==='alacak'?'var(--accent)':'var(--danger)'};font-weight:700;">${Calc.formatBirim(b)}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--text3);">
+                <span>Vade: ${dayjs(b.vadeTarihi).format('DD MMM YYYY')}</span>
+                ${durum}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      ` : ''}
+
       <!-- 🆕 FİNANSAL SAĞLIK SKORU -->
       <div class="card" style="background:linear-gradient(135deg, ${saglik.renk}15, var(--surface));border-left:4px solid ${saglik.renk};">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -2522,6 +2715,29 @@ const App = {
         </div>
       </div>
 
+      <!-- 🆕 FİNANSAL YAŞ -->
+      ${(() => {
+        const fyz = Calc.finansalYas();
+        return `<div class="card" style="background:linear-gradient(135deg, ${fyz.renk}10, var(--surface));border-left:4px solid ${fyz.renk};">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div class="card-label" style="margin-bottom:0;">Finansal Yaş</div>
+            <span class="badge" style="background:${fyz.renk};color:#fff;font-size:11px;padding:4px 10px;">${fyz.etiket}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div style="font-family:'Plus Jakarta Sans';font-size:44px;font-weight:900;color:${fyz.renk};letter-spacing:-2px;line-height:1;">${fyz.yas}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:12px;color:var(--text);font-weight:600;">yaşındasın</div>
+              <div style="font-size:10.5px;color:var(--text3);margin-top:2px;line-height:1.4;">${fyz.aciklama}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:10px;font-size:10px;color:var(--text3);flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">
+            <span>Tasarruf: <strong style="color:${fyz.tasarrufOrani>=0.2?'var(--accent)':'var(--danger)'};">${(fyz.tasarrufOrani*100).toFixed(0)}%</strong></span>
+            <span>Borç/Gelir: <strong style="color:${fyz.borcOrani<=1.5?'var(--accent)':'var(--danger)'};">${fyz.borcOrani.toFixed(1)}x</strong></span>
+            <span>Takip: <strong style="color:var(--text2);">${fyz.gunSayisi} gün/30</strong></span>
+          </div>
+        </div>`;
+      })()}
+
       <!-- 🆕 SAFE-TO-SPEND -->
       <div class="card" style="border-left:4px solid ${safe.bugunKalan >= 0 ? 'var(--accent)' : 'var(--danger)'};">
         <div class="card-label">Bugün Harcayabilirsin</div>
@@ -2540,8 +2756,64 @@ const App = {
         </div>
       </div>
 
-      <!-- 🆕 ANOMALİLER -->
-            <!-- 🆕 HARCAMA ISI HARİTASI -->
+      <!-- 🆕 50/30/20 KURALI -->
+      ${(() => {
+        const k = Calc.ellilikKural();
+        if (k.gelir === 0) return '';
+        const bar = (pct, hedef, renk) => {
+          const dolu = Math.min(pct, 100);
+          const isaretX = Math.min(hedef, 100);
+          return `<div style="position:relative;height:8px;background:var(--surface3);border-radius:99px;overflow:hidden;margin-top:6px;">
+            <div style="height:100%;width:${dolu}%;background:${renk};border-radius:99px;"></div>
+            <div style="position:absolute;top:-2px;left:${isaretX}%;width:2px;height:12px;background:var(--text);opacity:.7;"></div>
+          </div>`;
+        };
+        return `<div class="card" style="border-left:4px solid ${k.durumRenk};">
+          <div class="section-header">
+            <span class="section-title" style="display:flex;align-items:center;gap:8px;">
+              <i class="fas fa-chart-pie" style="color:${k.durumRenk};"></i>
+              50/30/20 Kuralı
+            </span>
+            <span class="badge" style="background:${k.durumRenk};color:#fff;font-size:10px;">${k.durum}</span>
+          </div>
+
+          <div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--text);">
+              <span>🏠 İhtiyaçlar <span style="color:var(--text3);font-weight:400;">(hedef: %50)</span></span>
+              <span style="color:${k.ihtiyacPct<=55?'var(--accent)':'var(--danger)'};font-weight:800;">%${k.ihtiyacPct.toFixed(0)}</span>
+            </div>
+            ${bar(k.ihtiyacPct, 50, k.ihtiyacPct<=55 ? '#059669' : '#DC2626')}
+            <div style="font-size:10px;color:var(--text3);margin-top:3px;">${Calc.fmt(k.ihtiyac)}</div>
+          </div>
+
+          <div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--text);">
+              <span>🎉 İstekler <span style="color:var(--text3);font-weight:400;">(hedef: %30)</span></span>
+              <span style="color:${k.istekPct<=35?'var(--accent)':'var(--danger)'};font-weight:800;">%${k.istekPct.toFixed(0)}</span>
+            </div>
+            ${bar(k.istekPct, 30, k.istekPct<=35 ? '#059669' : '#DC2626')}
+            <div style="font-size:10px;color:var(--text3);margin-top:3px;">${Calc.fmt(k.istek)}</div>
+          </div>
+
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--text);">
+              <span>💰 Tasarruf <span style="color:var(--text3);font-weight:400;">(hedef: %20)</span></span>
+              <span style="color:${k.tasarrufPct>=15?'var(--accent)':'var(--danger)'};font-weight:800;">%${k.tasarrufPct.toFixed(0)}</span>
+            </div>
+            ${bar(k.tasarrufPct, 20, k.tasarrufPct>=15 ? '#059669' : '#DC2626')}
+            <div style="font-size:10px;color:var(--text3);margin-top:3px;">${Calc.fmt(k.tasarruf)}</div>
+          </div>
+        </div>`;
+      })()}
+      <!-- 🆕 SENARYO SİMÜLATÖRÜ BUTONU -->
+      <button onclick="App.openSenaryoSimulator()" class="btn btn-full" style="background:linear-gradient(135deg, #7C3AED, #2563EB);color:#fff;border:none;box-shadow:0 4px 14px rgba(124,58,237,.3);margin-bottom:12px;height:52px;font-size:14px;">
+        <i class="fas fa-flask"></i>
+        <span>🎮 Senaryo Simülatörü</span>
+        <span style="opacity:.7;font-size:11px;margin-left:6px;">— "Ya şöyle olsaydı?"</span>
+      </button>
+
+      <!-- 🆕 HARCAMA ISI HARİTASI -->
+      <!-- 🆕 HARCAMA ISI HARİTASI -->
       <div class="card">
         <div class="section-header">
           <span class="section-title" style="display:flex;align-items:center;gap:8px;">
@@ -2724,11 +2996,16 @@ const App = {
         </div>
         <div class="form-group">
           <label class="form-label">Tarih</label>
-          <input type="date" id="islemTarih" class="form-input" value="${dayjs().format('YYYY-MM-DD')}">
+          <input type="date" id="borcTarih" class="form-input" value="${dayjs().format('YYYY-MM-DD')}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Vade Tarihi (isteğe bağlı)</label>
+          <input type="date" id="borcVade" class="form-input">
+          <div style="font-size:10.5px;color:var(--text3);margin-top:3px;">Vade girilirse, 7 gün kala dashboard'da hatırlatma görünür.</div>
         </div>
         <div class="form-group">
           <label class="form-label">Açıklama (isteğe bağlı)</label>
-          <textarea id="islemAciklama" class="form-textarea" placeholder="Kısa not..."></textarea>
+          <textarea id="borcAciklama" class="form-textarea" placeholder="Kısa not..."></textarea>
         </div>
         <div class="btn-row">
           <button class="btn btn-primary flex-1" onclick="App.submitIslem()"><i class="fas fa-plus"></i> Kaydet</button>
@@ -3002,6 +3279,11 @@ const App = {
           <div class="archive-stat-label">Oluşturulma</div>
           <div style="font-size:12px;margin-top:3px;">${dayjs(b.tarih).format('DD MMMM YYYY')}</div>
         </div>
+
+        ${b.vadeTarihi ? `<div class="card-sm" style="margin-bottom:8px;border-color:var(--warning);">
+          <div class="archive-stat-label" style="color:var(--warning);">📅 Vade Tarihi</div>
+          <div style="font-size:12px;margin-top:3px;font-weight:700;">${dayjs(b.vadeTarihi).format('DD MMMM YYYY')}</div>
+        </div>` : ''}
 
         ${b.aciklama ? `<div class="card-sm" style="margin-bottom:10px;">
           <div class="archive-stat-label">Açıklama</div>
@@ -3324,12 +3606,15 @@ const App = {
     const miktar   = parseFloat(document.getElementById('borcMiktar')?.value);
     const tarih    = document.getElementById('borcTarih')?.value;
     const aciklama = document.getElementById('borcAciklama')?.value || '';
+    const vadeTarihi = document.getElementById('borcVade')?.value || null;
     if (!kisi)           { Swal.fire({ icon:'warning', title:'Kişi adı gerekli!', timer:1800, showConfirmButton:false }); return; }
     if (!miktar||miktar<=0) { Swal.fire({ icon:'warning', title:'Geçersiz miktar!', timer:1800, showConfirmButton:false }); return; }
-    await CRUD.borcEkle(tip, kisi, miktar, birim, tarih, aciklama);
+    await CRUD.borcEkle(tip, kisi, miktar, birim, tarih, aciklama, vadeTarihi);
     document.getElementById('borcKisi').value = '';
     document.getElementById('borcMiktar').value = '';
     document.getElementById('borcAciklama').value = '';
+    const vadeEl = document.getElementById('borcVade');
+    if (vadeEl) vadeEl.value = '';
 
     const gosterim = birim === 'tl'
       ? Calc.fmt(miktar)
@@ -4754,6 +5039,72 @@ const App = {
         y += 8;
       });
 
+      /* ═══ 🆕 GRAFİKLER (Chart.js → jsPDF.addImage) ═══ */
+      if (sortedKat.length > 0 && typeof Chart !== 'undefined') {
+        try {
+          if (y > H - 110) { doc.addPage(); y = 20; }
+
+          /* Donut grafiği */
+          _baslik(doc, 'GİDER DAĞILIM GRAFİĞİ', y, hasUni, FONT);
+          y += 8;
+
+          const donutData = {
+            labels: sortedKat.map(([k]) => k),
+            datasets: [{
+              data: sortedKat.map(([, v]) => v),
+              backgroundColor: sortedKat.map((_, i) => `rgb(${palet[i % palet.length].join(',')})`),
+              borderWidth: 0
+            }]
+          };
+
+          const donutBase64 = await _renderChartToBase64('doughnut', donutData, {
+            plugins: {
+              legend: { position: 'right', labels: { font: { size: 11 }, padding: 10, boxWidth: 14 } }
+            }
+          });
+
+          if (donutBase64) {
+            const imgW = W - 2 * M;
+            const imgH = 75;
+            doc.addImage(donutBase64, 'PNG', M, y, imgW, imgH);
+            y += imgH + 6;
+          }
+
+          /* Aylık trend line grafiği */
+          if (y > H - 100) { doc.addPage(); y = 20; }
+          _baslik(doc, 'AYLIK GELİR/GİDER TRENDİ', y, hasUni, FONT);
+          y += 8;
+
+          const trend = Calc.aylikTrend(6);
+          const lineData = {
+            labels: trend.map(t => t.label),
+            datasets: [
+              { label: 'Gelir', data: trend.map(t => t.gelir), borderColor: '#059669', backgroundColor: 'rgba(5,150,105,.1)', borderWidth: 2, fill: true, tension: 0.3 },
+              { label: 'Gider', data: trend.map(t => t.gider), borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,.1)', borderWidth: 2, fill: true, tension: 0.3 }
+            ]
+          };
+
+          const lineBase64 = await _renderChartToBase64('line', lineData, {
+            plugins: {
+              legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } }
+            },
+            scales: {
+              y: { ticks: { callback: v => 'TL ' + v.toLocaleString('tr-TR') }, grid: { color: 'rgba(148,163,184,.15)' } },
+              x: { grid: { display: false } }
+            }
+          });
+
+          if (lineBase64) {
+            const imgW = W - 2 * M;
+            const imgH = 70;
+            doc.addImage(lineBase64, 'PNG', M, y, imgW, imgH);
+            y += imgH + 10;
+          }
+        } catch (chartErr) {
+          console.warn('[PDF] Grafik ekleme hatası (devam ediliyor):', chartErr);
+        }
+      }
+
       /* ═══ İŞLEM TABLOLARI ═══ */
       const tablo = (list, baslik, renk, isaret) => {
         if (!list || !list.length) return;
@@ -5126,7 +5477,234 @@ const App = {
       showToast('⚠️ Grafik indirilemedi');
     }
   },
-};                          // ← BU SATIRI EKLE
+
+  /* 🆕 FAZ 3 — Global Arama */
+  async openGlobalSearch() {
+    await Swal.fire({
+      title: '🔍 Global Arama',
+      html: `<div style="text-align:left;">
+        <div class="search-box" style="margin-bottom:10px;">
+          <i class="fas fa-search"></i>
+          <input type="text" id="globalSearchInput" class="form-input"
+                 placeholder="İşlem, kişi, kategori, arşiv, log, ayar... her şeyi ara"
+                 oninput="App._performGlobalSearch()">
+        </div>
+        <div id="globalSearchResults" style="max-height:420px;overflow-y:auto;">
+          <div class="empty-state" style="padding:30px;">
+            <i class="fas fa-keyboard"></i>
+            <p>En az 2 karakter yazın</p>
+            <p style="font-size:11px;opacity:.6;margin-top:6px;">Gelir, gider, borç, kategori, arşiv, log — her şeyde arar</p>
+          </div>
+        </div>
+      </div>`,
+      width: Math.min(560, window.innerWidth - 24),
+      showCloseButton: true,
+      showConfirmButton: false,
+      didOpen: () => {
+        setTimeout(() => document.getElementById('globalSearchInput')?.focus(), 120);
+      }
+    });
+  },
+
+  _performGlobalSearch() {
+    const q = (document.getElementById('globalSearchInput')?.value || '').toLowerCase().trim();
+    const results = document.getElementById('globalSearchResults');
+    if (!results) return;
+
+    if (q.length < 2) {
+      results.innerHTML = `<div class="empty-state" style="padding:30px;"><i class="fas fa-keyboard"></i><p>En az 2 karakter yazın</p></div>`;
+      return;
+    }
+
+    const matches = [];
+
+    /* Gelirler */
+    state.gelirler.forEach(g => {
+      const hay = `${g.kategori || ''} ${g.aciklama || ''} ${g.tarih || ''}`.toLowerCase();
+      if (hay.includes(q)) matches.push({
+        tip: 'gelir', item: g,
+        label: g.kategori, sub: `${Calc.fmt(g.miktar)} · ${g.tarih}`
+      });
+    });
+
+    /* Giderler */
+    state.giderler.forEach(g => {
+      const hay = `${g.kategori || ''} ${g.aciklama || ''} ${g.tarih || ''}`.toLowerCase();
+      if (hay.includes(q)) matches.push({
+        tip: 'gider', item: g,
+        label: g.kategori, sub: `${Calc.fmt(g.miktar)} · ${g.tarih}`
+      });
+    });
+
+    /* Borç/Alacak */
+    state.borcalacaklar.forEach(b => {
+      const hay = `${b.kisiAdi || ''} ${b.aciklama || ''}`.toLowerCase();
+      if (hay.includes(q)) matches.push({
+        tip: b.tip, item: b,
+        label: b.kisiAdi, sub: `${Calc.formatBirim(b)} · ${b.odendiMi ? 'Ödendi' : 'Aktif'}`
+      });
+    });
+
+    /* Kategoriler */
+    state.kategoriler.gelir.forEach(k => {
+      if (k.toLowerCase().includes(q)) matches.push({ tip: 'kategori', item: { k, t: 'gelir' }, label: k, sub: 'Gelir kategorisi' });
+    });
+    state.kategoriler.gider.forEach(k => {
+      if (k.toLowerCase().includes(q)) matches.push({ tip: 'kategori', item: { k, t: 'gider' }, label: k, sub: 'Gider kategorisi' });
+    });
+
+    /* Arşivler */
+    Object.entries(state.archives).forEach(([key, a]) => {
+      const hay = `${key} ${SalaryMonth.shortLabel(key)}`.toLowerCase();
+      if (hay.includes(q)) {
+        const gCnt = Array.isArray(a.gelirler) ? a.gelirler.length : 0;
+        const gdCnt = Array.isArray(a.giderler) ? a.giderler.length : 0;
+        matches.push({ tip: 'arsiv', item: { key }, label: SalaryMonth.shortLabel(key), sub: `Arşiv · ${gCnt} gelir · ${gdCnt} gider` });
+      }
+    });
+
+    /* Loglar */
+    state.logs.forEach(l => {
+      const hay = `${l.label || ''} ${l.details || ''} ${l.action || ''}`.toLowerCase();
+      if (hay.includes(q)) matches.push({
+        tip: 'log', item: l,
+        label: l.label || l.action, sub: l.details || ''
+      });
+    });
+
+    if (matches.length === 0) {
+      results.innerHTML = `<div class="empty-state" style="padding:30px;"><i class="fas fa-inbox"></i><p>"${UI.escHtml(q)}" için sonuç bulunamadı</p></div>`;
+      return;
+    }
+
+    const tipBadge = { gelir: 'success', gider: 'danger', alacak: 'success', borc: 'amber', kategori: 'blue', arsiv: 'cyan', log: 'blue' };
+
+    results.innerHTML = `<div style="font-size:11px;color:var(--text3);padding:5px 0 8px;font-weight:600;">
+      ${matches.length} sonuç${matches.length > 50 ? ' (ilk 50 gösteriliyor)' : ''}
+    </div>` +
+    matches.slice(0, 50).map(m => {
+      let onclick = 'Swal.close()';
+      if (m.tip === 'gelir' || m.tip === 'gider' || m.tip === 'alacak' || m.tip === 'borc') {
+        onclick = `Swal.close(); setTimeout(() => App.showTransactionDetail(${m.item.id}, '${m.tip}'), 200)`;
+      } else if (m.tip === 'arsiv') {
+        onclick = `Swal.close(); setTimeout(() => App.showArchiveDetail('${m.item.key}'), 200)`;
+      } else if (m.tip === 'log') {
+        onclick = `Swal.close(); setTimeout(() => App.showLogDetail(${m.item.id}), 200)`;
+      } else if (m.tip === 'kategori') {
+        onclick = `Swal.close(); setTimeout(() => { App._islemTip='${m.item.t}'; App.loadPage('islemler'); }, 200)`;
+      }
+      return `<div onclick="${onclick}" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:5px;background:var(--surface2);cursor:pointer;transition:var(--transition);" onmouseover="this.style.borderColor='var(--primary)';" onmouseout="this.style.borderColor='var(--border)';">
+        <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:2px;">
+          <strong style="font-size:13px;color:var(--text);">${UI.escHtml(m.label)}</strong>
+          <span class="badge badge-${tipBadge[m.tip] || 'blue'}" style="font-size:9px;padding:2px 6px;">${m.tip}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text3);">${UI.escHtml(m.sub)}</div>
+      </div>`;
+    }).join('');
+  },
+
+  /* 🆕 FAZ 3 — Senaryo Simülatörü */
+  async openSenaryoSimulator() {
+    await Swal.fire({
+      title: '🎮 Senaryo Simülatörü',
+      html: `<div style="text-align:left;">
+        <p style="font-size:12px;color:#64748b;margin-bottom:14px;">Varsayımları değiştir, 6 aylık geleceğini anlık gör.</p>
+
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
+            <span>💼 Maaş Zammı</span>
+            <span id="lblMaas" style="color:var(--primary);font-weight:800;">+0%</span>
+          </label>
+          <input type="range" id="simMaas" min="-30" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
+            <span>🏠 Kira/Fatura Artışı</span>
+            <span id="lblKira" style="color:var(--warning);font-weight:800;">+0%</span>
+          </label>
+          <input type="range" id="simKira" min="0" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
+            <span>🍽️ Dışarıda Yemek Azalt</span>
+            <span id="lblYemek" style="color:var(--accent);font-weight:800;">-0%</span>
+          </label>
+          <input type="range" id="simYemek" min="0" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
+            <span>🛍️ Alışveriş Azalt</span>
+            <span id="lblAlisveris" style="color:var(--accent);font-weight:800;">-0%</span>
+          </label>
+          <input type="range" id="simAlisveris" min="0" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
+        </div>
+
+        <div id="simResults"></div>
+      </div>`,
+      width: Math.min(540, window.innerWidth - 24),
+      showCloseButton: true,
+      showConfirmButton: false,
+      didOpen: () => App._updateSim()
+    });
+  },
+
+  _updateSim() {
+    const get = (id) => parseFloat(document.getElementById(id)?.value) || 0;
+    const params = {
+      maasZamPct: get('simMaas'),
+      kiraArtisPct: get('simKira'),
+      yemekAzaltmaPct: get('simYemek'),
+      alisverisAzaltmaPct: get('simAlisveris')
+    };
+
+    const setLbl = (id, val, prefix, isPositiveGood) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const sign = val >= 0 ? '+' : '';
+      el.textContent = (prefix === '-' ? '-' : sign) + Math.abs(val) + '%';
+    };
+    setLbl('lblMaas', params.maasZamPct, '+', true);
+    setLbl('lblKira', params.kiraArtisPct, '+', false);
+    setLbl('lblYemek', params.yemekAzaltmaPct, '-', true);
+    setLbl('lblAlisveris', params.alisverisAzaltmaPct, '-', true);
+
+    const sim = Calc.senaryoSimulasyon(params);
+    const farkRenk = sim.fark >= 0 ? 'var(--accent)' : 'var(--danger)';
+    const farkBg = sim.fark >= 0 ? 'var(--accent-light)' : 'var(--danger-light)';
+    const simRenk = sim.yeniNet >= 0 ? 'var(--accent)' : 'var(--danger)';
+    const mevcutRenk = sim.mevcutNet >= 0 ? 'var(--accent)' : 'var(--danger)';
+
+    document.getElementById('simResults').innerHTML = `
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div style="padding:10px;background:var(--surface2);border-radius:8px;text-align:center;">
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;">Şu An Aylık Net</div>
+            <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:900;color:${mevcutRenk};margin-top:2px;">${Calc.fmt(sim.mevcutNet)}</div>
+          </div>
+          <div style="padding:10px;background:${farkBg};border-radius:8px;text-align:center;">
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;">Senaryo Aylık Net</div>
+            <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:900;color:${simRenk};margin-top:2px;">${Calc.fmt(sim.yeniNet)}</div>
+          </div>
+        </div>
+
+        <div style="padding:10px;background:${farkBg};border-radius:8px;margin-bottom:8px;text-align:center;">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;">Aylık Fark</div>
+          <div style="font-size:16px;font-weight:900;color:${farkRenk};">${sim.fark >= 0 ? '+' : ''}${Calc.fmt(sim.fark)}</div>
+        </div>
+
+        <div style="padding:12px;background:var(--primary-light);border-radius:8px;text-align:center;">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:4px;">6 Aylık Tahmini Birikim</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:20px;font-weight:900;color:var(--primary);">${Calc.fmt(sim.altiAyBirikim)}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">Mevcut senaryo: ${Calc.fmt(sim.mevcutAltiAyBirikim)}</div>
+          <div style="font-size:11px;font-weight:800;color:${farkRenk};margin-top:4px;">${sim.altiAyFark >= 0 ? '+' : ''}${Calc.fmt(sim.altiAyFark)} fark</div>
+        </div>
+      </div>
+    `;
+  },
+};
 
 async function autoArchiveCheck() {
   try {
@@ -5549,6 +6127,49 @@ async function buildArchivePDF(monthKey) {
   }
 }
 
+/* 🆕 FAZ 3 — PDF için geçici grafik render */
+async function _renderChartToBase64(type, data, options) {
+  return new Promise((resolve) => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 800;
+      canvas.height = 400;
+      canvas.style.position = 'absolute';
+      canvas.style.left = '-9999px';
+      canvas.style.top = '-9999px';
+      document.body.appendChild(canvas);
+
+      const ctx = canvas.getContext('2d');
+      const chart = new Chart(ctx, {
+        type,
+        data,
+        options: {
+          ...options,
+          animation: false,
+          responsive: false,
+          maintainAspectRatio: false,
+          devicePixelRatio: 2
+        }
+      });
+
+      setTimeout(() => {
+        try {
+          const base64 = chart.toBase64Image('image/png', 1);
+          chart.destroy();
+          document.body.removeChild(canvas);
+          resolve(base64);
+        } catch (err) {
+          try { chart.destroy(); } catch(e) {}
+          try { document.body.removeChild(canvas); } catch(e) {}
+          resolve(null);
+        }
+      }, 250);
+    } catch (e) {
+      console.warn('[ChartToBase64] Hata:', e);
+      resolve(null);
+    }
+  });
+}
   
 window.App  = App;
 window.CRUD = CRUD;
