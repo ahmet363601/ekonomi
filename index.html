@@ -1749,6 +1749,28 @@ const CRUD = {
     await saveLogs();
     await saveArchives();
 
+    /* 🆕 Arşiv PDF'i üret ve arşive kaydet */
+    try {
+      Swal.fire({
+        title: '📄 Arşiv PDF oluşturuluyor...',
+        html: 'Bu birkaç saniye sürebilir',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      });
+
+      const pdfDataUrl = await buildArchivePDF(monthKey);
+      Swal.close();
+
+      if (pdfDataUrl) {
+        state.archives[monthKey].pdfDataUrl = pdfDataUrl;
+        state.archives[monthKey].pdfGeneratedAt = new Date().toISOString();
+        await saveArchives();
+      }
+    } catch (errPdf) {
+      Swal.close();
+      console.warn('[manuel_archiv] PDF üretim hatası (devam ediliyor):', errPdf);
+    }
+
     await addLog('manuel_arsiv',
       `${SalaryMonth.label(monthKey)} · ${aGelir.length} gelir + ${aGider.length} gider + ${aLoglar.length} log`,
       { month: monthKey, salaryMonth: true, range, year: SalaryMonth.yearOf(monthKey),
@@ -2342,6 +2364,11 @@ const App = {
 
 
   async showTransactionDetail(id, tip) {
+  /* 🆕 Borç/Alacak için özel detay paneli */
+  if (tip === 'alacak' || tip === 'borc') {
+    return this._showBorcDetail(id);
+  }
+
   const item = (tip === 'gelir' ? state.gelirler : state.giderler).find(i => i.id == id);
   if (!item) { showToast('⚠️ Kayıt bulunamadı'); return; }
   const isGelir = tip === 'gelir';
@@ -2385,6 +2412,97 @@ const App = {
   });
 },
 
+
+    async _showBorcDetail(id) {
+    const b = state.borcalacaklar.find(x => x.id == id);
+    if (!b) { showToast('⚠️ Kayıt bulunamadı'); return; }
+
+    const birim      = b.birim || 'tl';
+    const fiyat      = Calc.birimFiyat(birim);
+    const toplamTL   = (Number(b.miktar) || 0) * fiyat;
+    const isAl       = b.tip === 'alacak';
+    const birimKisa  = Calc.birimKisa(birim);
+    const paid       = (b.payments || []).reduce((s, p) => s + (Number(p.miktar) || 0), 0);
+    const kalanBirim = Math.max(0, (Number(b.miktar) || 0) - paid);
+    const kalanTL    = kalanBirim * fiyat;
+    const percent    = (Number(b.miktar) || 0) > 0 ? Math.min(100, Math.round((paid / Number(b.miktar)) * 100)) : 0;
+
+    const payRows = (b.payments || []).map(p => {
+      const pmBirim = Number(p.miktar) || 0;
+      const pmTL    = pmBirim * fiyat;
+      const pmStr   = birim === 'tl'
+        ? Calc.fmt(pmTL)
+        : `${pmBirim.toLocaleString('tr-TR',{maximumFractionDigits:2})} ${birimKisa} <span style="color:var(--text3);">≈ ${Calc.fmt(pmTL)}</span>`;
+      return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;">
+        <span>${dayjs(p.tarih || b.tarih).format('DD MMM')} ${p.aciklama ? '· ' + UI.escHtml(p.aciklama) : ''}</span>
+        <span style="color:var(--accent);font-weight:700;">+${pmStr}</span>
+      </div>`;
+    }).join('');
+
+    const miktarGosterim = birim === 'tl'
+      ? Calc.fmt(toplamTL)
+      : `${Calc.formatBirim(b)}<div style="font-size:10px;color:var(--text3);margin-top:2px;">≈ ${Calc.fmt(toplamTL)}</div>`;
+
+    const kalanGosterim = birim === 'tl'
+      ? Calc.fmt(kalanTL)
+      : `${kalanBirim.toLocaleString('tr-TR',{maximumFractionDigits:2})} ${birimKisa}<div style="font-size:10px;color:var(--text3);margin-top:2px;">≈ ${Calc.fmt(kalanTL)}</div>`;
+
+    const result = await Swal.fire({
+      title: (isAl ? '🟢 Alacak Detayı' : '🔴 Borç Detayı'),
+      html: `<div style="text-align:left;">
+        <div class="archive-stat-card" style="text-align:center;margin-bottom:12px;padding:14px;">
+          <div class="archive-stat-label">Kişi</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:18px;font-weight:800;">${UI.escHtml(b.kisiAdi)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">${isAl ? '🟢 Alacak' : '🔴 Borç'}</div>
+        </div>
+
+        <div class="archive-detail-stats">
+          <div class="archive-stat-card">
+            <div class="archive-stat-label">Toplam</div>
+            <div class="archive-stat-value ${isAl ? 'green' : 'red'}">${miktarGosterim}</div>
+          </div>
+          <div class="archive-stat-card">
+            <div class="archive-stat-label">Kalan</div>
+            <div class="archive-stat-value ${kalanBirim > 0 ? 'amber' : 'green'}">${kalanBirim > 0 ? kalanGosterim : '✓ Ödendi'}</div>
+          </div>
+          <div class="archive-stat-card">
+            <div class="archive-stat-label">Ödenme</div>
+            <div class="archive-stat-value blue">%${percent}</div>
+          </div>
+        </div>
+
+        <div class="progress-track" style="margin:6px 0;">
+          <div class="progress-bar" style="width:${percent}%;background:${isAl ? 'var(--accent)' : 'var(--warning)'};"></div>
+        </div>
+
+        <div class="card-sm" style="margin-bottom:8px;">
+          <div class="archive-stat-label">Oluşturulma</div>
+          <div style="font-size:12px;margin-top:3px;">${dayjs(b.tarih).format('DD MMMM YYYY')}</div>
+        </div>
+
+        ${b.aciklama ? `<div class="card-sm" style="margin-bottom:10px;">
+          <div class="archive-stat-label">Açıklama</div>
+          <div style="font-size:13px;margin-top:4px;">${UI.escHtml(b.aciklama)}</div>
+        </div>` : ''}
+
+        ${payRows ? `<div style="font-size:12px;font-weight:700;margin:12px 0 6px;">Ödeme Geçmişi (${(b.payments || []).length})</div>${payRows}` : ''}
+      </div>`,
+      showDenyButton: !b.odendiMi,
+      showCancelButton: true,
+      confirmButtonText: 'Kapat',
+      denyButtonText: '💸 Ara Ödeme',
+      cancelButtonText: '🗑️ Sil',
+      denyButtonColor: 'var(--warning)',
+      cancelButtonColor: 'var(--danger)',
+      width: Math.min(480, window.innerWidth - 24)
+    });
+
+    if (result.isDenied) {
+      await this.araOdeme(id);
+    } else if (result.dismiss === Swal.DismissReason.cancel) {
+      await this.silBorc(id);
+    }
+  },
   
   async deleteArchive(key) {
     const archive = state.archives[key];
@@ -3267,7 +3385,46 @@ const App = {
             </div>`;
           }).join('')
       }
+      <!-- ═══ ÜRETİLEN RAPORLAR ═══ -->
+      ${(() => {
+        const pdfList = keys
+          .filter(k => state.archives[k] && state.archives[k].pdfDataUrl)
+          .map(k => ({
+            key: k,
+            label: SalaryMonth.shortLabel(k),
+            generatedAt: state.archives[k].pdfGeneratedAt || state.archives[k].archivedAt,
+            range: state.archives[k].salaryMonthRange || SalaryMonth.range(k)
+          }))
+          .sort((a, b) => (b.generatedAt || '') > (a.generatedAt || '') ? 1 : -1);
 
+        if (!pdfList.length) return '';
+
+        return `<div class="card" style="border-left:4px solid var(--info);">
+          <div class="section-header">
+            <span class="section-title" style="display:flex;align-items:center;gap:8px;">
+              <i class="fas fa-file-pdf" style="color:var(--info);"></i>
+              Üretilen Raporlar
+            </span>
+            <span class="badge badge-cyan">${pdfList.length}</span>
+          </div>
+          <div style="max-height:320px;overflow-y:auto;">
+            ${pdfList.map(r => `
+              <div onclick="App.downloadArchivePDF('${r.key}')" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:6px;background:var(--surface2);cursor:pointer;transition:var(--transition);" onmouseover="this.style.borderColor='var(--primary)';this.style.background='var(--primary-light)';" onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--surface2)';">
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+                    <i class="fas fa-file-pdf" style="color:#DC2626;font-size:12px;"></i>
+                    <span style="font-size:13px;font-weight:700;color:var(--text);">${r.label}</span>
+                  </div>
+                  <div style="font-size:10.5px;color:var(--text3);">${dayjs(r.generatedAt).format('DD MMM YYYY HH:mm')} · ${r.range.start.substring(5)} → ${r.range.end.substring(5)}</div>
+                </div>
+                <i class="fas fa-download" style="color:var(--primary);font-size:14px;flex-shrink:0;margin-left:8px;"></i>
+              </div>
+            `).join('')}
+          </div>
+        </div>`;
+      })()}
+
+      <!-- ═══ YEDEK GEÇMİŞİ ═══ -->
       <!-- ═══ YEDEK GEÇMİŞİ ═══ -->
       <div class="card">
         <div class="section-header"><span class="section-title">📋 Yedek Geçmişi</span></div>
@@ -4249,6 +4406,21 @@ const App = {
     };
     reader.readAsText(file);
   },
+  async downloadArchivePDF(key) {
+    const archive = state.archives[key];
+    if (!archive || !archive.pdfDataUrl) {
+      showToast('⚠️ PDF bulunamadı');
+      return;
+    }
+    const filename = `ebhamani_arsiv_${key}_${dayjs(archive.pdfGeneratedAt || new Date()).format('YYYYMMDD_HHmm')}.pdf`;
+    const link = document.createElement('a');
+    link.href = archive.pdfDataUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('📄 PDF indirildi');
+  },
 
   async downloadBackup(backupId) {
     const backup = state.backups.find(b => b.id == backupId);
@@ -4566,6 +4738,131 @@ function _footer(doc, pg, total, hasUni, FONT) {
 /* ─────────────────────────────────────────────
    EXPOSE GLOBALS
 ───────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════
+   ARŞİV PDF ÜRETİCİ — her arşivlemede otomatik çağrılır
+   ═══════════════════════════════════════════════════════════════ */
+async function buildArchivePDF(monthKey) {
+  if (typeof window.jspdf === 'undefined') return null;
+
+  const archive = state.archives[monthKey];
+  if (!archive) return null;
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+    const M = 15;
+
+    const hasUni = await _loadPdfFonts(doc);
+    const FONT = hasUni ? 'Roboto' : 'helvetica';
+
+    const range      = archive.salaryMonthRange || SalaryMonth.range(monthKey);
+    const aGelirler  = Array.isArray(archive.gelirler) ? archive.gelirler : [];
+    const aGiderler  = Array.isArray(archive.giderler) ? archive.giderler : [];
+    const aLoglar    = Array.isArray(archive.loglar)   ? archive.loglar   : [];
+
+    const toplamGelir = aGelirler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+    const toplamGider = aGiderler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+    const net         = toplamGelir - toplamGider;
+
+    /* KAPAK */
+    doc.setFillColor(30, 64, 175);
+    doc.rect(0, 0, W, 42, 'F');
+    doc.setFillColor(37, 99, 235);
+    doc.rect(0, 20, W, 22, 'F');
+
+    doc.setFont(FONT, 'bold');
+    doc.setFontSize(22);
+    doc.setTextColor(255, 255, 255);
+    _txt(doc, 'EBHA MANI', M, 16, null, hasUni);
+
+    doc.setFont(FONT, 'normal');
+    doc.setFontSize(11);
+    doc.setTextColor(219, 234, 254);
+    _txt(doc, 'Arşiv Raporu · ' + SalaryMonth.shortLabel(monthKey), M, 25, null, hasUni);
+    _txt(doc, range.start + ' → ' + range.end, M, 32, null, hasUni);
+
+    doc.setFontSize(8);
+    _txt(doc, 'Oluşturma: ' + dayjs(archive.pdfGeneratedAt || archive.archivedAt || new Date()).format('DD MMMM YYYY HH:mm'), W - M, 32, { align: 'right' }, hasUni);
+
+    /* ÖZET KARTLARI */
+    let y = 52;
+    const cw = (W - 2 * M - 6) / 3;
+
+    _kart(doc, M,             y, cw, 20, { label: 'Toplam Gelir', value: Calc.fmt(toplamGelir), accent: [5,150,105] }, hasUni, FONT);
+    _kart(doc, M + cw + 3,    y, cw, 20, { label: 'Toplam Gider', value: Calc.fmt(toplamGider), accent: [220,38,38] }, hasUni, FONT);
+    _kart(doc, M + (cw+3)*2,  y, cw, 20, { label: 'Net Bakiye',   value: Calc.fmt(net),         accent: [37,99,235] }, hasUni, FONT);
+
+    y += 26;
+
+    /* İSTATİSTİK SATIRI */
+    doc.setFont(FONT, 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    _txt(doc, `${aGelirler.length} gelir kaydı · ${aGiderler.length} gider kaydı · ${aLoglar.length} log kaydı`, M, y, null, hasUni);
+    y += 8;
+
+    /* TABLOLAR */
+    const tabloCiz = (list, baslik, renk, isaret) => {
+      if (!list.length) return;
+      if (y > H - 50) { doc.addPage(); y = 20; }
+
+      _baslik(doc, baslik + ' (' + list.length + ')', y, hasUni, FONT);
+      y += 8;
+
+      doc.setFillColor(248, 250, 252);
+      doc.rect(M, y - 4, W - 2 * M, 6, 'F');
+      doc.setFont(FONT, 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      _txt(doc, 'TARİH', M + 3, y, null, hasUni);
+      _txt(doc, 'KATEGORİ', M + 25, y, null, hasUni);
+      _txt(doc, 'AÇIKLAMA', M + 65, y, null, hasUni);
+      _txt(doc, 'TUTAR', W - M - 3, y, { align: 'right' }, hasUni);
+      y += 5;
+
+      list.forEach(function(item, idx) {
+        if (y > H - 20) { doc.addPage(); y = 20; }
+        if (idx % 2 === 0) {
+          doc.setFillColor(252, 253, 255);
+          doc.rect(M, y - 4, W - 2 * M, 6.5, 'F');
+        }
+        doc.setFont(FONT, 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(71, 85, 105);
+        _txt(doc, item.tarih || '-', M + 3, y, null, hasUni);
+        doc.setTextColor(15, 23, 42);
+        _txt(doc, String(item.kategori || '').substring(0, 18), M + 25, y, null, hasUni);
+        doc.setTextColor(148, 163, 184);
+        _txt(doc, String(item.aciklama || '-').substring(0, 35), M + 65, y, null, hasUni);
+        doc.setFont(FONT, 'bold');
+        doc.setTextColor(...renk);
+        _txt(doc, isaret + Calc.fmt(item.miktar), W - M - 3, y, { align: 'right' }, hasUni);
+        y += 6.5;
+      });
+
+      y += 6;
+    };
+
+    tabloCiz(aGelirler, 'GELİRLER', [5, 150, 105], '+');
+    tabloCiz(aGiderler, 'GİDERLER', [220, 38, 38], '-');
+
+    /* FOOTER */
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      _footer(doc, i, totalPages, hasUni, FONT);
+    }
+
+    return doc.output('datauristring');
+  } catch (e) {
+    console.error('[Archive PDF] Üretim hatası:', e);
+    return null;
+  }
+}
+
+  
 window.App  = App;
 window.CRUD = CRUD;
 
