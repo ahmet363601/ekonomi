@@ -3922,9 +3922,6 @@ const App = {
   }
 },
 
-  /* ══════════════════════════════════════
-     EXPORT / IMPORT
-  ══════════════════════════════════════ */
   async exportToPDF() {
     if (typeof window.jspdf === 'undefined') {
       showToast('❌ PDF motoru yüklenemedi. İnternet bağlantınızı kontrol edin.');
@@ -3945,13 +3942,10 @@ const App = {
       const H = doc.internal.pageSize.getHeight();
       const M = 20;
 
-      /* Türkçe destekli font (Roboto TTF CDN'den yüklenir) */
       const hasUni = await _loadPdfFonts(doc);
       const FONT = hasUni ? 'Roboto' : 'helvetica';
 
-      /* ═══════════════════════
-         KAPAK — Mavi gradient header
-         ═══════════════════════ */
+      /* ═══ KAPAK ═══ */
       doc.setFillColor(30, 64, 175);
       doc.rect(0, 0, W, 48, 'F');
       doc.setFillColor(37, 99, 235);
@@ -3967,22 +3961,14 @@ const App = {
       _txt(doc, 'EBHA MANİ', M, 22, null, hasUni);
 
       doc.setFont(FONT, 'normal');
-      const birim = b.birim || 'tl';
-      const birimFiyat = Calc.birimFiyat(birim);
-      const miktarAna = birim === 'tl'
-        ? Calc.fmt(b.miktar)
-        : `${(Number(b.miktar)||0).toLocaleString('tr-TR',{maximumFractionDigits:2})} ${Calc.birimKisa(birim)} (${Calc.fmt((Number(b.miktar)||0) * birimFiyat)})`;
-      
       doc.setFontSize(10);
-      doc.setTextColor(...renk);
-      _txt(doc, miktarAna, W - M - 3, y + 1, { align: 'right' }, hasUni);
+      doc.setTextColor(219, 234, 254);
+      _txt(doc, 'Finansal Rapor', M, 31, null, hasUni);
 
       doc.setFontSize(9);
       _txt(doc, dayjs().format('DD MMMM YYYY · HH:mm'), W - M, 42, { align: 'right' }, hasUni);
 
-      /* ═══════════════════════
-         4 ÖZET KARTI
-         ═══════════════════════ */
+      /* ═══ ÖZET KARTLARI ═══ */
       let y = 58;
       const ayF = Calc.ayFilter();
       const gelirT = Calc.toplamGelir(ayF);
@@ -4000,9 +3986,7 @@ const App = {
 
       y += ch + 10;
 
-      /* ═══════════════════════
-         GİDER DAĞILIMI
-         ═══════════════════════ */
+      /* ═══ GİDER DAĞILIMI ═══ */
       _baslik(doc, 'GİDER DAĞILIMI', y, hasUni, FONT);
       y += 10;
 
@@ -4031,9 +4015,7 @@ const App = {
         y += 8;
       });
 
-      /* ═══════════════════════
-         İŞLEM TABLOLARI (GELİR / GİDER)
-         ═══════════════════════ */
+      /* ═══ İŞLEM TABLOLARI ═══ */
       const tablo = (list, baslik, renk, isaret) => {
         if (!list || !list.length) return;
         if (y > H - 50) { doc.addPage(); y = 20; }
@@ -4093,12 +4075,7 @@ const App = {
       tablo(state.gelirler, 'GELİRLER', [5, 150, 105], '+');
       tablo(state.giderler, 'GİDERLER', [220, 38, 38], '-');
 
-      /* ═══════════════════════
-         BORÇ / ALACAK — Sadece aktif olanlar
-         ═══════════════════════ */
-      /* ═══════════════════════
-         BORÇ / ALACAK — Sadece aktif olanlar
-         ═══════════════════════ */
+      /* ═══ BORÇ / ALACAK — birim farkındalı ═══ */
       const aktifBorclar = state.borcalacaklar.filter(x => !x.odendiMi);
 
       if (aktifBorclar.length) {
@@ -4120,7 +4097,6 @@ const App = {
 
           _roundRect(doc, M, y - 4, W - 2 * M, 15, 2, [252, 253, 255], [226, 232, 240]);
 
-          /* Tip badge */
           doc.setFillColor(...renk);
           doc.roundedRect(M + 3, y - 2, 14, 4.5, 1, 1, 'F');
           doc.setFont(FONT, 'bold');
@@ -4128,13 +4104,12 @@ const App = {
           doc.setTextColor(255, 255, 255);
           _txt(doc, isAl ? 'ALACAK' : 'BORÇ', M + 10, y + 0.5, { align: 'center' }, hasUni);
 
-          /* Kişi adı */
           doc.setFont(FONT, 'bold');
           doc.setFontSize(9);
           doc.setTextColor(15, 23, 42);
           _txt(doc, String(borcItem.kisiAdi || '').substring(0, 30), M + 20, y + 1, null, hasUni);
 
-          /* Miktar — birim farkındalı */
+          /* Miktar — TL veya gram/çeyrek */
           const miktarGosterim = birim === 'tl'
             ? Calc.fmt(miktarNum)
             : `${miktarNum.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} ${Calc.birimKisa(birim)} (${Calc.fmt(miktarNum * birimFiyat)})`;
@@ -4152,7 +4127,7 @@ const App = {
           doc.setTextColor(148, 163, 184);
           _txt(doc, `%${Math.round(pct * 100)} ödendi`, M + 45, y + 6.5, null, hasUni);
 
-          /* Kalan — birim farkındalı */
+          /* Kalan — TL veya gram/çeyrek */
           if (kalan > 0) {
             const kalanGosterim = birim === 'tl'
               ? `Kalan: ${Calc.fmt(kalan)}`
@@ -4167,9 +4142,8 @@ const App = {
           y += 17;
         });
       }
-      /* ═══════════════════════
-         TÜM SAYFALARA FOOTER
-         ═══════════════════════ */
+
+      /* ═══ FOOTER ═══ */
       const total = doc.internal.getNumberOfPages();
       for (let i = 1; i <= total; i++) {
         doc.setPage(i);
