@@ -1959,13 +1959,14 @@ label(key) {
   yearOf(key) { return key.substring(0, 4); },
 
   /** Sonraki arşive kaç gün kaldı */
+  /** Sonraki arşive kaç gün kaldı */
 daysUntilArchive() {
   const now = dayjs();
   if (now.date() === this.DAY_START) return 0;   // ✅ Bugün arşiv günü
   if (now.date() < this.DAY_START) return this.DAY_START - now.date();
   const next = now.add(1, 'month').startOf('month').date(this.DAY_START);
   return Math.max(0, next.startOf('day').diff(now.startOf('day'), 'day'));
-}
+},
 
   /** Sonraki arşiv tarihi (YYYY-MM-DD) */
   nextArchiveDate() {
