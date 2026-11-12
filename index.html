@@ -2,20 +2,56 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <!-- ═══ TEMEL META ═══ -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <meta name="theme-color" content="#1E40AF">
+  <meta name="description" content="EBHA Mani — Paranı gör, geleceğini planla. Gelir, gider ve borç takip uygulaması.">
+  <meta name="format-detection" content="telephone=no">
+  <title>EBHA Mani · Finans Takip</title>
+
+  <!-- ═══ TEMA RENGİ (light / dark ayrı) ═══ -->
+  <meta name="theme-color" content="#1E40AF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0F172A" media="(prefers-color-scheme: dark)">
+
+  <!-- ═══ iOS PWA META ═══ -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="EBHA Mani">
-  <meta name="format-detection" content="telephone=no">
-  <meta name="description" content="EBHA Mani — Paranı gör, geleceğini planla. Gelir, gider ve borç takip uygulaması.">
-  <title>EBHA Mani · Finans Takip</title>
+
+  <!-- ═══ iOS ANA EKRAN İKONLARI (geçici placeholder) ═══ -->
+  <link rel="apple-touch-icon" sizes="180x180" href="https://placehold.co/180x180/2563EB/FFFFFF/png?text=EBHA">
+  <link rel="apple-touch-icon" sizes="167x167" href="https://placehold.co/167x167/2563EB/FFFFFF/png?text=EBHA">
+  <link rel="apple-touch-icon" sizes="152x152" href="https://placehold.co/152x152/2563EB/FFFFFF/png?text=EBHA">
+  <link rel="apple-touch-icon" sizes="120x120" href="https://placehold.co/120x120/2563EB/FFFFFF/png?text=EBHA">
+  <link rel="apple-touch-icon" href="https://placehold.co/180x180/2563EB/FFFFFF/png?text=EBHA">
+
+  <!-- ═══ iOS AÇILIŞ EKRANI (splash — geçici placeholder) ═══ -->
+  <link rel="apple-touch-startup-image"
+        media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)"
+        href="https://placehold.co/1290x2796/1E40AF/FFFFFF/png?text=EBHA+Mani">
+  <link rel="apple-touch-startup-image"
+        media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)"
+        href="https://placehold.co/1179x2556/1E40AF/FFFFFF/png?text=EBHA+Mani">
+  <link rel="apple-touch-startup-image"
+        media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)"
+        href="https://placehold.co/1170x2532/1E40AF/FFFFFF/png?text=EBHA+Mani">
+  <link rel="apple-touch-startup-image"
+        media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)"
+        href="https://placehold.co/1125x2436/1E40AF/FFFFFF/png?text=EBHA+Mani">
+
+  <!-- ═══ PWA MANIFEST ═══ -->
   <link rel="manifest" href="/ekonomi/manifest.json">
-  <meta name="theme-color" content="#3b82f6">
+
+  <!-- ═══ FONTLAR ═══ -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
+  <!-- ═══ KÜTÜPHANELER (sıra önemli!) ═══ -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/dayjs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/locale/tr.js"></script>
@@ -24,7 +60,6 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-
 <style>
 /* ══════════════════════════════════════════
    TOKENS & RESET
@@ -180,10 +215,13 @@ button, input, select, textarea {
 #main-content {
   max-width: 520px;
   margin: 0 auto;
-  padding: 14px 14px calc(var(--nav-h) + 16px + env(safe-area-inset-bottom));
-  min-height: 100dvh;
+  padding-top: 14px;
+  padding-right: max(14px, env(safe-area-inset-right));
+  padding-bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom));
+  padding-left: max(14px, env(safe-area-inset-left));
+  min-height: 100vh;        /* fallback: iOS < 15.4 */
+  min-height: 100dvh;       /* modern tarayıcılar */
 }
-
 #bottom-nav {
   position: fixed;
   bottom: 0; left: 0; right: 0;
@@ -376,7 +414,17 @@ button, input, select, textarea {
   color: var(--text);
   flex-shrink: 0;
 }
-
+/* Isı haritası — iOS 14 ve altı için aspect-ratio fallback */
+.heat-cell {
+  aspect-ratio: 1;
+}
+@supports not (aspect-ratio: 1) {
+  .heat-cell::before {
+    content: "";
+    display: block;
+    padding-top: 100%;
+  }
+}
 /* ══════════════════════════════════════════
    CHART WRAPPER
 ══════════════════════════════════════════ */
@@ -508,11 +556,12 @@ button, input, select, textarea {
   border-radius: 11px;
   border: 1.5px solid var(--border);
   background: var(--surface2);
-  font-size: 14px;
+  font-size: 16px;              /* iOS auto-zoom engeli */
   color: var(--text);
   transition: var(--transition);
   appearance: none;
   -webkit-appearance: none;
+}
 }
 .form-input:focus, .form-select:focus, .form-textarea:focus {
   outline: none;
@@ -1032,7 +1081,7 @@ button, input, select, textarea {
   border: 1.5px solid var(--border) !important;
   background: var(--surface2) !important;
   color: var(--text) !important;
-  font-size: 14px !important;
+  font-size: 16px !important;    /* iOS auto-zoom engeli */
   font-family: 'DM Sans', sans-serif !important;
   padding: 11px 13px !important;
   box-shadow: none !important;
@@ -3033,10 +3082,11 @@ const App = {
             const bg = renkler[d.seviye];
             const textColor = d.seviye >= 3 ? '#fff' : 'var(--text3)';
             return `<div title="${d.tarih} — ${d.tutar > 0 ? Calc.fmt(d.tutar) : 'Harcama yok'}"
-                         style="aspect-ratio:1;border-radius:4px;background:${bg};
+                         class="heat-cell"
+                         style="border-radius:4px;background:${bg};
                                 display:flex;align-items:center;justify-content:center;
                                 font-size:9px;font-weight:600;color:${textColor};
-                                cursor:default;">${d.gun}</div>`;
+                                cursor:default;position:relative;">${d.gun}</div>`;
           }).join('')}
         </div>
 
