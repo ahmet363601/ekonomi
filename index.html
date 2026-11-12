@@ -1767,17 +1767,31 @@ function queueSave(fn) {
 }
 
 /* Tek store, tek transaction — ya hep ya hiç */
+/* Tek store, tek transaction — ya hep ya hiç */
 function saveStore(storeName, items) {
   return new Promise((resolve, reject) => {
     if (!db) return reject(new Error('DB açık değil'));
     let tx;
     try { tx = db.transaction(storeName, 'readwrite'); }
     catch (e) { return reject(e); }
+
     const store = tx.objectStore(storeName);
+
     try {
       store.clear();
-      for (const item of items) { if (item != null) store.put(item); }
-    } catch (e) { return reject(e); }
+      for (const item of items) {
+        /* ✅ Boş array, primitif, undefined → put denenmez (DataError önlenir) */
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+          store.put(item);
+        }
+      }
+    } catch (e) {
+      /* 🔴 KRİTİK: put() senkron hata fırlatırsa transaction'ı İPTAL ET.
+         Aksi halde clear() commit edilir → store tamamen silinir, veri yazılmaz. */
+      try { tx.abort(); } catch(_) {}
+      return reject(e);
+    }
+
     tx.oncomplete = () => resolve();
     tx.onerror    = () => reject(tx.error);
     tx.onabort    = () => reject(tx.error || new Error('Transaction aborted'));
@@ -5571,34 +5585,34 @@ const App = {
   /* ══════════════════════════════════════
      KATEGORİ MODAL
   ══════════════════════════════════════ */
-  openKategoriModal() {
-    const makeChips = (tip, color, bg) =>
-      state.kategoriler[tip].map(k => `
-        <span style="background:${bg};color:${color};padding:5px 10px;border-radius:99px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:6px;margin:3px;">
-          ${UI.escHtml(k)}
-          <span onclick="CRUD.kategoriSil('${tip}','${UI.jsEscape(k)}').then(()=>App.openKategoriModal())" style="cursor:pointer;color:#EF4444;font-size:13px;font-weight:800;line-height:1;">×</span>
-        </span>`).join('');
+openKategoriModal() {
+  const makeChips = (tip, color, bg) =>
+    state.kategoriler[tip].map(k => `
+      <span style="background:${bg};color:${color};padding:5px 10px;border-radius:99px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:6px;margin:3px;">
+        ${UI.escHtml(k)}
+        <span onclick="CRUD.kategoriSil('${tip}','${UI.escHtml(UI.jsEscape(k))}').then(()=>App.openKategoriModal())" style="cursor:pointer;color:#EF4444;font-size:13px;font-weight:800;line-height:1;">×</span>
+      </span>`).join('');
 
-    Swal.fire({
-      title: '🏷️ Kategoriler',
-      html: `<div style="text-align:left;">
-        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">Gelir Kategorileri</div>
-        <div style="display:flex;flex-wrap:wrap;margin-bottom:12px;">${makeChips('gelir','#065F46','#ECFDF5')}</div>
-        <div style="display:flex;gap:6px;margin-bottom:18px;">
-          <input id="newGelirKat" type="text" placeholder="Yeni gelir kategorisi…" class="swal2-input" style="flex:1;">
-          <button onclick="App._addKat('gelir')" style="padding:0 14px;background:#059669;color:#fff;border:none;border-radius:10px;cursor:pointer;font-size:13px;font-weight:700;">+</button>
-        </div>
-        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">Gider Kategorileri</div>
-        <div style="display:flex;flex-wrap:wrap;margin-bottom:12px;">${makeChips('gider','#991B1B','#FEF2F2')}</div>
-        <div style="display:flex;gap:6px;">
-          <input id="newGiderKat" type="text" placeholder="Yeni gider kategorisi…" class="swal2-input" style="flex:1;">
-          <button onclick="App._addKat('gider')" style="padding:0 14px;background:#DC2626;color:#fff;border:none;border-radius:10px;cursor:pointer;font-size:13px;font-weight:700;">+</button>
-        </div>
-      </div>`,
-      width: Math.min(480, window.innerWidth - 24),
-      confirmButtonText: 'Kapat'
-    });
-  },
+  Swal.fire({
+    title: '🏷️ Kategoriler',
+    html: `<div style="text-align:left;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;">Gelir Kategorileri</div>
+      <div style="display:flex;flex-wrap:wrap;margin-bottom:12px;">${makeChips('gelir','#065F46','#ECFDF5')}</div>
+      <div style="display:flex;gap:6px;margin-bottom:18px;">
+        <input id="newGelirKat" type="text" placeholder="Yeni gelir kategorisi…" class="swal2-input" style="flex:1;">
+        <button onclick="App._addKat('gelir')" style="padding:0 14px;background:#059669;color:#fff;border:none;border-radius:10px;cursor:pointer;font-size:13px;font-weight:700;">+</button>
+      </div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;">Gider Kategorileri</div>
+      <div style="display:flex;flex-wrap:wrap;margin-bottom:12px;">${makeChips('gider','#991B1B','#FEF2F2')}</div>
+      <div style="display:flex;gap:6px;">
+        <input id="newGiderKat" type="text" placeholder="Yeni gider kategorisi…" class="swal2-input" style="flex:1;">
+        <button onclick="App._addKat('gider')" style="padding:0 14px;background:#DC2626;color:#fff;border:none;border-radius:10px;cursor:pointer;font-size:13px;font-weight:700;">+</button>
+      </div>
+    </div>`,
+    width: Math.min(480, window.innerWidth - 24),
+    confirmButtonText: 'Kapat'
+  });
+},
 
   async _addKat(tip) {
     const id  = tip === 'gelir' ? 'newGelirKat' : 'newGiderKat';
@@ -5624,10 +5638,10 @@ const App = {
       return `<div style="padding:8px;background:${exceeded?'#FEF2F2':'var(--surface2)'};border-radius:10px;border:1px solid ${exceeded?'#FCA5A5':'var(--border)'};margin-bottom:7px;">
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="flex:1;font-size:12px;font-weight:600;">${UI.escHtml(k)}</span>
-            <input type="number" step="0.01" placeholder="Limit…" value="${lim}" data-kat="${UI.escHtml(k)}"
-            style="width:100px;padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;"
-            oninput="CRUD.limitEkle('${UI.jsEscape(k)}',this.value)">
-          ${lim?`<button onclick="CRUD.limitSil('${UI.jsEscape(k)}').then(()=>App.openLimitModal())" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;">✕</button>`:''}
+        <input type="number" step="0.01" placeholder="Limit…" value="${lim}" data-kat="${UI.escHtml(k)}"
+        style="width:100px;padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;"
+        oninput="CRUD.limitEkle('${UI.escHtml(UI.jsEscape(k))}',this.value)">
+      ${lim?`<button onclick="CRUD.limitSil('${UI.escHtml(UI.jsEscape(k))}').then(()=>App.openLimitModal())" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;">✕</button>`:''}
         </div>
         ${exceeded?`<div style="font-size:10px;color:var(--danger);margin-top:4px;">⚠️ Aşım! ${Calc.fmt(cur)} / ${Calc.fmt(parseFloat(lim))}</div>`:''}
       </div>`;
