@@ -14,8 +14,8 @@
   <meta name="format-detection" content="telephone=no, email=no, address=no, date=no">
   <meta name="color-scheme" content="light dark">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <title>EBHA Mani · Finans Takip</title>
-
+<title>EBHA Finans · Portföy Yönetimi</title>
+  
   <!-- ═══ TEMA RENGİ — iOS Status Bar + Android Tarayıcı ═══ -->
   <meta name="theme-color" content="#1E40AF" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0F172A" media="(prefers-color-scheme: dark)">
@@ -23,7 +23,7 @@
   <!-- ═══ iOS PWA — STANDALONE MOD ═══ -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="EBHA Mani">
+  <meta name="apple-mobile-web-app-title" content="EBHA Finans">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="EBHA Mani">
 
@@ -35,7 +35,7 @@
        <link rel="apple-touch-icon" sizes="152x152" href="/ekonomi/icons/icon-152.png">
        <link rel="apple-touch-icon" sizes="120x120" href="/ekonomi/icons/icon-120.png">
   -->
-  <link rel="apple-touch-icon" sizes="180x180" href="https://placehold.co/180x180/2563EB/FFFFFF/png?text=EBHA">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://placehold.co/180x180/0F2A5C/FFFFFF/png?text=EBHA">
   <link rel="apple-touch-icon" sizes="167x167" href="https://placehold.co/167x167/2563EB/FFFFFF/png?text=EBHA">
   <link rel="apple-touch-icon" sizes="152x152" href="https://placehold.co/152x152/2563EB/FFFFFF/png?text=EBHA">
   <link rel="apple-touch-icon" sizes="120x120" href="https://placehold.co/120x120/2563EB/FFFFFF/png?text=EBHA">
@@ -84,7 +84,7 @@
   <!-- ═══ FONTLAR ═══ -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
   <!-- ═══ KÜTÜPHANELER (sıra önemli!) ═══ -->
@@ -96,118 +96,146 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-  
+
 <style>
-/* ══════════════════════════════════════════════════════════════
-   EBHA MANİ · v5.2 — iOS PWA Optimize CSS
-   ✅ 2 CSS syntax hatası düzeltildi
-   ✅ iOS auto-zoom, date picker, backdrop-filter optimizasyonu
-   ✅ Modern: nav indicator, skeleton loader, toast-undo
-   ✅ prefers-reduced-motion desteği
-   ══════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   EBHA FİNANS · v6.0 — Kurumsal iOS PWA Tema
+   ─────────────────────────────────────────────────────────────
+   🎨 Palette:  Deep Navy & Emerald (finans standardı)
+   🔤 Fonts:    Inter (başlık) + IBM Plex Sans (gövde)
+   🔢 Numbers:  Tabular nums — rakamlar hizalı
+   📐 Radius:   14px (kurumsal, az yuvarlak)
+   🌫️ Shadows:  Subtil katmanlı (premium his)
+   📱 iOS:      safe-area, dvh, no-zoom, native picker, perf
+   ═══════════════════════════════════════════════════════════════ */
 
-/* ───────────── TOKENS & RESET ───────────── */
+
+/* ═══════════════════════════════════════════════════════════════
+   TOKENS & RESET
+   ═══════════════════════════════════════════════════════════════ */
 :root {
-  --primary:        #2563EB;
-  --primary-dark:   #1D4ED8;
-  --primary-light:  #EFF6FF;
-  --primary-mid:    rgba(37,99,235,.12);
-  --accent:         #059669;
+  /* ───── Kurumsal palet ───── */
+  --primary:        #0F2A5C;   /* Derin lacivert */
+  --primary-dark:   #081B3E;
+  --primary-light:  #EEF2F9;
+  --primary-mid:    rgba(15,42,92,.10);
+
+  --accent:         #047857;   /* Zümrüt yeşili */
+  --accent-dark:    #065F46;
   --accent-light:   #ECFDF5;
-  --danger:         #DC2626;
+
+  --danger:         #B91C1C;
+  --danger-dark:    #991B1B;
   --danger-light:   #FEF2F2;
-  --warning:        #D97706;
+
+  --warning:        #92400E;
   --warning-light:  #FFFBEB;
-  --info:           #0891B2;
-  --info-light:     #ECFEFF;
 
-  --surface:   #FFFFFF;
-  --surface2:  #F8FAFC;
-  --surface3:  #F1F5F9;
-  --border:    #E2E8F0;
+  --info:           #0369A1;
+  --info-light:     #F0F9FF;
 
-  --text:  #0F172A;
-  --text2: #475569;
-  --text3: #94A3B8;
+  /* ───── Yüzeyler ───── */
+  --surface:        #FFFFFF;
+  --surface2:       #F7F8FA;
+  --surface3:       #EEF1F5;
+  --border:         #DDE3EC;
+  --border-strong:  #C5CEDD;
 
-  --radius:    18px;
-  --radius-sm: 12px;
-  --radius-xs: 8px;
+  /* ───── Metin ───── */
+  --text:   #0B1527;
+  --text2:  #3D4A5C;
+  --text3:  #7B8A9E;
 
-  --shadow-xs: 0 1px 3px rgba(0,0,0,.05);
-  --shadow:    0 2px 10px rgba(0,0,0,.07);
-  --shadow-md: 0 4px 20px rgba(0,0,0,.09);
-  --shadow-lg: 0 8px 30px rgba(0,0,0,.12);
+  /* ───── Radius ───── */
+  --radius:    14px;
+  --radius-sm: 10px;
+  --radius-xs: 6px;
 
+  /* ───── Gölgeler (navy tinted) ───── */
+  --shadow-xs: 0 1px 2px rgba(15,42,92,.04);
+  --shadow:    0 1px 3px rgba(15,42,92,.06), 0 1px 2px rgba(15,42,92,.04);
+  --shadow-md: 0 4px 12px rgba(15,42,92,.08), 0 2px 4px rgba(15,42,92,.04);
+  --shadow-lg: 0 12px 32px rgba(15,42,92,.12), 0 4px 8px rgba(15,42,92,.06);
+
+  /* ───── Sistem ───── */
   --transition: all .2s cubic-bezier(.4,0,.2,1);
   --header-h: 60px;
   --nav-h: 66px;
+  --tap-target: 44px;
 }
 
+/* ───── Dark mode ───── */
 @media (prefers-color-scheme: dark) {
   :root {
-    --surface:   #1E293B;
-    --surface2:  #0F172A;
-    --surface3:  #0A111F;
-    --border:    #334155;
-    --text:  #F1F5F9;
-    --text2: #CBD5E1;
-    --text3: #64748B;
-    --primary-light:  rgba(37,99,235,.15);
-    --accent-light:   rgba(5,150,105,.15);
-    --danger-light:   rgba(220,38,38,.15);
-    --warning-light:  rgba(217,119,6,.15);
-    --info-light:     rgba(8,145,178,.15);
-    --shadow-xs: 0 1px 3px rgba(0,0,0,.25);
-    --shadow:    0 2px 10px rgba(0,0,0,.3);
-    --shadow-md: 0 4px 20px rgba(0,0,0,.35);
-    --shadow-lg: 0 8px 30px rgba(0,0,0,.4);
+    --primary:        #4A7BC8;
+    --primary-dark:   #3B6AB5;
+    --primary-light:  rgba(74,123,200,.15);
+    --primary-mid:    rgba(74,123,200,.12);
+
+    --accent:         #10B981;
+    --accent-dark:    #059669;
+    --accent-light:   rgba(16,185,129,.15);
+
+    --danger:         #EF4444;
+    --danger-dark:    #DC2626;
+    --danger-light:   rgba(239,68,68,.15);
+
+    --warning:        #F59E0B;
+    --warning-light:  rgba(245,158,11,.15);
+
+    --info:           #38BDF8;
+    --info-light:     rgba(56,189,248,.15);
+
+    --surface:        #141C2E;
+    --surface2:       #0D1424;
+    --surface3:       #080F1E;
+    --border:         #2A3651;
+    --border-strong:  #3D4A66;
+
+    --text:   #F1F5F9;
+    --text2:  #B8C4D9;
+    --text3:  #6B7A94;
+
+    --shadow-xs: 0 1px 2px rgba(0,0,0,.3);
+    --shadow:    0 1px 3px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.25);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);
+    --shadow-lg: 0 12px 32px rgba(0,0,0,.5), 0 4px 8px rgba(0,0,0,.35);
   }
   body { background: #080F1E; }
-
-  #app-header { background: rgba(15,23,42,.97); }
-  #bottom-nav { background: rgba(15,23,42,.98); border-color: rgba(51,65,85,.8); }
-
-  /* ✅ DÜZELTİLDİ: eksik { eklendi */
-  .form-input, .form-select, .form-textarea {
-    background: var(--surface2);
-    color: var(--text);
-    border-color: var(--border);
-    color-scheme: dark;
-  }
-
-  .hero-card::before { opacity: .06; }
-
-  /* ✅ Dark modda hero card yumuşatıldı */
-  .hero-card {
-    background: linear-gradient(135deg, #1E40AF 0%, #172554 60%, #1E3A8A 100%);
-    box-shadow: 0 8px 30px rgba(30,64,175,.25);
-  }
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   RESET & BASE
+   ═══════════════════════════════════════════════════════════════ */
 *, *::before, *::after {
   margin: 0; padding: 0;
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
 }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 
 body {
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'IBM Plex Sans', 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: var(--surface3);
   color: var(--text);
   line-height: 1.5;
   font-size: 14px;
+  letter-spacing: -.1px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior: none;
   text-rendering: optimizeLegibility;
 }
 
-h1,h2,h3,h4,h5,h6 {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  letter-spacing: -.3px;
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Inter', 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -.4px;
+  font-weight: 700;
 }
 
 button, input, select, textarea {
@@ -215,12 +243,40 @@ button, input, select, textarea {
   font-size: inherit;
 }
 
-/* ✅ Mobilde double-tap zoom'u engelle */
-button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
-  touch-action: manipulation;
+/* ───── Tabular numbers — finansal tutarlar hizalı ───── */
+.hero-amount, .stat-amount, .tx-amount, .archive-amount,
+.archive-stat-value, .hero-meta span, .progress-track + * {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' on, 'lnum' on;
 }
 
-/* ───────────── LAYOUT ───────────── */
+/* ───── Dokunmatik uyum ───── */
+button, a, .chip, .nav-btn, .btn, .header-btn,
+.tx-item-clickable, .toggle-btn, .pg-btn, .tx-action-btn {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ───── Selection ───── */
+::selection {
+  background: var(--primary);
+  color: #fff;
+}
+
+/* ───── Scrollbar (masaüstü) ───── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--surface2); }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+/* ═══════════════════════════════════════════════════════════════
+   LAYOUT
+   ═══════════════════════════════════════════════════════════════ */
 #app-header {
   position: sticky;
   top: 0;
@@ -244,14 +300,12 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
 }
 
 #page-title {
-  color: var(--primary);           /* ✅ Fallback: gradient desteklenmezse görünür */
+  font-family: 'Inter', sans-serif;
   font-size: 20px;
-  font-weight: 800;
-  background: linear-gradient(135deg, var(--primary), #7C3AED);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-weight: 700;
+  color: var(--primary);
   letter-spacing: -.5px;
+  /* Gradient kaldırıldı — daha kurumsal */
 }
 
 .header-actions { display: flex; gap: 6px; }
@@ -262,12 +316,23 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
   border: 1px solid var(--border);
   background: var(--surface2);
   color: var(--text2);
-  font-size: 15px;
+  font-size: 14px;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: var(--transition);
+  position: relative;
 }
-.header-btn:hover { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+.header-btn::before {
+  content: '';
+  position: absolute;
+  inset: -4px;            /* Tap target 44px */
+  border-radius: 10px;
+}
+.header-btn:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-color: var(--primary);
+}
 .header-btn:active { transform: scale(.93); }
 
 #main-content {
@@ -277,10 +342,13 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
   padding-right: max(14px, env(safe-area-inset-right));
   padding-bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom));
   padding-left: max(14px, env(safe-area-inset-left));
-  min-height: 100vh;         /* iOS < 15.4 fallback */
+  min-height: 100vh;      /* iOS < 15.4 fallback */
   min-height: 100dvh;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   BOTTOM NAV
+   ═══════════════════════════════════════════════════════════════ */
 #bottom-nav {
   position: fixed;
   bottom: 0; left: 0; right: 0;
@@ -303,13 +371,13 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
 }
 
 .nav-btn {
-  position: relative;             /* ✅ Indicator için */
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 3px;
   padding: 6px 8px;
-  border-radius: 14px;
+  border-radius: 12px;
   color: var(--text3);
   background: none;
   border: none;
@@ -326,12 +394,16 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+  letter-spacing: .1px;
 }
-.nav-btn.active { color: var(--primary); background: var(--primary-light); }
+.nav-btn.active {
+  color: var(--primary);
+  background: var(--primary-light);
+}
 .nav-btn.active i { transform: scale(1.08); }
 .nav-btn:active { transform: scale(.92); }
 
-/* ✅ MODERN: Alt nav indicator (aktif tab altı animasyonlu çizgi) */
+/* Alt gösterge çizgisi */
 .nav-btn::after {
   content: '';
   position: absolute;
@@ -348,16 +420,15 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
   transform: translateX(-50%) scaleX(1);
 }
 
-/* ───────────── PAGE ANIMATION ───────────── */
-.page-in {
-  animation: pageIn .25s cubic-bezier(.4,0,.2,1);
-}
+/* ═══════════════════════════════════════════════════════════════
+   PAGE ANIMATION
+   ═══════════════════════════════════════════════════════════════ */
+.page-in { animation: pageIn .25s cubic-bezier(.4,0,.2,1); }
 @keyframes pageIn {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ✅ prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important;
@@ -367,13 +438,15 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
   }
 }
 
-/* ───────────── HERO CARD ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   HERO CARD — Kurumsal derin lacivert
+   ═══════════════════════════════════════════════════════════════ */
 .hero-card {
-  background: linear-gradient(135deg, #2563EB 0%, #1E40AF 60%, #1D4ED8 100%);
+  background: linear-gradient(135deg, #0F2A5C 0%, #0A1F44 60%, #081B3E 100%);
   border-radius: var(--radius);
   padding: 22px 20px 18px;
   color: #fff;
-  box-shadow: 0 8px 30px rgba(37,99,235,.35);
+  box-shadow: 0 8px 24px rgba(15,42,92,.20), 0 2px 6px rgba(15,42,92,.10);
   margin-bottom: 14px;
   position: relative;
   overflow: hidden;
@@ -383,7 +456,7 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
   position: absolute;
   top: -40%; right: -10%;
   width: 200px; height: 200px;
-  background: rgba(255,255,255,.08);
+  background: rgba(255,255,255,.06);
   border-radius: 50%;
   pointer-events: none;
 }
@@ -392,30 +465,39 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
   position: absolute;
   bottom: -30%; left: 10%;
   width: 140px; height: 140px;
-  background: rgba(255,255,255,.05);
+  background: rgba(16,185,129,.06);
   border-radius: 50%;
   pointer-events: none;
 }
+
+@media (prefers-color-scheme: dark) {
+  .hero-card {
+    background: linear-gradient(135deg, #1A2E55 0%, #0F1E3A 100%);
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  }
+}
+
 .hero-label {
-  font-size: 12px;
-  font-weight: 500;
-  opacity: .8;
-  letter-spacing: .5px;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: .75;
+  letter-spacing: .8px;
   text-transform: uppercase;
   margin-bottom: 6px;
 }
+
 .hero-amount {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Inter', 'Plus Jakarta Sans', sans-serif;
   font-size: 34px;
-  font-weight: 900;
-  letter-spacing: -1.5px;
+  font-weight: 800;
+  letter-spacing: -1.2px;
   line-height: 1;
   margin-bottom: 12px;
-  /* ✅ Büyük rakam taşma koruması */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
 .hero-meta {
   display: flex;
   gap: 16px;
@@ -428,7 +510,9 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
   gap: 4px;
 }
 
-/* ───────────── STAT GRID & CARDS ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   STAT GRID & CARDS
+   ═══════════════════════════════════════════════════════════════ */
 .stat-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -453,12 +537,12 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
   font-weight: 600;
   color: var(--text3);
   text-transform: uppercase;
-  letter-spacing: .4px;
+  letter-spacing: .5px;
   margin-bottom: 6px;
 }
 
 .stat-amount {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Inter', 'Plus Jakarta Sans', sans-serif;
   font-size: 20px;
   font-weight: 800;
   color: var(--text);
@@ -470,7 +554,9 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
 .stat-amount.blue   { color: var(--primary); }
 .stat-amount.cyan   { color: var(--info); }
 
-/* ───────────── CARD ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   CARD
+   ═══════════════════════════════════════════════════════════════ */
 .card {
   background: var(--surface);
   border-radius: var(--radius);
@@ -488,16 +574,17 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
   border: 1px solid var(--border);
 }
 
-/* ✅ MODERN: Masaüstünde hover lift (mobilde devre dışı) */
 @media (hover: hover) and (pointer: fine) {
   .card:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
-    border-color: rgba(37,99,235,.25);
+    border-color: var(--border-strong);
   }
 }
 
-/* ───────────── SECTION HEADER ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   SECTION HEADER
+   ═══════════════════════════════════════════════════════════════ */
 .section-header {
   display: flex;
   align-items: center;
@@ -506,32 +593,33 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
   gap: 8px;
 }
 .section-title {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 15px;
   font-weight: 700;
   color: var(--text);
+  letter-spacing: -.2px;
   flex-shrink: 0;
 }
 
-/* ✅ Isı haritası — iOS 14 ve altı için aspect-ratio fallback */
-.heat-cell {
-  aspect-ratio: 1;
-}
+/* ═══════════════════════════════════════════════════════════════
+   HEAT CELL (Isı haritası)
+   ═══════════════════════════════════════════════════════════════ */
+.heat-cell { aspect-ratio: 1; }
 @supports not (aspect-ratio: 1) {
-  .heat-cell::before {
-    content: "";
-    display: block;
-    padding-top: 100%;
-  }
+  .heat-cell::before { content: ""; display: block; padding-top: 100%; }
 }
 
-/* ───────────── CHART WRAPPER ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   CHART WRAPPER
+   ═══════════════════════════════════════════════════════════════ */
 .chart-wrap {
   height: 200px;
   position: relative;
 }
 
-/* ───────────── CHIPS / TABS ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   CHIPS / TABS
+   ═══════════════════════════════════════════════════════════════ */
 .tab-chips, .chip-container {
   display: flex;
   gap: 6px;
@@ -545,7 +633,7 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
 .chip-container::-webkit-scrollbar { display: none; }
 
 .chip {
-  padding: 6px 14px;
+  padding: 7px 14px;
   border-radius: 30px;
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -562,10 +650,12 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(37,99,235,.3);
+  box-shadow: 0 2px 8px rgba(15,42,92,.25);
 }
 
-/* ───────────── BUTTONS ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   BUTTONS
+   ═══════════════════════════════════════════════════════════════ */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -574,6 +664,7 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
   padding: 0 18px;
   height: 44px;
   border-radius: 12px;
+  font-family: 'Inter', sans-serif;
   font-weight: 600;
   font-size: 13px;
   border: 1px solid transparent;
@@ -581,6 +672,7 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
   transition: var(--transition);
   white-space: nowrap;
   text-decoration: none;
+  letter-spacing: -.1px;
 }
 .btn:active { transform: scale(.96); }
 .btn-full { width: 100%; }
@@ -589,38 +681,56 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
   background: var(--primary);
   color: #fff;
   border-color: var(--primary);
-  box-shadow: 0 2px 10px rgba(37,99,235,.25);
+  box-shadow: 0 2px 8px rgba(15,42,92,.20);
 }
 .btn-primary:hover { background: var(--primary-dark); }
+
 .btn-success {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
-  box-shadow: 0 2px 10px rgba(5,150,105,.2);
+  box-shadow: 0 2px 8px rgba(4,120,87,.20);
 }
+.btn-success:hover { background: var(--accent-dark); }
+
 .btn-danger {
   background: var(--danger);
   color: #fff;
   border-color: var(--danger);
-  box-shadow: 0 2px 10px rgba(220,38,38,.2);
+  box-shadow: 0 2px 8px rgba(185,28,28,.20);
 }
+.btn-danger:hover { background: var(--danger-dark); }
+
 .btn-amber {
   background: var(--warning);
   color: #fff;
   border-color: var(--warning);
-  box-shadow: 0 2px 10px rgba(217,119,6,.2);
+  box-shadow: 0 2px 8px rgba(146,64,14,.20);
 }
+
 .btn-ghost {
   background: var(--surface2);
   color: var(--text2);
   border-color: var(--border);
 }
-.btn-ghost:hover { background: var(--surface); border-color: var(--text3); }
+.btn-ghost:hover {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
 
 .btn-sm { height: 34px; padding: 0 12px; font-size: 12px; border-radius: 9px; }
 .btn-icon { width: 34px; height: 34px; padding: 0; border-radius: 9px; flex-shrink: 0; }
 
-/* ───────────── FORM ELEMENTS ───────────── */
+/* Senaryo simülatörü butonu — mor gradient yerine kurumsal emerald */
+button[onclick*="openSenaryoSimulator"] {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%) !important;
+  box-shadow: 0 4px 14px rgba(4,120,87,.25) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FORM ELEMENTS
+   ═══════════════════════════════════════════════════════════════ */
 .form-group { margin-bottom: 12px; }
 .form-label {
   display: block;
@@ -633,34 +743,31 @@ button, a, .chip, .nav-btn, .btn, .header-btn, .tx-item-clickable {
 .form-input, .form-select, .form-textarea {
   width: 100%;
   padding: 11px 13px;
-  border-radius: 11px;
+  border-radius: 10px;
   border: 1.5px solid var(--border);
   background: var(--surface2);
-  font-size: 16px;                /* ✅ iOS auto-zoom engeli */
+  font-size: 16px;               /* ✅ iOS auto-zoom engeli */
   color: var(--text);
   transition: var(--transition);
   appearance: none;
   -webkit-appearance: none;
 }
-/* ✅ DÜZELTİLDİ: Extra } kaldırıldı */
 .form-input:focus, .form-select:focus, .form-textarea:focus {
   outline: none;
   border-color: var(--primary);
   background: var(--surface);
   box-shadow: 0 0 0 3px var(--primary-light);
 }
-.form-textarea {
-  resize: none;
-  min-height: 72px;
-}
+.form-textarea { resize: none; min-height: 72px; }
+
 .form-select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2394A3B8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237B8A9E' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 36px;
 }
 
-/* ✅ iOS native date/time picker'ı koru (calendar ikonu görünsün) */
+/* iOS native date picker'ı koru */
 input[type="date"].form-input,
 input[type="time"].form-input,
 input[type="datetime-local"].form-input,
@@ -672,7 +779,9 @@ input[type="month"].form-input,
   appearance: auto;
 }
 
-/* ───────────── TOGGLE GROUP ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   TOGGLE GROUP
+   ═══════════════════════════════════════════════════════════════ */
 .toggle-group {
   display: flex;
   background: var(--surface2);
@@ -697,15 +806,17 @@ input[type="month"].form-input,
 .toggle-btn.active-gelir {
   background: var(--accent);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(5,150,105,.25);
+  box-shadow: 0 2px 6px rgba(4,120,87,.25);
 }
 .toggle-btn.active-gider {
   background: var(--danger);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(220,38,38,.25);
+  box-shadow: 0 2px 6px rgba(185,28,28,.25);
 }
 
-/* ───────────── SEARCH BOX ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   SEARCH BOX
+   ═══════════════════════════════════════════════════════════════ */
 .search-box {
   position: relative;
   margin-bottom: 12px;
@@ -719,11 +830,11 @@ input[type="month"].form-input,
   font-size: 13px;
   pointer-events: none;
 }
-.search-box .form-input {
-  padding-left: 34px;
-}
+.search-box .form-input { padding-left: 34px; }
 
-/* ───────────── PAGINATION ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   PAGINATION
+   ═══════════════════════════════════════════════════════════════ */
 .pagination {
   display: flex;
   align-items: center;
@@ -741,8 +852,18 @@ input[type="month"].form-input,
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: var(--transition);
+  position: relative;
 }
-.pg-btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+.pg-btn::before {
+  content: '';
+  position: absolute;
+  inset: -6px;            /* 44px tap target */
+}
+.pg-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
 .pg-btn:disabled { opacity: .35; cursor: not-allowed; }
 .pg-info {
   font-size: 12px;
@@ -752,7 +873,9 @@ input[type="month"].form-input,
   text-align: center;
 }
 
-/* ───────────── TRANSACTION ITEMS ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   TRANSACTION ITEMS
+   ═══════════════════════════════════════════════════════════════ */
 .tx-item {
   display: flex;
   align-items: center;
@@ -765,8 +888,14 @@ input[type="month"].form-input,
   transition: var(--transition);
 }
 .tx-item-clickable { cursor: pointer; }
-.tx-item-clickable:hover { border-color: var(--primary); box-shadow: 0 2px 12px rgba(37,99,235,.08); }
-.tx-item:active { transform: scale(.98); background: var(--surface2); }
+.tx-item-clickable:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-xs);
+}
+.tx-item:active {
+  transform: scale(.98);
+  background: var(--surface2);
+}
 
 .tx-icon {
   width: 42px; height: 42px;
@@ -799,11 +928,12 @@ input[type="month"].form-input,
 }
 
 .tx-amount {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 700;
   font-size: 14px;
   flex-shrink: 0;
   text-align: right;
+  letter-spacing: -.3px;
 }
 .tx-amount.pos   { color: var(--accent); }
 .tx-amount.neg   { color: var(--danger); }
@@ -819,21 +949,35 @@ input[type="month"].form-input,
   display: flex; align-items: center; justify-content: center;
   font-size: 11px;
   transition: var(--transition);
+  position: relative;
+}
+.tx-action-btn::before {
+  content: '';
+  position: absolute;
+  inset: -8px;            /* 44px tap target */
 }
 .tx-action-btn:active { transform: scale(.88); }
 .tx-action-btn.edit { color: var(--primary); }
-.tx-action-btn.edit:hover { background: var(--primary-light); border-color: var(--primary); }
+.tx-action-btn.edit:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
 .tx-action-btn.del  { color: var(--danger); }
-.tx-action-btn.del:hover { background: var(--danger-light); border-color: var(--danger); }
+.tx-action-btn.del:hover {
+  background: var(--danger-light);
+  border-color: var(--danger);
+}
 
-/* ───────────── BADGE ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   BADGE
+   ═══════════════════════════════════════════════════════════════ */
 .badge {
   display: inline-block;
   padding: 3px 9px;
   border-radius: 30px;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: .4px;
+  letter-spacing: .5px;
   text-transform: uppercase;
 }
 .badge-success { background: var(--accent-light);   color: var(--accent); }
@@ -842,7 +986,9 @@ input[type="month"].form-input,
 .badge-blue    { background: var(--primary-light);  color: var(--primary); }
 .badge-cyan    { background: var(--info-light);     color: var(--info); }
 
-/* ───────────── PROGRESS ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   PROGRESS
+   ═══════════════════════════════════════════════════════════════ */
 .progress-track {
   height: 5px;
   background: var(--surface3);
@@ -857,7 +1003,9 @@ input[type="month"].form-input,
   background: var(--primary);
 }
 
-/* ───────────── ALERT ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   ALERT
+   ═══════════════════════════════════════════════════════════════ */
 .alert {
   display: flex;
   align-items: flex-start;
@@ -870,11 +1018,13 @@ input[type="month"].form-input,
 .alert i { flex-shrink: 0; font-size: 15px; margin-top: 1px; }
 .alert-warning {
   background: var(--warning-light);
-  color: #92400E;
-  border: 1px solid #FDE68A;
+  color: var(--warning);
+  border: 1px solid rgba(146,64,14,.20);
 }
 
-/* ───────────── ARCHIVE ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   ARCHIVE
+   ═══════════════════════════════════════════════════════════════ */
 .archive-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -889,17 +1039,20 @@ input[type="month"].form-input,
   cursor: pointer;
   transition: var(--transition);
 }
-.archive-card:hover { border-color: var(--primary); box-shadow: var(--shadow); }
+.archive-card:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow);
+}
 .archive-card:active { transform: scale(.97); }
 .archive-month {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 13px;
   font-weight: 700;
   color: var(--text2);
   margin-bottom: 6px;
 }
 .archive-amount {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 17px;
   font-weight: 800;
   letter-spacing: -.5px;
@@ -931,7 +1084,7 @@ input[type="month"].form-input,
   margin-bottom: 4px;
 }
 .archive-stat-value {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 14px;
   font-weight: 800;
   color: var(--text);
@@ -942,7 +1095,9 @@ input[type="month"].form-input,
 .archive-stat-value.blue   { color: var(--primary); }
 .archive-stat-value.amber  { color: var(--warning); }
 
-/* ───────────── LOGS ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   LOGS
+   ═══════════════════════════════════════════════════════════════ */
 .log-item {
   padding: 10px 12px;
   border-radius: var(--radius-xs);
@@ -952,7 +1107,10 @@ input[type="month"].form-input,
   cursor: pointer;
   transition: var(--transition);
 }
-.log-item:hover { border-color: var(--primary); background: var(--primary-light); }
+.log-item:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
 .log-item:active { transform: scale(.98); }
 .log-action {
   font-size: 13px;
@@ -973,9 +1131,18 @@ input[type="month"].form-input,
   gap: 5px;
 }
 
-.smooth-scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+/* ═══════════════════════════════════════════════════════════════
+   SMOOTH SCROLL
+   ═══════════════════════════════════════════════════════════════ */
+.smooth-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
 
-/* ───────────── SPINNER ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   SPINNER
+   ═══════════════════════════════════════════════════════════════ */
 .spinner-wrap {
   display: flex;
   align-items: center;
@@ -991,7 +1158,9 @@ input[type="month"].form-input,
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ✅ MODERN: Skeleton loader (ilk açılış için) */
+/* ═══════════════════════════════════════════════════════════════
+   SKELETON LOADER
+   ═══════════════════════════════════════════════════════════════ */
 @keyframes shimmer {
   0%   { background-position: -400px 0; }
   100% { background-position: 400px 0; }
@@ -1006,30 +1175,39 @@ input[type="month"].form-input,
   border-radius: 12px;
 }
 
-/* ───────────── EMPTY STATE ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   EMPTY STATE
+   ═══════════════════════════════════════════════════════════════ */
 .empty-state {
   text-align: center;
   padding: 40px 20px;
   color: var(--text3);
 }
-.empty-state i { font-size: 40px; margin-bottom: 12px; display: block; opacity: .4; }
+.empty-state i {
+  font-size: 40px;
+  margin-bottom: 12px;
+  display: block;
+  opacity: .4;
+}
 .empty-state p { font-size: 13px; line-height: 1.6; }
 
-/* ───────────── TOAST ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   TOAST
+   ═══════════════════════════════════════════════════════════════ */
 .toast {
   position: fixed;
   bottom: calc(var(--nav-h) + 10px + env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
-  background: #1E293B;
-  color: #fff;
+  background: var(--text);
+  color: var(--surface);
   padding: 10px 20px;
   border-radius: 40px;
   font-size: 13px;
   font-weight: 500;
   z-index: 999;
   animation: toastAnim 2.8s forwards;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
   white-space: normal;
   word-break: break-word;
   line-height: 1.4;
@@ -1044,7 +1222,6 @@ input[type="month"].form-input,
   100%{ opacity: 0; transform: translateX(-50%) translateY(-12px); }
 }
 
-/* ✅ MODERN: Toast "Geri Al" butonu desteği */
 .toast.has-action {
   pointer-events: auto;
   display: flex;
@@ -1054,10 +1231,7 @@ input[type="month"].form-input,
   padding: 12px 16px;
   animation-duration: 4.5s;
 }
-.toast.has-action span {
-  flex: 1;
-  min-width: 0;
-}
+.toast.has-action span { flex: 1; min-width: 0; }
 .toast-undo-btn {
   background: var(--primary);
   color: #fff;
@@ -1072,7 +1246,9 @@ input[type="month"].form-input,
 }
 .toast-undo-btn:active { transform: scale(.94); }
 
-/* ───────────── UTILITY ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   UTILITY
+   ═══════════════════════════════════════════════════════════════ */
 .flex   { display: flex; }
 .flex-1 { flex: 1; }
 .gap-6  { gap: 6px; }
@@ -1091,7 +1267,9 @@ input[type="month"].form-input,
 
 .btn-row { display: flex; gap: 8px; margin-top: 12px; }
 
-/* ───────────── RESPONSIVE ───────────── */
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 380px) {
   #page-title    { font-size: 18px; }
   .hero-amount   { font-size: 28px; letter-spacing: -1px; }
@@ -1102,9 +1280,9 @@ input[type="month"].form-input,
   .archive-detail-stats { grid-template-columns: 1fr 1fr; }
 }
 
-/* ══════════════════════════════════════════════════════════════
-   ✅ iOS PERFORMANS: backdrop-filter eski cihazlarda ağır
-   ══════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   iOS PERFORMANS
+   ═══════════════════════════════════════════════════════════════ */
 @supports (-webkit-touch-callout: none) {
   #app-header,
   #bottom-nav {
@@ -1119,36 +1297,36 @@ input[type="month"].form-input,
 }
 @media (prefers-color-scheme: dark) {
   @supports (-webkit-touch-callout: none) {
-    #app-header { background: rgba(15,23,42,.99); }
-    #bottom-nav { background: rgba(15,23,42,.99); }
+    #app-header { background: rgba(20,28,46,.99); }
+    #bottom-nav { background: rgba(20,28,46,.99); }
   }
 }
 
-/* ══════════════════════════════════════════
-   SWEETALERT2 — MODERN & MOBILE-FIRST
-   ══════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   SWEETALERT2 — Modern & Mobile-First
+   ═══════════════════════════════════════════════════════════════ */
 .swal2-container {
   padding: 16px !important;
-  background: rgba(15, 23, 42, .5) !important;
+  background: rgba(11,21,39,.55) !important;
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 
 .swal2-popup {
-  border-radius: 20px !important;
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  border-radius: 18px !important;
+  font-family: 'IBM Plex Sans', 'DM Sans', sans-serif !important;
   background: var(--surface) !important;
   color: var(--text) !important;
-  box-shadow: 0 20px 60px rgba(0,0,0,.25), 0 0 0 1px rgba(0,0,0,.04) !important;
+  box-shadow: 0 20px 60px rgba(15,42,92,.25), 0 0 0 1px rgba(15,42,92,.06) !important;
   max-width: min(560px, calc(100vw - 24px)) !important;
 }
 
 .swal2-title {
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-family: 'Inter', 'Plus Jakarta Sans', sans-serif !important;
   font-size: 19px !important;
-  font-weight: 800 !important;
+  font-weight: 700 !important;
   color: var(--text) !important;
-  letter-spacing: -.3px !important;
+  letter-spacing: -.4px !important;
   line-height: 1.3 !important;
   word-wrap: break-word !important;
 }
@@ -1177,19 +1355,19 @@ input[type="month"].form-input,
 }
 
 .swal2-styled {
-  border-radius: 12px !important;
+  border-radius: 11px !important;
   padding: 12px 16px !important;
   font-weight: 700 !important;
   font-size: 13.5px !important;
-  font-family: 'DM Sans', sans-serif !important;
-  letter-spacing: .2px !important;
+  font-family: 'Inter', 'DM Sans', sans-serif !important;
+  letter-spacing: .1px !important;
   line-height: 1.25 !important;
   white-space: normal !important;
   transition: transform .15s ease, box-shadow .2s ease !important;
   min-height: 44px !important;
   flex: 1 !important;
   margin: 0 !important;
-  box-shadow: 0 2px 8px rgba(0,0,0,.1) !important;
+  box-shadow: 0 2px 8px rgba(15,42,92,.12) !important;
 }
 .swal2-styled:active { transform: scale(.96) !important; }
 .swal2-styled:focus  { box-shadow: 0 0 0 3px var(--primary-light) !important; }
@@ -1197,12 +1375,12 @@ input[type="month"].form-input,
 .swal2-input,
 .swal2-select,
 .swal2-textarea {
-  border-radius: 11px !important;
+  border-radius: 10px !important;
   border: 1.5px solid var(--border) !important;
   background: var(--surface2) !important;
   color: var(--text) !important;
-  font-size: 16px !important;
-  font-family: 'DM Sans', sans-serif !important;
+  font-size: 16px !important;                /* iOS auto-zoom engeli */
+  font-family: 'IBM Plex Sans', 'DM Sans', sans-serif !important;
   padding: 11px 13px !important;
   box-shadow: none !important;
   transition: all .2s ease !important;
@@ -1223,7 +1401,7 @@ input[type="month"].form-input,
   max-width: 100% !important;
   -webkit-appearance: none !important;
   appearance: none !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2394A3B8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237B8A9E' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") !important;
   background-repeat: no-repeat !important;
   background-position: right 12px center !important;
   padding-right: 36px !important;
@@ -1272,7 +1450,7 @@ input[type="month"].form-input,
 
 @media (max-width: 480px) {
   .swal2-container { padding: 10px !important; }
-  .swal2-popup     { border-radius: 18px !important; }
+  .swal2-popup     { border-radius: 16px !important; }
   .swal2-title     { font-size: 17px !important; }
   .swal2-html-container { font-size: 13px !important; }
   .swal2-actions   { gap: 8px !important; margin-top: 16px !important; }
@@ -1290,7 +1468,7 @@ input[type="month"].form-input,
 @media (prefers-color-scheme: dark) {
   .swal2-popup {
     background: var(--surface) !important;
-    box-shadow: 0 20px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.05) !important;
+    box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.05) !important;
   }
   .swal2-input,
   .swal2-select,
@@ -1303,6 +1481,7 @@ input[type="month"].form-input,
   .swal2-close:hover { background: var(--surface2) !important; }
 }
 </style>
+
 </head>
 
 <body>
@@ -1338,6 +1517,14 @@ input[type="month"].form-input,
 </nav>
 
 <script>
+window.addEventListener('error', (e) => {
+  console.error('[Global Error]', e.error || e.message);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('[Unhandled Promise]', e.reason);
+  // Opsiyonel: showToast('⚠️ Beklenmeyen hata: ' + (e.reason?.message || ''));
+});
+  
 'use strict';
 
 /* ─────────────────────────────────────────────
@@ -1394,7 +1581,7 @@ let db = null;
 function openDB() {
   return new Promise((resolve, reject) => {
     /* 🛡️ 8 saniye timeout — askıda kalmasın */
-    const timeout = 
+    const timeout = setTimeout(() => {
       reject(new Error('DB açma zaman aşımı — başka sekmede açık olabilir'));
     }, 8000);
 
@@ -1406,6 +1593,7 @@ function openDB() {
       console.error('[DB] indexedDB.open hatası:', e);
       return reject(e);
     }
+
 
     req.onerror = () => {
       console.error('[DB] Açılamadı:', req.error);
@@ -1559,14 +1747,15 @@ async function loadAllData() {
 let _saveChain = Promise.resolve();
 function queueSave(fn) {
   const result = _saveChain.then(fn);
-  // Hata durumunda kullanıcıya bildir ama chain'i kırma
+  // Zincire caught versiyonu ver → sonraki yazma hatasız devam etsin
   _saveChain = result.catch(e => {
     console.error('[Queue] Kayıt hatası:', e);
     if (typeof showToast === 'function') {
       showToast('⚠️ Kayıt başarısız! Yedek alın.');
     }
   });
-  return result;   // ✅ Hata varsa çağırana iletilsin
+  // ✅ Çağırana caught versiyonu dön → unhandled rejection olmaz
+  return _saveChain;
 }
 
 /* Tek store, tek transaction — ya hep ya hiç */
@@ -3541,10 +3730,11 @@ const App = {
   async deleteIslem(id, tip) {
     const r = await Swal.fire({ icon:'warning', title:'Silmek istediğinize emin misiniz?', showCancelButton:true, confirmButtonColor:'#DC2626', confirmButtonText:'Evet, Sil', cancelButtonText:'İptal' });
     if (r.isConfirmed) {
-      await CRUD.islemSil(id, tip);
-      showToast('🗑️ Silindi');
-      await this.renderIslemList();
-      if (this.currentPage === 'dashboard') await this.renderRecentList();
+      state.logs = state.logs.filter(l => l.action !== 'sayfa');
+      await saveLogs();
+      showToast(`🗑️ ${count} sayfa logu temizlendi`);
+      await Swal.close();          // ✅ önce kapanmayı bekle
+      await this.openLogModal();   // ✅ sonra yeniden aç
     }
   },
 
@@ -4904,7 +5094,8 @@ const App = {
     this._logFilterCat = 'tum';
     this._logTimeFilter = 'ay';
 
-    Swal.fire({
+    // ✅ await + didOpen → DOM hazır olduğunda render et
+    await Swal.fire({
       title: '📜 İşlem Logları',
       html: `<div style="text-align:left;">
         <div class="search-box" style="margin-bottom:10px;">
@@ -4935,11 +5126,13 @@ const App = {
       </div>`,
       width: Math.min(560, window.innerWidth - 24),
       confirmButtonText: 'Kapat',
-      showCloseButton: true
+      showCloseButton: true,
+      didOpen: () => {
+        // ✅ DOM hazır — chip'ler ve log listesi dolar
+        this._renderCatChips();
+        this._renderLogBody();
+      }
     });
-
-    this._renderCatChips();
-    this._renderLogBody();
   },
 
   _renderCatChips() {
