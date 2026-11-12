@@ -2,7 +2,6 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<head>
   <!-- ═══════════════════════════════════════════════════════════
        EBHA MANİ · v5.2 — iOS PWA Optimize <head>
        Hedef: iPhone ana ekran (standalone mode) · Internet: VAR
@@ -1517,7 +1516,7 @@ async function loadAllData() {
     const limits = await dbGetAll('limitler');
     state.limitler = limits.reduce((acc, l) => { acc[l.kategori] = l.limit; return acc; }, {});
 
-      const ayars = await dbGetAll('ayarlar');
+    const ayars = await dbGetAll('ayarlar');
     if (ayars.length) {
       const { id, ...rest } = ayars[0];
       state.ayarlar = { ...state.ayarlar, ...rest };
@@ -1531,7 +1530,11 @@ async function loadAllData() {
 
     const backs = await dbGetAll('backups');
     state.backups = backs.sort((a, b) => b.createdAt > a.createdAt ? 1 : -1);
-  } catch(e) { console.error('Veri yükleme:', e); }
+  } catch(e) {
+    console.error('Veri yükleme:', e);
+    // ✅ Hatayı yut değil, init'e ilet → kullanıcı "Veri yüklenemedi" görsün
+    throw e;
+  }
 }
 /* ═══════════════════════════════════════════════════════════════
    ATOMİK & SIRALI KAYIT KATMANI
@@ -1555,8 +1558,15 @@ async function loadAllData() {
 /* Yazma mutex kuyruğu — eşzamanlı yazma = veri kaybı */
 let _saveChain = Promise.resolve();
 function queueSave(fn) {
-  _saveChain = _saveChain.then(fn).catch(e => console.error('[Queue] Kayıt hatası:', e));
-  return _saveChain;
+  const result = _saveChain.then(fn);
+  // Hata durumunda kullanıcıya bildir ama chain'i kırma
+  _saveChain = result.catch(e => {
+    console.error('[Queue] Kayıt hatası:', e);
+    if (typeof showToast === 'function') {
+      showToast('⚠️ Kayıt başarısız! Yedek alın.');
+    }
+  });
+  return result;   // ✅ Hata varsa çağırana iletilsin
 }
 
 /* Tek store, tek transaction — ya hep ya hiç */
@@ -1681,7 +1691,7 @@ async function addLog(action, details = '', meta = {}) {
 ───────────────────────────────────────────── */
 async function createAutoBackup() {
   const backup = {
-    id: Date.now(),
+    id: Date.now() + Math.random(),
     createdAt: new Date().toISOString(),
     type: 'auto',
     data: {
@@ -1752,12 +1762,13 @@ label(key) {
   yearOf(key) { return key.substring(0, 4); },
 
   /** Sonraki arşive kaç gün kaldı */
-  daysUntilArchive() {
-    const now = dayjs();
-    if (now.date() < this.DAY_START) return this.DAY_START - now.date();
-    const next = now.add(1, 'month').startOf('month').date(this.DAY_START);
-    return Math.max(0, next.startOf('day').diff(now.startOf('day'), 'day'));
-  },
+daysUntilArchive() {
+  const now = dayjs();
+  if (now.date() === this.DAY_START) return 0;   // ✅ Bugün arşiv günü
+  if (now.date() < this.DAY_START) return this.DAY_START - now.date();
+  const next = now.add(1, 'month').startOf('month').date(this.DAY_START);
+  return Math.max(0, next.startOf('day').diff(now.startOf('day'), 'day'));
+}
 
   /** Sonraki arşiv tarihi (YYYY-MM-DD) */
   nextArchiveDate() {
@@ -2319,7 +2330,7 @@ sonIslemler() {
 };
 const CRUD = {
   async islemEkle(tip, miktar, kategori, tarih, aciklama) {
-    const item = { id: Date.now(), miktar: parseFloat(miktar), kategori, tarih, aciklama: aciklama || '', createdAt: new Date().toISOString() };
+    const item = { id: Date.now() + Math.random(), miktar: parseFloat(miktar), kategori, tarih, aciklama: aciklama || '', createdAt: new Date().toISOString() };
     if (tip === 'gelir') {
       state.gelirler.push(item);
       await saveGelirler();
@@ -2376,7 +2387,7 @@ const CRUD = {
 
   async borcEkle(tip, kisiAdi, miktar, birim, tarih, aciklama, vadeTarihi) {
     birim = birim || 'tl';
-    const item = { id: Date.now(), tip, kisiAdi, miktar: parseFloat(miktar), birim, tarih, aciklama: aciklama || '', vadeTarihi: vadeTarihi || null, payments: [], odendiMi: false, createdAt: new Date().toISOString() };
+    const item = { id: Date.now() + Math.random(), tip, kisiAdi, miktar: parseFloat(miktar), birim, tarih, aciklama: aciklama || '', vadeTarihi: vadeTarihi || null, payments: [], odendiMi: false, createdAt: new Date().toISOString() };
     state.borcalacaklar.push(item);
     await saveBorclar();
     await addLog(`borc_ekle_${tip}`,
@@ -2414,7 +2425,7 @@ const CRUD = {
     const item = state.borcalacaklar.find(b => b.id == borcId);
     if (!item) return false;
     if (!item.payments) item.payments = [];
-    item.payments.push({ id: Date.now(), miktar: parseFloat(miktar), tarih, aciklama: aciklama || '' });
+    item.payments.push({ id: Date.now() + Math.random(), miktar: parseFloat(miktar), tarih, aciklama: aciklama || '' });
     const odenen = item.payments.reduce((s, p) => s + p.miktar, 0);
     if (odenen >= item.miktar) {
       item.odendiMi = true;
@@ -6651,42 +6662,48 @@ document.addEventListener('click', () => { requestPersistentStorage(); }, { once
     await loadAllData();
     await App.loadPage('dashboard');    // ← ÖNCE dashboard açılsın
 
-    /* Migration arka planda — dashboard'u bloklamasın */
+    /* ✅ SIRALI BAŞLATMA — modal çakışmasını önler
+       Her adım bitmeden diğeri başlamaz. Dashboard açıldıktan
+       1 saniye sonra başlar, adımlar arası 300ms bekleme var. */
     setTimeout(async () => {
-      try { await migrateOldData(); }
-      catch (e) { console.warn('[init] migrate:', e); }
-    }, 800);
+      try {
+        // 1. Migration
+        try { await migrateOldData(); }
+        catch (e) { console.warn('[init] migrate:', e); }
 
-    /* Otomatik arşiv kontrolü — gecikmiş arşiv varsa uyar */
-    setTimeout(async () => {
-      try { await autoArchiveCheck(); }
-      catch (e) { console.warn('[init] autoArchive:', e); }
-    }, 1500);
+        await new Promise(r => setTimeout(r, 300));
 
-    /* iOS'a özgü uyarı — 7 günlük ITP temizliği hakkında */
-    if (isIOS && !localStorage.getItem('ios_install_hint_shown')) {
-      setTimeout(() => {
-        Swal.fire({
-          icon: 'info',
-          title: 'Verileriniz İçin Önemli',
-          html: `<p style="font-size:13px;">iOS Safari, <strong>7 gün</strong> boyunca ziyaret edilmeyen sitelerin verilerini silebilir.</p>
-                 <p style="font-size:13px;margin-top:10px;">Verilerinizi korumak için:</p>
-                 <p style="font-size:13px;margin-top:6px;">📲 Uygulamayı <strong>Ana Ekrana Ekleyin</strong><br>
-                 💾 Veya düzenli olarak <strong>JSON Yedeği</strong> alın.</p>`,
-          confirmButtonText: 'Anladım',
-          timer: 12000,
-          timerProgressBar: true
-        });
-        localStorage.setItem('ios_install_hint_shown', '1');
-      }, 2500);
-    }
+        // 2. Otomatik arşiv kontrolü
+        try { await autoArchiveCheck(); }
+        catch (e) { console.warn('[init] autoArchive:', e); }
 
-    /* 7 günden eski yedeği olanlara hatırlatıcı */
-    /* 7 günden eski yedeği olanlara hatırlatıcı — dashboard açıldıktan sonra */
-    setTimeout(async () => {
-      try { await checkBackupReminder(); }
-      catch (e) { console.warn('[init] reminder:', e); }
-    }, 2500);
+        await new Promise(r => setTimeout(r, 300));
+
+        // 3. iOS ITP uyarısı (sadece iOS'ta ve daha önce gösterilmediyse)
+        if (isIOS && !localStorage.getItem('ios_install_hint_shown')) {
+          await Swal.fire({
+            icon: 'info',
+            title: 'Verileriniz İçin Önemli',
+            html: `<p style="font-size:13px;">iOS Safari, <strong>7 gün</strong> boyunca ziyaret edilmeyen sitelerin verilerini silebilir.</p>
+                   <p style="font-size:13px;margin-top:10px;">Verilerinizi korumak için:</p>
+                   <p style="font-size:13px;margin-top:6px;">📲 Uygulamayı <strong>Ana Ekrana Ekleyin</strong><br>
+                   💾 Veya düzenli olarak <strong>JSON Yedeği</strong> alın.</p>`,
+            confirmButtonText: 'Anladım',
+            timer: 12000,
+            timerProgressBar: true
+          });
+          localStorage.setItem('ios_install_hint_shown', '1');
+          await new Promise(r => setTimeout(r, 300));
+        }
+
+        // 4. Yedek hatırlatıcısı
+        try { await checkBackupReminder(); }
+        catch (e) { console.warn('[init] reminder:', e); }
+
+      } catch (e) {
+        console.warn('[init] Sıralı başlatma hatası:', e);
+      }
+    }, 1000);
 
   } catch(e) {
     console.error('Başlatma hatası:', e);
