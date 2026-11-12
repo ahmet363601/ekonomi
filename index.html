@@ -2176,13 +2176,14 @@ sonIslemler() {
   },
 
   /* 🆕 FAZ 3 — Finansal Yaş Hesaplayıcı */
+  /* 🆕 FAZ 3 — Finansal Yaş Hesaplayıcı */
   finansalYas() {
-    ...
     const ayF = this.ayFilter();
     const gelir = this.toplamGelir(ayF);
     const gider = this.toplamGider(ayF);
     const borc = this.aktifBorcAlacak();
     const saglik = this.finansalSaglikSkoru();
+    
 
     let yas = 40; /* Başlangıç: ortalama finansal olgunluk */
 
