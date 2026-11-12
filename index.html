@@ -3730,11 +3730,10 @@ const App = {
   async deleteIslem(id, tip) {
     const r = await Swal.fire({ icon:'warning', title:'Silmek istediğinize emin misiniz?', showCancelButton:true, confirmButtonColor:'#DC2626', confirmButtonText:'Evet, Sil', cancelButtonText:'İptal' });
     if (r.isConfirmed) {
-      state.logs = state.logs.filter(l => l.action !== 'sayfa');
-      await saveLogs();
-      showToast(`🗑️ ${count} sayfa logu temizlendi`);
-      await Swal.close();          // ✅ önce kapanmayı bekle
-      await this.openLogModal();   // ✅ sonra yeniden aç
+      await CRUD.islemSil(id, tip);
+      showToast('🗑️ Silindi');
+      await this.renderIslemList();
+      if (this.currentPage === 'dashboard') await this.renderRecentList();
     }
   },
 
@@ -5244,8 +5243,8 @@ const App = {
       state.logs = state.logs.filter(l => l.action !== 'sayfa');
       await saveLogs();
       showToast(`🗑️ ${count} sayfa logu temizlendi`);
-      Swal.close();
-      this.openLogModal();
+      await Swal.close();
+      await this.openLogModal();
     }
   },
 
@@ -6631,34 +6630,23 @@ async function checkBackupReminder() {
    Font yüklenemezse otomatik ASCII fallback (ş→s, ğ→g …).
    ═══════════════════════════════════════════════════════════════ */
 
-let _pdfFontData = null;   // ← flag değil, veri cache'lensin
+let _pdfFontData = null;
+let _pdfFontFailed = false;
 
 async function _loadPdfFonts(doc) {
   try {
+    if (_pdfFontFailed) return false;
     if (!_pdfFontData) {
-      const sources = [
-        { name: 'Roboto-Regular.ttf', alias: 'Roboto', style: 'normal',
-          url: 'https://cdn.jsdelivr.net/gh/googlefonts/roboto-2@main/src/hinted/Roboto-Regular.ttf' },
-        { name: 'Roboto-Bold.ttf',    alias: 'Roboto', style: 'bold',
-          url: 'https://cdn.jsdelivr.net/gh/googlefonts/roboto-2@main/src/hinted/Roboto-Bold.ttf' }
-      ];
-      _pdfFontData = [];
-      for (const f of sources) {
-        const res = await fetch(f.url, { mode: 'cors' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const buf = await res.arrayBuffer();
-        _pdfFontData.push({ ...f, b64: _arrayBufferToBase64(buf) });
-      }
-      console.log('[PDF] ✅ Fontlar indirildi ve cache\'lendi');
+      // ... mevcut fetch bloğu
     }
-    // Her yeni doc'a ekle
     for (const f of _pdfFontData) {
       doc.addFileToVFS(f.name, f.b64);
       doc.addFont(f.name, f.alias, f.style);
     }
     return true;
   } catch (e) {
-    console.warn('[PDF] ⚠️ Font yüklenemedi, ASCII fallback:', e);
+    _pdfFontFailed = true;         // ✅ bir daha denenmesin
+    console.warn('[PDF] Font yüklenemedi:', e);
     return false;
   }
 }
