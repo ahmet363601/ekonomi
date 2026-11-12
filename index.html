@@ -1886,7 +1886,13 @@ async function addLog(action, details = '', meta = {}) {
 /* ─────────────────────────────────────────────
    OTOMATİK YEDEKLEME
 ───────────────────────────────────────────── */
+let _lastBackupTime = 0;
 async function createAutoBackup() {
+  // ✅ 60 saniye içinde tekrar çağrılırsa atla
+  const _now = Date.now();
+  if (_now - _lastBackupTime < 60000) return;
+  _lastBackupTime = _now;
+
   const backup = {
     id: Date.now() + Math.random(),
     createdAt: new Date().toISOString(),
@@ -2789,10 +2795,30 @@ const CRUD = {
       console.warn('[manuel_archiv] PDF üretim hatası (devam ediliyor):', errPdf);
     }
 
-    await addLog('manuel_arsiv',
-      `${SalaryMonth.label(monthKey)} · ${aGelir.length} gelir + ${aGider.length} gider + ${aLoglar.length} log`,
-      { month: monthKey, salaryMonth: true, range, year: SalaryMonth.yearOf(monthKey),
-        gelirCount: aGelir.length, giderCount: aGider.length, logCount: aLoglar.length });
+    // ✅ Arşiv log objesi — hem ana log'a hem arşive yazılacak
+    const arsivLogObj = {
+      id: Date.now() + Math.random(),
+      timestamp: new Date().toISOString(),
+      action: 'manuel_arsiv',
+      category: 'arsiv',
+      severity: 'info',
+      label: 'Ay Arşivlendi',
+      details: `${SalaryMonth.label(monthKey)} · ${aGelir.length} gelir + ${aGider.length} gider + ${aLoglar.length} log`,
+      meta: { month: monthKey, salaryMonth: true, range, year: SalaryMonth.yearOf(monthKey),
+              gelirCount: aGelir.length, giderCount: aGider.length, logCount: aLoglar.length },
+      page: 'arsiv'
+    };
+
+    // Ana log'a ekle (Dashboard ve Log modal'da görünsün)
+    state.logs.unshift(arsivLogObj);
+    if (state.logs.length > 500) state.logs = state.logs.slice(0, 500);
+
+    // ✅ Arşiv içine de ekle (bu satır eksikti — kritik!)
+    if (!state.archives[monthKey].loglar) state.archives[monthKey].loglar = [];
+    state.archives[monthKey].loglar.push(arsivLogObj);
+
+    await saveLogs();
+    await saveArchives();
 
     await createAutoBackup();
 
@@ -4594,6 +4620,92 @@ const App = {
       (s, b) => s + (Number(b.miktar) || 0) * Calc.birimFiyat(b.birim || 'tl'), 0
     );
 
+    // ═══════════════════════════════════════════════════════
+    // 🆕 KÜMÜLATİF SERVET + TREND HESABI
+    // ═══════════════════════════════════════════════════════
+    const allArchived = Object.entries(state.archives).map(([k, v]) => {
+      const aG = (v.gelirler || []).reduce((s, x) => s + (Number(x.miktar) || 0), 0);
+      const aGd = (v.giderler || []).reduce((s, x) => s + (Number(x.miktar) || 0), 0);
+      return { key: k, net: aG - aGd, gelir: aG, gider: aGd };
+    }).sort((a, b) => a.key.localeCompare(b.key));
+
+    const kumulatif = allArchived.reduce((s, a) => s + a.net, 0);
+    const ortalamaNet = allArchived.length ? kumulatif / allArchived.length : 0;
+    const enIyiAy = allArchived.length ? allArchived.reduce((a, b) => a.net > b.net ? a : b) : null;
+    const enKotuAy = allArchived.length ? allArchived.reduce((a, b) => a.net < b.net ? a : b) : null;
+    const son3Trend = allArchived.slice(-3).map(a => a.net);
+
+    const kumulatifHTML = allArchived.length === 0 ? '' : `
+      <div class="card" style="background:linear-gradient(135deg, #0F2A5C 0%, #1E40AF 100%);color:#fff;padding:20px 18px;margin-bottom:14px;border:none;box-shadow:0 8px 24px rgba(15,42,92,.25);">
+        <div style="font-size:10px;opacity:.75;letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+          <span>💎 Toplam Birikim (Arşiv)</span>
+          <span style="font-size:9px;">${allArchived.length} ay</span>
+        </div>
+        <div style="font-family:'Plus Jakarta Sans';font-size:34px;font-weight:900;letter-spacing:-1.2px;line-height:1;">${Calc.fmt(kumulatif)}</div>
+        <div style="display:flex;gap:14px;margin-top:12px;font-size:11px;opacity:.9;flex-wrap:wrap;">
+          <span>📈 Ort. <strong>${Calc.fmt(ortalamaNet)}</strong>/ay</span>
+          ${enIyiAy ? `<span>🏆 ${SalaryMonth.shortLabel(enIyiAy.key)}</span>` : ''}
+          ${enKotuAy && enKotuAy.net < 0 ? `<span>⚠️ ${SalaryMonth.shortLabel(enKotuAy.key)}</span>` : ''}
+        </div>
+        ${son3Trend.length >= 2 ? `
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.2);font-size:10.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span style="opacity:.7;">Son ${son3Trend.length} ay:</span>
+            ${son3Trend.map((v, i) => `<strong style="color:${v>=0?'#34D399':'#F87171'};">${v>=0?'+':''}${Calc.fmt(v)}${i<son3Trend.length-1?' →':''}</strong>`).join(' ')}
+            ${(() => {
+              if (son3Trend.length < 2) return '';
+              const yon = son3Trend[son3Trend.length - 1] - son3Trend[0];
+              const ok = yon >= 0 ? '↑' : '↓';
+              const renk = yon >= 0 ? '#34D399' : '#F87171';
+              return `<span style="margin-left:auto;color:${renk};font-weight:800;font-size:14px;">${ok}</span>`;
+            })()}
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    // ═══════════════════════════════════════════════════════
+    // 🆕 KATEGORİ TREND GRAFİĞİ HESABI (BLOK 8)
+    // ═══════════════════════════════════════════════════════
+    const arsivKategoriTrend = (() => {
+      const months = Object.keys(state.archives).sort().slice(-12);
+      if (months.length < 2) return null;
+
+      const data = [];
+      const allKats = new Set();
+
+      months.forEach(k => {
+        const a = state.archives[k];
+        const kats = {};
+        (a.giderler || []).forEach(x => {
+          const kat = x.kategori || 'Diğer';
+          kats[kat] = (kats[kat] || 0) + (Number(x.miktar) || 0);
+          allKats.add(kat);
+        });
+        data.push({ label: SalaryMonth.shortLabel(k), ...kats });
+      });
+
+      const toplamlar = {};
+      allKats.forEach(k => {
+        toplamlar[k] = data.reduce((s, d) => s + (Number(d[k]) || 0), 0);
+      });
+      const topKats = [...allKats].sort((a, b) => toplamlar[b] - toplamlar[a]).slice(0, 5);
+
+      return { data, kategoriler: topKats };
+    })();
+
+    const kategoriTrendHTML = arsivKategoriTrend ? `
+      <div class="card">
+        <div class="section-header">
+          <span class="section-title">📊 Kategori Trendleri (Son 12 Ay)</span>
+          <button onclick="App.downloadChart('arsivKatChart', 'Arsiv_Kategori_Trend')"
+                  style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;" title="PNG İndir">
+            <i class="fas fa-download"></i>
+          </button>
+        </div>
+        <div class="chart-wrap" style="height:220px;"><canvas id="arsivKatChart"></canvas></div>
+      </div>
+    ` : '';
+
     /* Yıla göre grupla */
     const byYear = {};
     keys.forEach(k => {
@@ -4630,8 +4742,9 @@ const App = {
     const countdownText = overdue
       ? `Arşiv gecikmiş! ${SalaryMonth.shortLabel(prevKey)} bekliyor`
       : (daysLeft === 0 ? 'Bugün arşiv günü!' : `${daysLeft} gün sonra arşiv`);
-
     document.getElementById('view').innerHTML = `<div class="page-in">
+
+      ${kumulatifHTML}
 
       <!-- ═══ AKTİF DÖNEM + SAYAÇ ═══ -->
       <div class="card" style="background:linear-gradient(135deg, #EFF6FF, #FFFFFF);border-left:4px solid ${countdownColor};">
@@ -4766,6 +4879,7 @@ const App = {
           <div id="tamamlananBorcList"></div>
         </div>
       ` : ''}
+      ${kategoriTrendHTML}
 
       <!-- ═══ YIL GRUPLU ARŞİV ═══ -->
       ${years.length === 0
@@ -4781,6 +4895,16 @@ const App = {
             const gd = aGd.reduce((ss, x) => ss + (Number(x.miktar) || 0), 0);
             return s + (g - gd);
           }, 0);
+
+          // 🆕 En iyi ay (yıl içinde)
+          const yilEnIyi = yearKeys.map(k => {
+            const a = state.archives[k] || {};
+            const aG = Array.isArray(a.gelirler) ? a.gelirler : [];
+            const aGd = Array.isArray(a.giderler) ? a.giderler : [];
+            const g = aG.reduce((ss, x) => ss + (Number(x.miktar) || 0), 0);
+            const gd = aGd.reduce((ss, x) => ss + (Number(x.miktar) || 0), 0);
+            return { key: k, net: g - gd };
+          }).reduce((a, b) => (!a || b.net > a.net) ? b : a, null);
             const totalCount = yearKeys.reduce((s, k) => {
               const a = state.archives[k] || {};
               const aG = Array.isArray(a.gelirler) ? a.gelirler : [];
@@ -4795,8 +4919,10 @@ const App = {
                   <i class="fas fa-chevron-${isOpen ? 'down' : 'right'}" style="color:var(--primary);font-size:14px;width:16px;"></i>
                   <div>
                     <div style="font-family:'Plus Jakarta Sans';font-size:18px;font-weight:900;color:var(--text);">${y}</div>
-                    <div style="font-size:11px;color:var(--text3);margin-top:2px;">
-                      ${yearKeys.length} dönem · ${totalCount} işlem
+                    <div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.5;">
+                      ${yearKeys.length} ay · <strong style="color:${yearTotal>=0?'var(--accent)':'var(--danger)'};">${Calc.fmt(yearTotal)}</strong>
+                      <span style="color:var(--text3);">·</span> Ort: ${Calc.fmt(yearTotal / yearKeys.length)}/ay
+                      ${yilEnIyi && yilEnIyi.net > 0 ? `<br><span style="color:var(--accent);">🏆 ${SalaryMonth.shortLabel(yilEnIyi.key)}</span>` : ''}
                     </div>
                   </div>
                 </div>
@@ -4930,6 +5056,17 @@ const App = {
           }).join('');
       }
     }
+
+    // 🆕 Kategori trend grafiğini çiz (HTML basıldıktan sonra)
+    if (arsivKategoriTrend) {
+      requestAnimationFrame(() => {
+        try {
+          Charts.kategoriTrend('arsivKatChart', arsivKategoriTrend.data, arsivKategoriTrend.kategoriler);
+        } catch (e) {
+          console.warn('[renderArsiv] Trend grafiği hatası:', e);
+        }
+      });
+    }
   },
 
   /* Yıl accordion aç/kapa */
@@ -5005,8 +5142,105 @@ const App = {
       this._archiveOpenYears.add(newYear);
       await this.renderArsiv();
       if (this.currentPage === 'dashboard') await this.renderDashboard();
+
+      // 🆕 AYLIK RİTÜEL MODAL — "Bu ay nasıl geçti?"
+      await this._showMonthlyRitual(targetKey);
     }
   },
+
+  /* 🆕 AYLIK RİTÜEL MODAL — Arşivleme sonrası insight kartı */
+  async _showMonthlyRitual(monthKey) {
+    const a = state.archives[monthKey];
+    if (!a) return;
+
+    const aGelirler = Array.isArray(a.gelirler) ? a.gelirler : [];
+    const aGiderler = Array.isArray(a.giderler) ? a.giderler : [];
+    const buGelir = aGelirler.reduce((s, x) => s + (Number(x.miktar) || 0), 0);
+    const buGider = aGiderler.reduce((s, x) => s + (Number(x.miktar) || 0), 0);
+    const buNet = buGelir - buGider;
+
+    // Önceki ay (varsa)
+    const sortedArchives = Object.keys(state.archives).sort();
+    const idx = sortedArchives.indexOf(monthKey);
+    const prevKey = idx > 0 ? sortedArchives[idx - 1] : null;
+    const prevArchive = prevKey ? state.archives[prevKey] : null;
+    const prevGelir = prevArchive ? (prevArchive.gelirler || []).reduce((s, x) => s + (Number(x.miktar) || 0), 0) : 0;
+    const prevGider = prevArchive ? (prevArchive.giderler || []).reduce((s, x) => s + (Number(x.miktar) || 0), 0) : 0;
+    const prevNet = prevGelir - prevGider;
+
+    // Kategori değişim
+    const buKats = {};
+    aGiderler.forEach(x => { const k = x.kategori || 'Diğer'; buKats[k] = (buKats[k] || 0) + (Number(x.miktar) || 0); });
+    const prevKats = prevArchive ? (prevArchive.giderler || []).reduce((m, x) => {
+      const k = x.kategori || 'Diğer';
+      m[k] = (m[k] || 0) + (Number(x.miktar) || 0);
+      return m;
+    }, {}) : {};
+
+    const farkKats = Object.entries(buKats)
+      .map(([k, v]) => {
+        const prev = prevKats[k] || 0;
+        const diff = prev > 0 ? ((v - prev) / prev) * 100 : null;
+        return { kat: k, bu: v, prev, diff };
+      })
+      .filter(x => x.diff !== null && Math.abs(x.diff) >= 15)
+      .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff))
+      .slice(0, 3);
+
+    const netFark = prevArchive ? (buNet - prevNet) : 0;
+    const netOk = netFark >= 0;
+
+    const result = await Swal.fire({
+      title: '🎉 ' + SalaryMonth.shortLabel(monthKey) + ' Arşivlendi',
+      html: `
+        <div style="text-align:left;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+            <div class="archive-stat-card" style="text-align:center;">
+              <div class="archive-stat-label">Net Bakiye</div>
+              <div class="archive-stat-value ${buNet >= 0 ? 'green' : 'red'}" style="font-size:15px;">${Calc.fmt(buNet)}</div>
+            </div>
+            <div class="archive-stat-card" style="text-align:center;">
+              <div class="archive-stat-label">${prevArchive ? 'Geçen Aya Göre' : 'Durum'}</div>
+              <div class="archive-stat-value ${netOk ? 'green' : 'red'}" style="font-size:13px;">
+                ${prevArchive
+                  ? (netFark === 0 ? '≈ Aynı' : (netOk ? '↑ ' : '↓ ') + Calc.fmt(Math.abs(netFark)))
+                  : '🎯 İlk arşiv'}
+              </div>
+            </div>
+          </div>
+
+          ${farkKats.length > 0 ? `
+            <div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:10px;">
+              <div style="font-size:11px;font-weight:700;margin-bottom:6px;color:var(--text2);">📊 En Çok Değişen Kategoriler</div>
+              ${farkKats.map(f => `
+                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:1px dashed var(--border);">
+                  <span>${UI.escHtml(f.kat)}</span>
+                  <span style="color:${f.diff > 0 ? 'var(--danger)' : 'var(--accent)'};font-weight:700;">
+                    ${f.diff > 0 ? '↑' : '↓'} %${Math.abs(f.diff).toFixed(0)}
+                  </span>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+
+          <div style="font-size:11px;color:var(--text3);text-align:center;padding:8px 0;border-top:1px solid var(--border);margin-top:8px;">
+            ${aGelirler.length} gelir · ${aGiderler.length} gider
+            ${a.pdfDataUrl ? ' · 📄 PDF hazır' : ''}
+          </div>
+        </div>
+      `,
+      confirmButtonText: a.pdfDataUrl ? '📄 PDF İndir' : 'Tamam',
+      showCancelButton: !!a.pdfDataUrl,
+      cancelButtonText: 'Kapat',
+      width: Math.min(460, window.innerWidth - 24)
+    });
+
+    if (result.isConfirmed && a.pdfDataUrl) {
+      this.downloadArchivePDF(monthKey);
+    }
+  },
+
+  /* Arşiv detay modalı */
 
   /* Arşiv detay modalı */
   async showArchiveDetail(key) {
@@ -5126,9 +5360,7 @@ const App = {
 
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;">
           <span style="font-size:11px;color:var(--text3);" id="logCounter">—</span>
-          <button onclick="App._cleanupPageLogs()" style="padding:5px 10px;background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;">
-            <i class="fas fa-broom"></i> Eski Sayfa Loglarını Temizle
-          </button>
+          <span style="font-size:10px;color:var(--text3);font-style:italic;">Son 500 log tutulur</span>
         </div>
 
         <div id="logBody" style="max-height:420px;overflow-y:auto;"></div>
@@ -7041,10 +7273,12 @@ document.addEventListener('click', () => { requestPersistentStorage(); }, { once
     setTimeout(async () => {
       try {
         // 1. Migration
+        // 1. Migration
         try { await migrateOldData(); }
         catch (e) { console.warn('[init] migrate:', e); }
 
-        await new Promise(r => setTimeout(r, 300));
+        // ✅ 300ms → 2000ms (2 saniye bekle, backup yazımı tamamlansın)
+        await new Promise(r => setTimeout(r, 2000));
 
         // 2. Otomatik arşiv kontrolü
         try { await autoArchiveCheck(); }
