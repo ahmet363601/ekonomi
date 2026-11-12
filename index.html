@@ -1530,21 +1530,29 @@ window.addEventListener('unhandledrejection', (e) => {
 /* ─────────────────────────────────────────────
    🛡️ CDN GUARD — kütüphaneler yüklenmeden koda geçme
 ───────────────────────────────────────────── */
-if (typeof dayjs === 'undefined' || typeof Swal === 'undefined' || typeof Chart === 'undefined') {
-  document.addEventListener('DOMContentLoaded', () => {
-    const v = document.getElementById('view');
-    if (v) v.innerHTML = `
-      <div class="empty-state" style="padding:60px 20px;">
-        <i class="fas fa-wifi" style="color:var(--danger);font-size:40px;"></i>
-        <p style="margin-top:12px;"><strong>Gerekli kütüphaneler yüklenemedi</strong></p>
-        <p style="font-size:11px;opacity:.6;margin-top:6px;">
-          dayjs: ${typeof dayjs} · Swal: ${typeof Swal} · Chart: ${typeof Chart}
-        </p>
-        <p style="font-size:11px;opacity:.6;">İnternet bağlantınızı kontrol edip yenileyin.</p>
-        <button class="btn btn-primary" style="margin-top:16px;" onclick="location.reload(true)">Yenile</button>
-      </div>`;
-  });
-  throw new Error('CDN libraries failed to load — aborting script execution');
+'use strict';
+
+/* ─────────────────────────────────────────────
+   🛡️ CDN GUARD — kütüphaneler yüklenmeden koda geçme
+───────────────────────────────────────────── */
+const _missing = [];
+if (typeof dayjs === 'undefined') _missing.push('dayjs');
+if (typeof Swal === 'undefined') _missing.push('Swal');
+if (typeof Chart === 'undefined') _missing.push('Chart');
+if (!window.dayjs_plugin_relativeTime) _missing.push('dayjs/plugin/relativeTime');
+if (!window.dayjs_plugin_advancedFormat) _missing.push('dayjs/plugin/advancedFormat');
+
+if (_missing.length > 0) {
+  const v = document.getElementById('view');
+  if (v) v.innerHTML = `
+    <div class="empty-state" style="padding:60px 20px;">
+      <i class="fas fa-wifi" style="color:var(--danger);font-size:40px;"></i>
+      <p style="margin-top:12px;"><strong>Gerekli kütüphaneler yüklenemedi</strong></p>
+      <p style="font-size:11px;opacity:.7;margin-top:8px;">Eksik: ${_missing.join(', ')}</p>
+      <p style="font-size:11px;opacity:.6;margin-top:6px;">İnternet bağlantınızı kontrol edip yenileyin.</p>
+      <button class="btn btn-primary" style="margin-top:16px;" onclick="location.reload(true)">Yenile</button>
+    </div>`;
+  throw new Error('CDN libraries failed: ' + _missing.join(', '));
 }
 
 /* ─────────────────────────────────────────────
@@ -6637,7 +6645,20 @@ async function _loadPdfFonts(doc) {
   try {
     if (_pdfFontFailed) return false;
     if (!_pdfFontData) {
-      // ... mevcut fetch bloğu
+      const sources = [
+        { name: 'Roboto-Regular.ttf', alias: 'Roboto', style: 'normal',
+          url: 'https://cdn.jsdelivr.net/gh/googlefonts/roboto-2@main/src/hinted/Roboto-Regular.ttf' },
+        { name: 'Roboto-Bold.ttf',    alias: 'Roboto', style: 'bold',
+          url: 'https://cdn.jsdelivr.net/gh/googlefonts/roboto-2@main/src/hinted/Roboto-Bold.ttf' }
+      ];
+      _pdfFontData = [];
+      for (const f of sources) {
+        const res = await fetch(f.url, { mode: 'cors' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buf = await res.arrayBuffer();
+        _pdfFontData.push({ ...f, b64: _arrayBufferToBase64(buf) });
+      }
+      console.log('[PDF] ✅ Fontlar indirildi ve cache\'lendi');
     }
     for (const f of _pdfFontData) {
       doc.addFileToVFS(f.name, f.b64);
@@ -6645,8 +6666,8 @@ async function _loadPdfFonts(doc) {
     }
     return true;
   } catch (e) {
-    _pdfFontFailed = true;         // ✅ bir daha denenmesin
-    console.warn('[PDF] Font yüklenemedi:', e);
+    _pdfFontFailed = true;
+    console.warn('[PDF] ⚠️ Font yüklenemedi, ASCII fallback:', e);
     return false;
   }
 }
