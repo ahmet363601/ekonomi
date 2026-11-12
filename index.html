@@ -1861,14 +1861,16 @@ const Calc = {
   },
   aylikTrend(aySayisi = 6) {
     const currentStart = dayjs(SalaryMonth.currentKey() + '-15');
+    const tumGelirler = this._allGelirler();
+    const tumGiderler = this._allGiderler();
     return Array.from({ length: aySayisi }, (_, i) => {
       const monthStart = currentStart.subtract(aySayisi - 1 - i, 'month');
       const key = monthStart.format('YYYY-MM');
       const r = SalaryMonth.range(key);
       return {
         label: monthStart.format('MMM YY'),
-        gelir: state.gelirler.filter(g => g.tarih >= r.start && g.tarih <= r.end).reduce((s, g) => s + (Number(g.miktar) || 0), 0),
-        gider: state.giderler.filter(g => g.tarih >= r.start && g.tarih <= r.end).reduce((s, g) => s + (Number(g.miktar) || 0), 0)
+        gelir: tumGelirler.filter(g => g.tarih >= r.start && g.tarih <= r.end).reduce((s, g) => s + (Number(g.miktar) || 0), 0),
+        gider: tumGiderler.filter(g => g.tarih >= r.start && g.tarih <= r.end).reduce((s, g) => s + (Number(g.miktar) || 0), 0)
       };
     });
   },
@@ -2105,8 +2107,8 @@ sonIslemler() {
 
   /* 3. Cash Flow Waterfall */
   waterfallData(range) {
-    const gelir = this.toplamGelir(range);
-    const gider = this.toplamGider(range);
+    const gelir = this._toplamGelirTum(range);
+    const gider = this._toplamGiderTum(range);
     const net = gelir - gider;
 
     const steps = [
@@ -2128,7 +2130,7 @@ sonIslemler() {
       const monthStart = currentStart.subtract(i, 'month');
       const key = monthStart.format('YYYY-MM');
       const r = SalaryMonth.range(key);
-      const kats = this.kategoriGiderler({ start: r.start, end: r.end });
+      const kats = this._kategoriGiderlerTum({ start: r.start, end: r.end });
       data.push({ label: monthStart.format('MMM YY'), ...kats });
     }
 
@@ -2145,22 +2147,25 @@ sonIslemler() {
   },
 
   /* 5. Dönem Karşılaştırma */
+  /* 5. Dönem Karşılaştırma */
   donemKarsilastir(key1, key2) {
     const r1 = SalaryMonth.range(key1);
     const r2 = SalaryMonth.range(key2);
 
     const olustur = (r) => {
-      const gelir = this.toplamGelir({ start: r.start, end: r.end });
-      const gider = this.toplamGider({ start: r.start, end: r.end });
-      const kats = this.kategoriGiderler({ start: r.start, end: r.end });
-      const islem = state.gelirler.filter(g => g.tarih >= r.start && g.tarih <= r.end).length +
-                    state.giderler.filter(g => g.tarih >= r.start && g.tarih <= r.end).length;
+      const gelir = this._toplamGelirTum({ start: r.start, end: r.end });
+      const gider = this._toplamGiderTum({ start: r.start, end: r.end });
+      const kats = this._kategoriGiderlerTum({ start: r.start, end: r.end });
+      const islem = this._allGelirler().filter(g => g.tarih >= r.start && g.tarih <= r.end).length +
+                    this._allGiderler().filter(g => g.tarih >= r.start && g.tarih <= r.end).length;
       return {
         gelir, gider, kats, islem,
         net: gelir - gider,
         tasarrufOrani: gelir > 0 ? (gelir - gider) / gelir : 0
       };
     };
+
+    // ✅ EKLENDİ: return ifadesi ve kapanış
     return {
       key1, key2,
       label1: SalaryMonth.shortLabel(key1),
@@ -2172,6 +2177,7 @@ sonIslemler() {
 
   /* 🆕 FAZ 3 — Finansal Yaş Hesaplayıcı */
   finansalYas() {
+    ...
     const ayF = this.ayFilter();
     const gelir = this.toplamGelir(ayF);
     const gider = this.toplamGider(ayF);
@@ -2209,56 +2215,41 @@ sonIslemler() {
 
     return { yas, etiket, renk, aciklama, tasarrufOrani, borcOrani, gunSayisi: saglik.gunSayisi };
   },
-
-  /* 🆕 FAZ 3 — 50/30/20 Kuralı Analizi */
-  ellilikKural() {
-    const ayF = this.ayFilter();
-    const gelir = this.toplamGelir(ayF);
-    const kats = this.kategoriGiderler(ayF);
-
-    /* İhtiyaç (50%): Market, Fatura, Ulaşım, Sağlık, Eğitim */
-    const ihtiyacKats = ['Market', 'Fatura', 'Ulaşım', 'Sağlık', 'Eğitim'];
-    /* İstek (30%): Eğlence, Alışveriş, Yemek, Diğer */
-    const istekKats = ['Eğlence', 'Alışveriş', 'Yemek', 'Diğer'];
-
-    let ihtiyac = 0, istek = 0;
-    Object.entries(kats).forEach(([k, v]) => {
-      if (ihtiyacKats.includes(k)) ihtiyac += v;
-      else if (istekKats.includes(k)) istek += v;
-      else istek += v; /* Bilinmeyen kategoriler istek sayılır */
-    });
-
-    const tasarruf = gelir - ihtiyac - istek;
-    const ihtiyacHedef = gelir * 0.5;
-    const istekHedef = gelir * 0.3;
-    const tasarrufHedef = gelir * 0.2;
-
-    const ihtiyacPct = gelir > 0 ? (ihtiyac / gelir) * 100 : 0;
-    const istekPct = gelir > 0 ? (istek / gelir) * 100 : 0;
-    const tasarrufPct = gelir > 0 ? (tasarruf / gelir) * 100 : 0;
-
-    let durum, durumRenk;
-    if (tasarrufPct >= 20 && istekPct <= 35 && ihtiyacPct <= 55) {
-      durum = 'Mükemmel uyum'; durumRenk = '#059669';
-    } else if (tasarrufPct >= 10 && istekPct <= 40) {
-      durum = 'İyi gidiyorsun'; durumRenk = '#0891B2';
-    } else if (istekPct > 40) {
-      durum = 'İstek harcamaları fazla'; durumRenk = '#DC2626';
-    } else if (tasarrufPct < 10) {
-      durum = 'Tasarrufu artır'; durumRenk = '#D97706';
-    } else {
-      durum = 'Dengede tut'; durumRenk = '#D97706';
-    }
-
-    return {
-      gelir,
-      ihtiyac, istek, tasarruf,
-      ihtiyacHedef, istekHedef, tasarrufHedef,
-      ihtiyacPct, istekPct, tasarrufPct,
-      durum, durumRenk
-    };
+  /* ═══════════════════════════════════════════════════════
+     TÜM VERİ (Aktif + Arşiv) — Rapor ve Analiz için
+     ═══════════════════════════════════════════════════════ */
+  _allGelirler() {
+    const archived = Object.values(state.archives)
+      .flatMap(a => Array.isArray(a.gelirler) ? a.gelirler : []);
+    return [...state.gelirler, ...archived];
   },
-
+  _allGiderler() {
+    const archived = Object.values(state.archives)
+      .flatMap(a => Array.isArray(a.giderler) ? a.giderler : []);
+    return [...state.giderler, ...archived];
+  },
+  _toplamGelirTum(f = {}) {
+    let d = this._allGelirler();
+    if (f.start) d = d.filter(g => g.tarih && g.tarih >= f.start);
+    if (f.end)   d = d.filter(g => g.tarih && g.tarih <= f.end);
+    return d.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+  },
+  _toplamGiderTum(f = {}) {
+    let d = this._allGiderler();
+    if (f.start) d = d.filter(g => g.tarih && g.tarih >= f.start);
+    if (f.end)   d = d.filter(g => g.tarih && g.tarih <= f.end);
+    return d.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+  },
+  _kategoriGiderlerTum(f = {}) {
+    let d = this._allGiderler();
+    if (f.start) d = d.filter(g => g.tarih && g.tarih >= f.start);
+    if (f.end)   d = d.filter(g => g.tarih && g.tarih <= f.end);
+    return d.reduce((map, g) => {
+      const k = g.kategori || 'Diğer';
+      map[k] = (map[k] || 0) + (Number(g.miktar) || 0);
+      return map;
+    }, {});
+  },
   /* 🆕 FAZ 3 — Vadesi Yaklaşan Borçlar */
   vadeleriGelenBorclar(gunEsik = 7) {
     const bugun = dayjs();
@@ -2279,52 +2270,118 @@ sonIslemler() {
 
   /* 🆕 FAZ 3 — Senaryo Simülatörü */
   senaryoSimulasyon(params) {
-    /* Son 3 ayın ortalama gelir/gider/kategori dağılımı */
+    /* Son 6 ayın ortalama verisi (daha stabil projeksiyon) */
     const bugun = dayjs();
     const aylik = [];
-    for (let i = 0; i < 3; i++) {
-      const key = bugun.subtract(i, 'month').format('YYYY-MM');
+
+    for (let i = 0; i < 6; i++) {
+      const tarih = bugun.subtract(i, 'month');
+      const key = SalaryMonth.keyOf(tarih.format('YYYY-MM-DD'));
       const r = SalaryMonth.range(key);
-      aylik.push({
-        gelir: this.toplamGelir({ start: r.start, end: r.end }),
-        gider: this.toplamGider({ start: r.start, end: r.end }),
-        kats: this.kategoriGiderler({ start: r.start, end: r.end })
-      });
+
+      const g = this._allGelirler()
+        .filter(x => x.tarih >= r.start && x.tarih <= r.end)
+        .reduce((s, x) => s + (Number(x.miktar) || 0), 0);
+      const gd = this._allGiderler()
+        .filter(x => x.tarih >= r.start && x.tarih <= r.end)
+        .reduce((s, x) => s + (Number(x.miktar) || 0), 0);
+      const kats = this._kategoriGiderlerTum({ start: r.start, end: r.end });
+
+      if (g > 0 || gd > 0) aylik.push({ gelir: g, gider: gd, kats });
     }
 
-    const ortGelir = aylik.reduce((s, m) => s + m.gelir, 0) / 3;
-    const ortGider = aylik.reduce((s, m) => s + m.gider, 0) / 3;
+    const aySayisi = Math.max(1, aylik.length);
+    const ortGelir = aylik.reduce((s, m) => s + m.gelir, 0) / aySayisi;
+    const ortGider = aylik.reduce((s, m) => s + m.gider, 0) / aySayisi;
     const ortKats = {};
     aylik.forEach(m => {
       Object.entries(m.kats).forEach(([k, v]) => {
-        ortKats[k] = (ortKats[k] || 0) + v / 3;
+        ortKats[k] = (ortKats[k] || 0) + v / aySayisi;
       });
     });
 
-    /* Senaryo uygulama */
+    /* Parametreleri uygula */
     const yeniKats = { ...ortKats };
+    const katEtki = {};
+
     const maasZam = (params.maasZamPct || 0) / 100;
     const kiraArt = (params.kiraArtisPct || 0) / 100;
+    const marketAz = (params.marketAzaltmaPct || 0) / 100;
     const yemekAz = (params.yemekAzaltmaPct || 0) / 100;
     const alisverisAz = (params.alisverisAzaltmaPct || 0) / 100;
+    const eglenceAz = (params.eglenceAzaltmaPct || 0) / 100;
 
-    if (yeniKats['Fatura'])    yeniKats['Fatura']    *= (1 + kiraArt);
-    if (yeniKats['Yemek'])     yeniKats['Yemek']     *= (1 - yemekAz);
-    if (yeniKats['Alışveriş']) yeniKats['Alışveriş'] *= (1 - alisverisAz);
+    const uygulaArtis = (kategori, pct) => {
+      if (yeniKats[kategori] && pct > 0) {
+        const eski = yeniKats[kategori];
+        yeniKats[kategori] = eski * (1 + pct);
+        katEtki[kategori] = (katEtki[kategori] || 0) + (yeniKats[kategori] - eski);
+      }
+    };
+    const uygulaAzalt = (kategori, pct) => {
+      if (yeniKats[kategori] && pct > 0) {
+        const eski = yeniKats[kategori];
+        yeniKats[kategori] = eski * (1 - pct);
+        katEtki[kategori] = (katEtki[kategori] || 0) + (yeniKats[kategori] - eski);
+      }
+    };
 
-    const yeniGelir = ortGelir * (1 + maasZam);
+    uygulaArtis('Fatura', kiraArt);
+    uygulaAzalt('Market', marketAz);
+    uygulaAzalt('Yemek', yemekAz);
+    uygulaAzalt('Alışveriş', alisverisAz);
+    uygulaAzalt('Eğlence', eglenceAz);
+
+    const ekGelir = Number(params.ekGelirAylik) || 0;
+    const yeniGelir = ortGelir * (1 + maasZam) + ekGelir;
     const yeniGider = Object.values(yeniKats).reduce((s, v) => s + v, 0);
     const yeniNet = yeniGelir - yeniGider;
     const mevcutNet = ortGelir - ortGider;
     const fark = yeniNet - mevcutNet;
 
+    /* Tasarruf hedefi */
+    const tasarrufHedef = Number(params.tasarrufHedef) || 0;
+    let hedefAy = null;
+    if (tasarrufHedef > 0 && yeniNet > 0) {
+      hedefAy = Math.ceil(tasarrufHedef / yeniNet);
+    }
+
+    /* 12 aylık projeksiyon */
+    const projeksiyon = [];
+    for (let i = 1; i <= 12; i++) {
+      projeksiyon.push({
+        ay: i,
+        mevcut: mevcutNet * i,
+        senaryo: yeniNet * i
+      });
+    }
+
     return {
-      mevcutGelir: ortGelir, yeniGelir,
-      mevcutGider: ortGider, yeniGider,
-      mevcutNet, yeniNet, fark,
+      /* Mevcut */
+      mevcutGelir: ortGelir,
+      mevcutGider: ortGider,
+      mevcutNet,
+      /* Senaryo */
+      yeniGelir,
+      yeniGider,
+      yeniNet,
+      /* Fark */
+      fark,
+      ekGelir,
+      maasZamTL: ortGelir * maasZam,
+      /* Birikim */
       altiAyBirikim: yeniNet * 6,
       mevcutAltiAyBirikim: mevcutNet * 6,
-      altiAyFark: (yeniNet - mevcutNet) * 6
+      altiAyFark: (yeniNet - mevcutNet) * 6,
+      yillikBirikim: yeniNet * 12,
+      mevcutYillikBirikim: mevcutNet * 12,
+      yillikFark: (yeniNet - mevcutNet) * 12,
+      /* Detay */
+      katEtki,
+      projeksiyon,
+      /* Hedef */
+      tasarrufHedef,
+      hedefAy
     };
   },
 };
@@ -3128,55 +3185,6 @@ const App = {
         </div>
       </div>
 
-      <!-- 🆕 50/30/20 KURALI -->
-      ${(() => {
-        const k = Calc.ellilikKural();
-        if (k.gelir === 0) return '';
-        const bar = (pct, hedef, renk) => {
-          const dolu = Math.min(pct, 100);
-          const isaretX = Math.min(hedef, 100);
-          return `<div style="position:relative;height:8px;background:var(--surface3);border-radius:99px;overflow:hidden;margin-top:6px;">
-            <div style="height:100%;width:${dolu}%;background:${renk};border-radius:99px;"></div>
-            <div style="position:absolute;top:-2px;left:${isaretX}%;width:2px;height:12px;background:var(--text);opacity:.7;"></div>
-          </div>`;
-        };
-        return `<div class="card" style="border-left:4px solid ${k.durumRenk};">
-          <div class="section-header">
-            <span class="section-title" style="display:flex;align-items:center;gap:8px;">
-              <i class="fas fa-chart-pie" style="color:${k.durumRenk};"></i>
-              50/30/20 Kuralı
-            </span>
-            <span class="badge" style="background:${k.durumRenk};color:#fff;font-size:10px;">${k.durum}</span>
-          </div>
-
-          <div style="margin-bottom:12px;">
-            <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--text);">
-              <span>🏠 İhtiyaçlar <span style="color:var(--text3);font-weight:400;">(hedef: %50)</span></span>
-              <span style="color:${k.ihtiyacPct<=55?'var(--accent)':'var(--danger)'};font-weight:800;">%${k.ihtiyacPct.toFixed(0)}</span>
-            </div>
-            ${bar(k.ihtiyacPct, 50, k.ihtiyacPct<=55 ? '#059669' : '#DC2626')}
-            <div style="font-size:10px;color:var(--text3);margin-top:3px;">${Calc.fmt(k.ihtiyac)}</div>
-          </div>
-
-          <div style="margin-bottom:12px;">
-            <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--text);">
-              <span>🎉 İstekler <span style="color:var(--text3);font-weight:400;">(hedef: %30)</span></span>
-              <span style="color:${k.istekPct<=35?'var(--accent)':'var(--danger)'};font-weight:800;">%${k.istekPct.toFixed(0)}</span>
-            </div>
-            ${bar(k.istekPct, 30, k.istekPct<=35 ? '#059669' : '#DC2626')}
-            <div style="font-size:10px;color:var(--text3);margin-top:3px;">${Calc.fmt(k.istek)}</div>
-          </div>
-
-          <div>
-            <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--text);">
-              <span>💰 Tasarruf <span style="color:var(--text3);font-weight:400;">(hedef: %20)</span></span>
-              <span style="color:${k.tasarrufPct>=15?'var(--accent)':'var(--danger)'};font-weight:800;">%${k.tasarrufPct.toFixed(0)}</span>
-            </div>
-            ${bar(k.tasarrufPct, 20, k.tasarrufPct>=15 ? '#059669' : '#DC2626')}
-            <div style="font-size:10px;color:var(--text3);margin-top:3px;">${Calc.fmt(k.tasarruf)}</div>
-          </div>
-        </div>`;
-      })()}
       <!-- 🆕 SENARYO SİMÜLATÖRÜ BUTONU -->
       <button onclick="App.openSenaryoSimulator()" class="btn btn-full" style="background:linear-gradient(135deg, #7C3AED, #2563EB);color:#fff;border:none;box-shadow:0 4px 14px rgba(124,58,237,.3);margin-bottom:12px;height:52px;font-size:14px;">
         <i class="fas fa-flask"></i>
@@ -3401,6 +3409,12 @@ const App = {
         </div>
       </div>
     </div>`;
+
+    // ✅ Tarih güvence: iOS Safari'de value attribute bazen yok sayılır
+    requestAnimationFrame(() => {
+      const tEl = document.getElementById('islemTarih');
+      if (tEl && !tEl.value) tEl.value = dayjs().format('YYYY-MM-DD');
+    });
 
     await this.renderIslemList();
   },
@@ -4313,10 +4327,10 @@ const App = {
     const end    = document.getElementById('rEnd')?.value   || this._raporEnd;
     this._raporStart = start; this._raporEnd = end;
     const f      = { start, end };
-    const gelir  = Calc.toplamGelir(f);
-    const gider  = Calc.toplamGider(f);
+    const gelir  = Calc._toplamGelirTum(f);
+    const gider  = Calc._toplamGiderTum(f);
     const bakiye = gelir - gider;
-    const katG   = Calc.kategoriGiderler(f);
+    const katG   = Calc._kategoriGiderlerTum(f);
     const topKat = Object.entries(katG).sort((a,b)=>b[1]-a[1])[0];
     const gunFark= Math.max(1, dayjs(end).diff(dayjs(start),'day') + 1);
     const avgGun = gider / gunFark;
@@ -4354,8 +4368,8 @@ const App = {
     /* 🆕 FAZ 2 — Karşılaştırma select'lerini doldur */
     this._fillKarsilastirmaSelects();
     const txData = [
-      ...state.gelirler.filter(g=>g.tarih>=start&&g.tarih<=end).map(g=>({...g,_tip:'gelir'})),
-      ...state.giderler.filter(g=>g.tarih>=start&&g.tarih<=end).map(g=>({...g,_tip:'gider'}))
+      ...Calc._allGelirler().filter(g=>g.tarih>=start&&g.tarih<=end).map(g=>({...g,_tip:'gelir'})),
+      ...Calc._allGiderler().filter(g=>g.tarih>=start&&g.tarih<=end).map(g=>({...g,_tip:'gider'}))
     ].sort((a,b)=>b.tarih>a.tarih?1:-1);
 
     const txEl = document.getElementById('raporTxList');
@@ -5329,8 +5343,8 @@ const App = {
     }
     const rStart = this._raporStart;
     const rEnd   = this._raporEnd;
-    const gelirlerFiltre = state.gelirler.filter(g => g.tarih >= rStart && g.tarih <= rEnd);
-    const giderlerFiltre = state.giderler.filter(g => g.tarih >= rStart && g.tarih <= rEnd);
+    const gelirlerFiltre = Calc._allGelirler().filter(g => g.tarih >= rStart && g.tarih <= rEnd);
+    const giderlerFiltre = Calc._allGiderler().filter(g => g.tarih >= rStart && g.tarih <= rEnd);
 
     Swal.fire({
       title: 'PDF hazırlanıyor...',
@@ -5374,8 +5388,8 @@ const App = {
 
       /* ═══ ÖZET KARTLARI ═══ */
       let y = 58;
-      const gelirT = Calc.toplamGelir({ start: rStart, end: rEnd });
-      const giderT = Calc.toplamGider({ start: rStart, end: rEnd });
+      const gelirT = Calc._toplamGelirTum({ start: rStart, end: rEnd });
+      const giderT = Calc._toplamGiderTum({ start: rStart, end: rEnd });
       const bakiye = gelirT - giderT;
       const borcT = Calc.aktifBorcAlacak();
 
@@ -5393,7 +5407,7 @@ const App = {
       _baslik(doc, 'GİDER DAĞILIMI', y, hasUni, FONT);
       y += 10;
 
-      const katG = Calc.kategoriGiderler({ start: rStart, end: rEnd });
+      const katG = Calc._kategoriGiderlerTum({ start: rStart, end: rEnd });
       const sortedKat = Object.entries(katG).sort((a, b) => b[1] - a[1]).slice(0, 8);
       const maxKat = sortedKat.length ? sortedKat[0][1] : 1;
       const palet = [
@@ -5631,7 +5645,7 @@ const App = {
   },
 
 
-    async exportToExcel() {
+  async exportToExcel() {
     if (typeof window.XLSX === 'undefined') {
       showToast('❌ Excel motoru yüklenemedi. İnternet bağlantınızı kontrol edin.');
       return;
@@ -5639,8 +5653,8 @@ const App = {
     try {
       const rStart = this._raporStart;
       const rEnd   = this._raporEnd;
-      const gelirlerFiltre = state.gelirler.filter(g => g.tarih >= rStart && g.tarih <= rEnd);
-      const giderlerFiltre = state.giderler.filter(g => g.tarih >= rStart && g.tarih <= rEnd);
+      const gelirlerFiltre = Calc._allGelirler().filter(g => g.tarih >= rStart && g.tarih <= rEnd);
+      const giderlerFiltre = Calc._allGiderler().filter(g => g.tarih >= rStart && g.tarih <= rEnd);
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
@@ -5987,68 +6001,125 @@ const App = {
     await Swal.fire({
       title: '🎮 Senaryo Simülatörü',
       html: `<div style="text-align:left;">
-        <p style="font-size:12px;color:#64748b;margin-bottom:14px;">Varsayımları değiştir, 6 aylık geleceğini anlık gör.</p>
+        <p style="font-size:12px;color:#64748b;margin-bottom:14px;">
+          Değişkenleri ayarla, geleceğini gör. <span style="color:var(--text3);">(Son 6 ay ortalaması baz alınır)</span>
+        </p>
 
-        <div style="margin-bottom:14px;">
-          <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
-            <span>💼 Maaş Zammı</span>
-            <span id="lblMaas" style="color:var(--primary);font-weight:800;">+0%</span>
-          </label>
-          <input type="range" id="simMaas" min="-30" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
+        <!-- 💰 GELİR -->
+        <div style="margin-bottom:14px;padding:12px;background:var(--accent-light);border-radius:10px;">
+          <div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px;">
+            💰 Gelir Değişkenleri
+          </div>
+
+          <div style="margin-bottom:12px;">
+            <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
+              <span>Maaş Zammı</span>
+              <span id="lblMaas" style="color:var(--accent);font-weight:800;">+0%</span>
+            </label>
+            <input type="range" id="simMaas" min="-30" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
+          </div>
+
+          <div>
+            <label style="font-size:12px;font-weight:600;display:block;color:#475569;margin-bottom:4px;">
+              Ek Aylık Gelir (TL)
+            </label>
+            <input type="number" id="simEkGelir" value="0" min="0" step="100" oninput="App._updateSim()"
+                   class="swal2-input" style="margin:0;width:100%;">
+          </div>
         </div>
 
-        <div style="margin-bottom:14px;">
-          <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
-            <span>🏠 Kira/Fatura Artışı</span>
-            <span id="lblKira" style="color:var(--warning);font-weight:800;">+0%</span>
-          </label>
-          <input type="range" id="simKira" min="0" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
+        <!-- 💸 GİDER -->
+        <div style="margin-bottom:14px;padding:12px;background:var(--danger-light);border-radius:10px;">
+          <div style="font-size:11px;font-weight:700;color:var(--danger);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px;">
+            💸 Gider Değişkenleri
+          </div>
+
+          <div style="margin-bottom:10px;">
+            <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
+              <span>🏠 Kira/Fatura Artışı</span>
+              <span id="lblKira" style="color:var(--warning);font-weight:800;">+0%</span>
+            </label>
+            <input type="range" id="simKira" min="0" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
+          </div>
+
+          <div style="margin-bottom:10px;">
+            <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
+              <span>🛒 Market Azalt</span>
+              <span id="lblMarket" style="color:var(--accent);font-weight:800;">-0%</span>
+            </label>
+            <input type="range" id="simMarket" min="0" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
+          </div>
+
+          <div style="margin-bottom:10px;">
+            <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
+              <span>🍽️ Yemek Azalt</span>
+              <span id="lblYemek" style="color:var(--accent);font-weight:800;">-0%</span>
+            </label>
+            <input type="range" id="simYemek" min="0" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
+          </div>
+
+          <div style="margin-bottom:10px;">
+            <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
+              <span>🛍️ Alışveriş Azalt</span>
+              <span id="lblAlisveris" style="color:var(--accent);font-weight:800;">-0%</span>
+            </label>
+            <input type="range" id="simAlisveris" min="0" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
+          </div>
+
+          <div>
+            <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
+              <span>🎬 Eğlence Azalt</span>
+              <span id="lblEglence" style="color:var(--accent);font-weight:800;">-0%</span>
+            </label>
+            <input type="range" id="simEglence" min="0" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
+          </div>
         </div>
 
-        <div style="margin-bottom:14px;">
-          <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
-            <span>🍽️ Dışarıda Yemek Azalt</span>
-            <span id="lblYemek" style="color:var(--accent);font-weight:800;">-0%</span>
+        <!-- 🎯 HEDEF -->
+        <div style="margin-bottom:14px;padding:12px;background:var(--primary-light);border-radius:10px;">
+          <div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px;">
+            🎯 Tasarruf Hedefi
+          </div>
+          <label style="font-size:12px;font-weight:600;display:block;color:#475569;margin-bottom:4px;">
+            Hedef Tutar (TL)
           </label>
-          <input type="range" id="simYemek" min="0" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
-        </div>
-
-        <div style="margin-bottom:14px;">
-          <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
-            <span>🛍️ Alışveriş Azalt</span>
-            <span id="lblAlisveris" style="color:var(--accent);font-weight:800;">-0%</span>
-          </label>
-          <input type="range" id="simAlisveris" min="0" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
+          <input type="number" id="simHedef" value="0" min="0" step="1000" oninput="App._updateSim()"
+                 class="swal2-input" style="margin:0;width:100%;" placeholder="örn. 50.000">
         </div>
 
         <div id="simResults"></div>
       </div>`,
-      width: Math.min(540, window.innerWidth - 24),
+      width: Math.min(560, window.innerWidth - 24),
       showCloseButton: true,
       showConfirmButton: false,
       didOpen: () => App._updateSim()
     });
   },
-
   _updateSim() {
-    const get = (id) => parseFloat(document.getElementById(id)?.value) || 0;
+    const getRange = (id) => parseFloat(document.getElementById(id)?.value) || 0;
+    const getNum = (id) => parseFloat(document.getElementById(id)?.value) || 0;
+
     const params = {
-      maasZamPct: get('simMaas'),
-      kiraArtisPct: get('simKira'),
-      yemekAzaltmaPct: get('simYemek'),
-      alisverisAzaltmaPct: get('simAlisveris')
+      maasZamPct: getRange('simMaas'),
+      kiraArtisPct: getRange('simKira'),
+      marketAzaltmaPct: getRange('simMarket'),
+      yemekAzaltmaPct: getRange('simYemek'),
+      alisverisAzaltmaPct: getRange('simAlisveris'),
+      eglenceAzaltmaPct: getRange('simEglence'),
+      ekGelirAylik: getNum('simEkGelir'),
+      tasarrufHedef: getNum('simHedef')
     };
 
-    const setLbl = (id, val, prefix, isPositiveGood) => {
+    const setLbl = (id, val, prefix) => {
       const el = document.getElementById(id);
-      if (!el) return;
-      const sign = val >= 0 ? '+' : '';
-      el.textContent = (prefix === '-' ? '-' : sign) + Math.abs(val) + '%';
+      if (el) el.textContent = prefix + Math.abs(val) + '%';
     };
-    setLbl('lblMaas', params.maasZamPct, '+', true);
-    setLbl('lblKira', params.kiraArtisPct, '+', false);
-    setLbl('lblYemek', params.yemekAzaltmaPct, '-', true);
-    setLbl('lblAlisveris', params.alisverisAzaltmaPct, '-', true);
+    setLbl('lblMaas', params.maasZamPct, '+');
+    setLbl('lblKira', params.kiraArtisPct, '+');
+    setLbl('lblMarket', params.marketAzaltmaPct, '-');
+    setLbl('lblYemek', params.yemekAzaltmaPct, '-');
+    setLbl('lblAlisveris', params.alisverisAzaltmaPct, '-');
+    setLbl('lblEglence', params.eglenceAzaltmaPct, '-');
 
     const sim = Calc.senaryoSimulasyon(params);
     const farkRenk = sim.fark >= 0 ? 'var(--accent)' : 'var(--danger)';
@@ -6056,35 +6127,132 @@ const App = {
     const simRenk = sim.yeniNet >= 0 ? 'var(--accent)' : 'var(--danger)';
     const mevcutRenk = sim.mevcutNet >= 0 ? 'var(--accent)' : 'var(--danger)';
 
+    /* Kategori etki tablosu */
+    const katEtkiEntries = Object.entries(sim.katEtki)
+      .filter(([_, v]) => Math.abs(v) > 0.01)
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+
+    const katEtkiHTML = katEtkiEntries.length
+      ? katEtkiEntries.map(([kat, etki]) => {
+          const renk = etki >= 0 ? 'var(--danger)' : 'var(--accent)';
+          const isaret = etki >= 0 ? '+' : '';
+          return `<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:11px;border-bottom:1px dashed var(--border);">
+            <span style="color:var(--text2);">${UI.escHtml(kat)}</span>
+            <span style="color:${renk};font-weight:700;">${isaret}${Calc.fmt(etki)}</span>
+          </div>`;
+        }).join('')
+      : '<div style="font-size:11px;color:var(--text3);text-align:center;padding:6px;">Kategori değişikliği yok</div>';
+
+    /* 12 aylık projeksiyon barları */
+    const maxProj = Math.max(
+      ...sim.projeksiyon.map(p => Math.max(Math.abs(p.mevcut), Math.abs(p.senaryo))),
+      1
+    );
+    const projeksiyonHTML = sim.projeksiyon.map(p => {
+      const mevcutPct = (Math.abs(p.mevcut) / maxProj) * 100;
+      const senaryoPct = (Math.abs(p.senaryo) / maxProj) * 100;
+      return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+        <span style="font-size:9px;color:var(--text3);min-width:22px;text-align:right;">${p.ay}A</span>
+        <div style="flex:1;height:8px;background:var(--surface3);border-radius:99px;position:relative;overflow:hidden;">
+          <div style="position:absolute;height:3.5px;top:0.5px;left:0;width:${mevcutPct}%;background:var(--text3);border-radius:99px;opacity:.6;"></div>
+          <div style="position:absolute;height:3.5px;bottom:0.5px;left:0;width:${senaryoPct}%;background:var(--primary);border-radius:99px;"></div>
+        </div>
+      </div>`;
+    }).join('');
+
+    /* Tasarruf hedefi */
+    let hedefHTML = '';
+    if (sim.tasarrufHedef > 0) {
+      if (sim.yeniNet <= 0) {
+        hedefHTML = `<div style="padding:10px;background:var(--danger-light);border-radius:8px;text-align:center;font-size:12px;color:var(--danger);margin-bottom:10px;">
+          ⚠️ Senaryo aylık net pozitif değil. Hedefe ulaşılamaz.
+        </div>`;
+      } else {
+        const yil = Math.floor(sim.hedefAy / 12);
+        const ay = sim.hedefAy % 12;
+        const sure = yil > 0 ? `${yil} yıl ${ay} ay` : `${ay} ay`;
+        hedefHTML = `<div style="padding:12px;background:var(--accent-light);border-radius:8px;text-align:center;margin-bottom:10px;">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;letter-spacing:.4px;">Hedefe Ulaşma Süresi</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:20px;font-weight:900;color:var(--accent);margin-top:4px;">
+            ${sure}
+          </div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;">
+            ${Calc.fmt(sim.tasarrufHedef)} hedef için
+          </div>
+        </div>`;
+      }
+    }
+
     document.getElementById('simResults').innerHTML = `
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px;">
+          📊 Sonuçlar
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
           <div style="padding:10px;background:var(--surface2);border-radius:8px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;">Şu An Aylık Net</div>
-            <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:900;color:${mevcutRenk};margin-top:2px;">${Calc.fmt(sim.mevcutNet)}</div>
+            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">Şu An Aylık</div>
+            <div style="font-family:'Plus Jakarta Sans';font-size:14px;font-weight:900;color:${mevcutRenk};margin-top:3px;">${Calc.fmt(sim.mevcutNet)}</div>
           </div>
           <div style="padding:10px;background:${farkBg};border-radius:8px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;">Senaryo Aylık Net</div>
-            <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:900;color:${simRenk};margin-top:2px;">${Calc.fmt(sim.yeniNet)}</div>
+            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">Senaryo Aylık</div>
+            <div style="font-family:'Plus Jakarta Sans';font-size:14px;font-weight:900;color:${simRenk};margin-top:3px;">${Calc.fmt(sim.yeniNet)}</div>
           </div>
         </div>
 
-        <div style="padding:10px;background:${farkBg};border-radius:8px;margin-bottom:8px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;">Aylık Fark</div>
-          <div style="font-size:16px;font-weight:900;color:${farkRenk};">${sim.fark >= 0 ? '+' : ''}${Calc.fmt(sim.fark)}</div>
+        <div style="padding:10px;background:${farkBg};border-radius:8px;margin-bottom:10px;text-align:center;">
+          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">Aylık Fark</div>
+          <div style="font-size:17px;font-weight:900;color:${farkRenk};margin-top:2px;">
+            ${sim.fark >= 0 ? '+' : ''}${Calc.fmt(sim.fark)}
+          </div>
         </div>
 
-        <div style="padding:12px;background:var(--primary-light);border-radius:8px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:4px;">6 Aylık Tahmini Birikim</div>
-          <div style="font-family:'Plus Jakarta Sans';font-size:20px;font-weight:900;color:var(--primary);">${Calc.fmt(sim.altiAyBirikim)}</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px;">Mevcut senaryo: ${Calc.fmt(sim.mevcutAltiAyBirikim)}</div>
-          <div style="font-size:11px;font-weight:800;color:${farkRenk};margin-top:4px;">${sim.altiAyFark >= 0 ? '+' : ''}${Calc.fmt(sim.altiAyFark)} fark</div>
+        ${katEtkiEntries.length ? `
+        <div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:10px;">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:6px;">
+            Kategori Bazlı Aylık Etki
+          </div>
+          ${katEtkiHTML}
+        </div>
+        ` : ''}
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div style="padding:10px;background:var(--primary-light);border-radius:8px;text-align:center;">
+            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">6 Ay Birikim</div>
+            <div style="font-family:'Plus Jakarta Sans';font-size:13px;font-weight:900;color:var(--primary);margin-top:3px;">
+              ${Calc.fmt(sim.altiAyBirikim)}
+            </div>
+            <div style="font-size:9px;color:var(--text3);margin-top:2px;">
+              vs ${Calc.fmt(sim.mevcutAltiAyBirikim)}
+            </div>
+          </div>
+          <div style="padding:10px;background:var(--primary-light);border-radius:8px;text-align:center;">
+            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">12 Ay Birikim</div>
+            <div style="font-family:'Plus Jakarta Sans';font-size:13px;font-weight:900;color:var(--primary);margin-top:3px;">
+              ${Calc.fmt(sim.yillikBirikim)}
+            </div>
+            <div style="font-size:9px;color:var(--text3);margin-top:2px;">
+              vs ${Calc.fmt(sim.mevcutYillikBirikim)}
+            </div>
+          </div>
+        </div>
+
+        ${hedefHTML}
+
+        <div style="padding:10px;background:var(--surface2);border-radius:8px;">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+            <span>📈 12 Aylık Projeksiyon</span>
+            <span style="display:flex;gap:8px;font-size:9px;font-weight:600;text-transform:none;">
+              <span style="color:var(--text3);">● Mevcut</span>
+              <span style="color:var(--primary);">● Senaryo</span>
+            </span>
+          </div>
+          ${projeksiyonHTML}
         </div>
       </div>
     `;
   },
-};
-
+}; 
 async function autoArchiveCheck() {
   try {
     /* 🆕 TÜM bekleyen dönemleri al (sadece bir önceki değil) */
