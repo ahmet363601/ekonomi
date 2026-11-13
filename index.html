@@ -2574,10 +2574,7 @@ sonIslemler() {
     };
   },
 
-  /* 🆕 FAZ 3 — Finansal Yaş Hesaplayıcı */
-  /* 🆕 FAZ 3 — Finansal Yaş Hesaplayıcı */
-  
-  /* ⛽ AKARYAKIT İSTATİSTİKLERİ — Çift yakıt destekli */
+  /* ⛽ AKARYAKIT İSTATİSTİKLERİ — LPG odaklı, Benzin basit toplam */
   fuelStats(range) {
     let all = this._allGiderler().filter(g => g.kategori === 'Akaryakıt' && g.fuel);
     if (range && range.start) all = all.filter(g => g.tarih >= range.start);
@@ -2587,11 +2584,10 @@ sonIslemler() {
       return (a.createdAt || '').localeCompare(b.createdAt || '');
     });
 
-    /* Her kaydı normalize et — eski kayıtlar için backward compat */
+    /* ─── Kayıtları normalize et ─── */
     const normalized = all.map(i => {
       const f = i.fuel || {};
       const tip = f.tip || 'benzin';
-
       let bL = 0, bBF = 0, bTL = 0;
       let lL = 0, lBF = 0, lTL = 0;
 
@@ -2606,7 +2602,7 @@ sonIslemler() {
         lL  = Number(f.lpg?.litre) || Number(f.litre) || 0;
         lBF = Number(f.lpg?.birimFiyat) || Number(f.birimFiyat) || 0;
         lTL = Number(f.lpg?.toplam) || Number(i.miktar) || (lL * lBF);
-      } else { /* benzin */
+      } else {
         bL  = Number(f.benzin?.litre) || Number(f.litre) || 0;
         bBF = Number(f.benzin?.birimFiyat) || Number(f.birimFiyat) || 0;
         bTL = Number(f.benzin?.toplam) || Number(i.miktar) || (bL * bBF);
@@ -2619,63 +2615,53 @@ sonIslemler() {
         _lpg:    { litre: lL, birimFiyat: lBF, toplam: lTL },
         _toplamLitre: bL + lL,
         _toplamTL: bTL + lTL,
-        _km: Number(f.km) || 0,
-        _mesafe: Number(f.mesafe) || 0
+        _km: Number(f.km) || 0
       };
     });
 
-    const itemsWithKm      = normalized.filter(i => i._mesafe > 0);
-    const itemsWithBenzin  = normalized.filter(i => i._benzin.litre > 0 && i._mesafe > 0);
-    const itemsWithLpg     = normalized.filter(i => i._lpg.litre > 0 && i._mesafe > 0);
-    const itemsWithL100    = normalized.filter(i => (i._benzin.litre > 0 || i._lpg.litre > 0) && i._mesafe > 0);
+    /* ════════════════════════════════════════════════════════════
+       LPG — TAM KAPSAMLI İSTATİSTİK (ÖNCELİKLİ)
+       ────────────────────────────────────────────────────────────
+       Tüketim, sadece ARDIŞIK LPG dolumları arasındaki KM ile hesaplanır.
+       Benzin karışmaz. "her-ikisi" kayıtlarındaki LPG kısmı dahil edilir.
+       ════════════════════════════════════════════════════════════ */
+    const lpgItems = normalized.filter(i => i._lpg.litre > 0);
+    const lpgTotalLitre = lpgItems.reduce((s, i) => s + i._lpg.litre, 0);
+    const lpgTotalTL    = lpgItems.reduce((s, i) => s + i._lpg.toplam, 0);
+    const lpgAvgFiyat   = lpgTotalLitre > 0 ? lpgTotalTL / lpgTotalLitre : 0;
 
-    /* 🆕 SIRALI SİSTEM DÜZELTMESİ — her yakıt KENDİ dolumları arasında */
-    /* Benzin ve LPG dolumlarını ayrı ayrı listele (km sırasına göre) */
-    const benzins = normalized.filter(i => i._benzin.litre > 0 && i._km > 0);
-    const lpgs    = normalized.filter(i => i._lpg.litre > 0 && i._km > 0);
+    /* LPG dolumları arası KM — her LPG dolumu için bir önceki LPG'ye göre */
+    const lpgWithKm = lpgItems.filter(i => i._km > 0)
+      .sort((a, b) => {
+        if (a.tarih !== b.tarih) return a.tarih.localeCompare(b.tarih);
+        return (a.createdAt || '').localeCompare(b.createdAt || '');
+      });
 
-    /* totalKm — herhangi ardışık iki dolum arası (tüm harcama / toplam km) */
-    const totalKm = itemsWithKm.reduce((s, i) => s + i._mesafe, 0);
-
-    /* Benzin: ilk dolum hariç — ardışık benzin dolumları arası km */
-    let totalKmBenzin       = 0;
-    let totalBenzinLitreAvg = 0;
-    for (let i = 1; i < benzins.length; i++) {
-      const diff = benzins[i]._km - benzins[i-1]._km;
+    const consumptionRecords = [];
+    for (let i = 1; i < lpgWithKm.length; i++) {
+      const diff = lpgWithKm[i]._km - lpgWithKm[i-1]._km;
       if (diff > 0) {
-        totalKmBenzin       += diff;
-        totalBenzinLitreAvg += benzins[i]._benzin.litre;
+        const l100 = (lpgWithKm[i]._lpg.litre * 100) / diff;
+        const tlKm = lpgWithKm[i]._lpg.toplam / diff;
+        lpgWithKm[i]._lpgMesafe = diff;
+        lpgWithKm[i]._lpgL100 = l100;
+        lpgWithKm[i]._lpgTlKm = tlKm;
+        consumptionRecords.push({
+          item: lpgWithKm[i], mesafe: diff, l100, tlKm,
+          tl: lpgWithKm[i]._lpg.toplam
+        });
       }
     }
 
-    /* LPG: ilk dolum hariç — ardışık LPG dolumları arası km */
-    let totalKmLpg       = 0;
-    let totalLpgLitreAvg = 0;
-    for (let i = 1; i < lpgs.length; i++) {
-      const diff = lpgs[i]._km - lpgs[i-1]._km;
-      if (diff > 0) {
-        totalKmLpg       += diff;
-        totalLpgLitreAvg += lpgs[i]._lpg.litre;
-      }
-    }
+    const lpgTotalKm = consumptionRecords.reduce((s, r) => s + r.mesafe, 0);
+    const lpgLitreForCalc = consumptionRecords.reduce((s, r) => s + r.item._lpg.litre, 0);
+    const lpgAvgL100 = lpgTotalKm > 0 ? (lpgLitreForCalc * 100) / lpgTotalKm : 0;
+    const lpgAvgTlPerKm = lpgTotalKm > 0 ? lpgTotalTL / lpgTotalKm : 0;
 
-    /* Gösterim için toplam litreler (tüm dolumlar dahil) */
-    const totalBenzinLitre = benzins.reduce((s, i) => s + i._benzin.litre, 0);
-    const totalLpgLitre    = lpgs.reduce((s, i) => s + i._lpg.litre, 0);
-    const totalBenzinTL    = normalized.reduce((s, i) => s + i._benzin.toplam, 0);
-    const totalLpgTL       = normalized.reduce((s, i) => s + i._lpg.toplam, 0);
-    const totalTL          = totalBenzinTL + totalLpgTL;
-    const totalLitre       = totalBenzinLitre + totalLpgLitre;
+    const l100Arr = consumptionRecords.map(r => r.l100);
+    const tlKmArr = consumptionRecords.map(r => r.tlKm);
 
-    /* 🆕 Ortalamalar — kendi dolumları arası km'ye bölünür */
-    const avgTlPerKm        = totalKm > 0 ? totalTL / totalKm : 0;
-    const avgLPer100_benzin = totalKmBenzin > 0 ? (totalBenzinLitreAvg * 100) / totalKmBenzin : 0;
-    const avgLPer100_lpg    = totalKmLpg > 0 ? (totalLpgLitreAvg * 100) / totalKmLpg : 0;
-    const avgLPer100_toplam = totalKm > 0 ? (totalLitre * 100) / totalKm : 0;
-    const avgLPer100        = avgLPer100_toplam; // backward compat
-    const avgLitreFiyat     = totalLitre > 0 ? totalTL / totalLitre : 0;
-
-    /* ═══ İSTATİSTİKSEL YARDIMCILAR ═══ */
+    /* İstatistik yardımcılar */
     const _median = (arr) => {
       if (!arr.length) return 0;
       const s = [...arr].sort((a, b) => a - b);
@@ -2685,46 +2671,38 @@ sonIslemler() {
     const _stdDev = (arr) => {
       if (arr.length < 2) return 0;
       const m = arr.reduce((s, v) => s + v, 0) / arr.length;
-      const v = arr.reduce((s, x) => s + Math.pow(x - m, 2), 0) / arr.length;
-      return Math.sqrt(v);
+      return Math.sqrt(arr.reduce((s, x) => s + Math.pow(x - m, 2), 0) / arr.length);
     };
     const _pct = (arr, p) => {
       if (!arr.length) return 0;
       const s = [...arr].sort((a, b) => a - b);
       const idx = (p / 100) * (s.length - 1);
-      const lo = Math.floor(idx);
-      const hi = Math.ceil(idx);
-      if (lo === hi) return s[lo];
-      return s[lo] + (s[hi] - s[lo]) * (idx - lo);
+      const lo = Math.floor(idx), hi = Math.ceil(idx);
+      return lo === hi ? s[lo] : s[lo] + (s[hi] - s[lo]) * (idx - lo);
     };
 
-    /* Toplam tüketim (L/100km) — dual için ayrı ayrı */
-    const bL100Arr = itemsWithBenzin.map(i => i._mesafe > 0 ? (i._benzin.litre * 100) / i._mesafe : 0).filter(v => v > 0);
-    const lL100Arr = itemsWithLpg.map(i => i._mesafe > 0 ? (i._lpg.litre * 100) / i._mesafe : 0).filter(v => v > 0);
-    const tlKmArr  = normalized.filter(i => i._mesafe > 0).map(i => i._toplamTL / i._mesafe);
+    const lpgStats = {
+      min: l100Arr.length ? Math.min(...l100Arr) : 0,
+      max: l100Arr.length ? Math.max(...l100Arr) : 0,
+      median: _median(l100Arr),
+      stdDev: _stdDev(l100Arr),
+      p25: _pct(l100Arr, 25),
+      p75: _pct(l100Arr, 75),
+      p90: _pct(l100Arr, 90),
+      count: l100Arr.length
+    };
+    const tlKmStats = {
+      min: tlKmArr.length ? Math.min(...tlKmArr) : 0,
+      max: tlKmArr.length ? Math.max(...tlKmArr) : 0,
+      median: _median(tlKmArr)
+    };
 
-    const _stats = (arr) => ({
-      min: arr.length ? Math.min(...arr) : 0,
-      max: arr.length ? Math.max(...arr) : 0,
-      median: _median(arr),
-      stdDev: _stdDev(arr),
-      p25: _pct(arr, 25), p75: _pct(arr, 75), p90: _pct(arr, 90)
-    });
-    const bStats = _stats(bL100Arr);
-    const lStats = _stats(lL100Arr);
-    const tlStats = _stats(tlKmArr);
-
-    const cvL100_benzin = (bL100Arr.length && avgLPer100_benzin > 0) ? (bStats.stdDev / avgLPer100_benzin) * 100 : 0;
-    const cvL100_lpg    = (lL100Arr.length && avgLPer100_lpg > 0) ? (lStats.stdDev / avgLPer100_lpg) * 100 : 0;
-
-    /* ═══ DOLUM ARALIĞI ═══ */
+    /* Dolum aralığı */
     let dolumAraligi = null;
-    if (normalized.length >= 2) {
-      const tarihler = normalized.map(i => dayjs(i.tarih)).sort((a, b) => a.valueOf() - b.valueOf());
+    if (lpgItems.length >= 2) {
+      const tarihler = lpgItems.map(i => dayjs(i.tarih)).sort((a, b) => a.valueOf() - b.valueOf());
       const farklar = [];
-      for (let i = 1; i < tarihler.length; i++) {
-        farklar.push(tarihler[i].diff(tarihler[i - 1], 'day'));
-      }
+      for (let i = 1; i < tarihler.length; i++) farklar.push(tarihler[i].diff(tarihler[i-1], 'day'));
       dolumAraligi = {
         ortalama: farklar.reduce((s, v) => s + v, 0) / farklar.length,
         min: Math.min(...farklar),
@@ -2733,109 +2711,126 @@ sonIslemler() {
       };
     }
 
-    /* ═══ EN EKONOMİK / EN PAHALI ═══ */
-    const enEkonomikBenzin = itemsWithBenzin.length ? itemsWithBenzin.reduce((a, b) => (a._benzin.litre / a._mesafe) < (b._benzin.litre / b._mesafe) ? a : b) : null;
-    const enPahaliBenzin   = itemsWithBenzin.length ? itemsWithBenzin.reduce((a, b) => (a._benzin.litre / a._mesafe) > (b._benzin.litre / b._mesafe) ? a : b) : null;
-    const enEkonomikLpg    = itemsWithLpg.length    ? itemsWithLpg.reduce((a, b) => (a._lpg.litre / a._mesafe) < (b._lpg.litre / b._mesafe) ? a : b) : null;
-    const enPahaliLpg      = itemsWithLpg.length    ? itemsWithLpg.reduce((a, b) => (a._lpg.litre / a._mesafe) > (b._lpg.litre / b._mesafe) ? a : b) : null;
+    /* En ekonomik / en pahalı */
+    const enEkonomik = consumptionRecords.length
+      ? consumptionRecords.reduce((a, b) => a.l100 < b.l100 ? a : b).item
+      : null;
+    const enPahali = consumptionRecords.length
+      ? consumptionRecords.reduce((a, b) => a.l100 > b.l100 ? a : b).item
+      : null;
 
-    /* ═══ TREND (son 2) ═══ */
-    let trendBenzin = null, trendLpg = null;
-    if (itemsWithBenzin.length >= 2) {
-      const son    = (itemsWithBenzin[itemsWithBenzin.length - 1]._benzin.litre * 100) / itemsWithBenzin[itemsWithBenzin.length - 1]._mesafe;
-      const onceki = (itemsWithBenzin[itemsWithBenzin.length - 2]._benzin.litre * 100) / itemsWithBenzin[itemsWithBenzin.length - 2]._mesafe;
+    /* Trend */
+    let trend = null;
+    if (l100Arr.length >= 2) {
+      const son = l100Arr[l100Arr.length - 1];
+      const onceki = l100Arr[l100Arr.length - 2];
       const fark = son - onceki;
-      trendBenzin = {
-        yon: fark > 0.001 ? 'up' : (fark < -0.001 ? 'down' : 'same'),
-        fark, yuzde: onceki > 0 ? (fark / onceki) * 100 : 0, son, onceki
-      };
-    }
-    if (itemsWithLpg.length >= 2) {
-      const son    = (itemsWithLpg[itemsWithLpg.length - 1]._lpg.litre * 100) / itemsWithLpg[itemsWithLpg.length - 1]._mesafe;
-      const onceki = (itemsWithLpg[itemsWithLpg.length - 2]._lpg.litre * 100) / itemsWithLpg[itemsWithLpg.length - 2]._mesafe;
-      const fark = son - onceki;
-      trendLpg = {
+      trend = {
         yon: fark > 0.001 ? 'up' : (fark < -0.001 ? 'down' : 'same'),
         fark, yuzde: onceki > 0 ? (fark / onceki) * 100 : 0, son, onceki
       };
     }
 
-    /* ═══ AYLIK DAĞILIM ═══ */
+    /* Birim fiyat trendi */
+    let lpgFiyatTrend = null;
+    const lFiyatArr = lpgItems.filter(i => i._lpg.birimFiyat > 0)
+      .sort((a, b) => a.tarih.localeCompare(b.tarih));
+    if (lFiyatArr.length >= 2) {
+      const ilk = lFiyatArr[0]._lpg.birimFiyat;
+      const son = lFiyatArr[lFiyatArr.length - 1]._lpg.birimFiyat;
+      lpgFiyatTrend = {
+        ilk, son, fark: son - ilk,
+        yuzde: ilk > 0 ? ((son - ilk) / ilk) * 100 : 0
+      };
+    }
+
+    /* Aylık dağılım */
     const byMonth = {};
     normalized.forEach(i => {
       const k = SalaryMonth.keyOf(i.tarih);
       if (!byMonth[k]) byMonth[k] = {
-        tl: 0, litre: 0, km: 0, count: 0,
-        benzinLitre: 0, benzinTL: 0, lpgLitre: 0, lpgTL: 0
+        lpgLitre: 0, lpgTL: 0, benzinLitre: 0, benzinTL: 0,
+        km: 0, count: 0
       };
-      byMonth[k].tl          += i._toplamTL;
-      byMonth[k].litre       += i._toplamLitre;
-      byMonth[k].km          += i._mesafe;
-      byMonth[k].count       += 1;
-      byMonth[k].benzinLitre += i._benzin.litre;
-      byMonth[k].benzinTL    += i._benzin.toplam;
       byMonth[k].lpgLitre    += i._lpg.litre;
       byMonth[k].lpgTL       += i._lpg.toplam;
+      byMonth[k].benzinLitre += i._benzin.litre;
+      byMonth[k].benzinTL    += i._benzin.toplam;
+      byMonth[k].km          += i._lpgMesafe || 0;
+      byMonth[k].count       += 1;
     });
-    const monthly = Object.entries(byMonth).map(([k, v]) => ({
-      key: k, label: SalaryMonth.shortLabel(k), ...v
-    })).sort((a, b) => a.key.localeCompare(b.key));
+    const monthly = Object.entries(byMonth).map(([k, v]) => {
+      const avgL100 = v.km > 0 ? (v.lpgLitre * 100) / v.km : 0;
+      const tlPerKm = v.km > 0 ? v.lpgTL / v.km : 0;
+      return { key: k, label: SalaryMonth.shortLabel(k), ...v, avgL100, tlPerKm };
+    }).sort((a, b) => a.key.localeCompare(b.key));
 
-    /* ═══ PROJEKSİYON ═══ */
+    /* Projeksiyon (LPG bazlı) */
     const son6 = monthly.slice(-6);
     const son3 = monthly.slice(-3);
     const projeksiyon = {
-      aylikTL:     son6.length ? son6.reduce((s, m) => s + m.tl, 0) / son6.length : 0,
-      aylikLitre:  son6.length ? son6.reduce((s, m) => s + m.litre, 0) / son6.length : 0,
+      aylikTL:     son6.length ? son6.reduce((s, m) => s + m.lpgTL, 0) / son6.length : 0,
+      aylikLitre:  son6.length ? son6.reduce((s, m) => s + m.lpgLitre, 0) / son6.length : 0,
       aylikKm:     son6.length ? son6.reduce((s, m) => s + m.km, 0) / son6.length : 0,
-      aylikTL_son3:    son3.length ? son3.reduce((s, m) => s + m.tl, 0) / son3.length : 0,
-      aylikLitre_son3: son3.length ? son3.reduce((s, m) => s + m.litre, 0) / son3.length : 0
+      aylikTL_son3:    son3.length ? son3.reduce((s, m) => s + m.lpgTL, 0) / son3.length : 0,
+      aylikLitre_son3: son3.length ? son3.reduce((s, m) => s + m.lpgLitre, 0) / son3.length : 0
     };
 
-    /* ═══ YAKIT FİYATI TRENDİ ═══ */
-    let birimFiyatTrendBenzin = null, birimFiyatTrendLpg = null;
-    const bfBenzinArr = itemsWithBenzin.filter(i => i._benzin.birimFiyat > 0);
-    if (bfBenzinArr.length >= 2) {
-      const s = [...bfBenzinArr].sort((a, b) => a.tarih.localeCompare(b.tarih));
-      const ilk = s[0]._benzin.birimFiyat, son = s[s.length - 1]._benzin.birimFiyat;
-      birimFiyatTrendBenzin = { ilk, son, fark: son - ilk, yuzde: ilk > 0 ? ((son - ilk) / ilk) * 100 : 0 };
-    }
-    const bfLpgArr = itemsWithLpg.filter(i => i._lpg.birimFiyat > 0);
-    if (bfLpgArr.length >= 2) {
-      const s = [...bfLpgArr].sort((a, b) => a.tarih.localeCompare(b.tarih));
-      const ilk = s[0]._lpg.birimFiyat, son = s[s.length - 1]._lpg.birimFiyat;
-      birimFiyatTrendLpg = { ilk, son, fark: son - ilk, yuzde: ilk > 0 ? ((son - ilk) / ilk) * 100 : 0 };
+    /* ════════════════════════════════════════════════════════════
+       BENZİN — Sadece toplamlar (KM/tüketim YOK)
+       ════════════════════════════════════════════════════════════ */
+    const benzinItems = normalized.filter(i => i._benzin.litre > 0);
+    const benzinTotalLitre = benzinItems.reduce((s, i) => s + i._benzin.litre, 0);
+    const benzinTotalTL    = benzinItems.reduce((s, i) => s + i._benzin.toplam, 0);
+    const benzinAvgFiyat   = benzinTotalLitre > 0 ? benzinTotalTL / benzinTotalLitre : 0;
+
+    let benzinFiyatTrend = null;
+    const bFiyatArr = benzinItems.filter(i => i._benzin.birimFiyat > 0)
+      .sort((a, b) => a.tarih.localeCompare(b.tarih));
+    if (bFiyatArr.length >= 2) {
+      const ilk = bFiyatArr[0]._benzin.birimFiyat;
+      const son = bFiyatArr[bFiyatArr.length - 1]._benzin.birimFiyat;
+      benzinFiyatTrend = {
+        ilk, son, fark: son - ilk,
+        yuzde: ilk > 0 ? ((son - ilk) / ilk) * 100 : 0
+      };
     }
 
     return {
       count: normalized.length,
-      kmValidCount: itemsWithKm.length,
-      benzinValidCount: itemsWithBenzin.length,
-      lpgValidCount: itemsWithLpg.length,
+      items: normalized,
 
-      totalTL, totalLitre, totalKm,
-      totalKmBenzin, totalKmLpg,
-      totalBenzinLitre, totalLpgLitre,
-      totalBenzinTL, totalLpgTL,
+      lpg: {
+        count: lpgItems.length,
+        totalLitre: lpgTotalLitre,
+        totalTL: lpgTotalTL,
+        totalKm: lpgTotalKm,
+        avgL100: lpgAvgL100,
+        avgTlPerKm: lpgAvgTlPerKm,
+        avgFiyat: lpgAvgFiyat,
+        stats: lpgStats,
+        tlKmStats,
+        dolumAraligi,
+        enEkonomik,
+        enPahali,
+        trend,
+        fiyatTrend: lpgFiyatTrend,
+        projeksiyon,
+        monthly,
+        withKmCount: lpgWithKm.length,
+        l100Arr,
+        consumptionRecords,
+        items: lpgItems
+      },
 
-      avgTlPerKm,
-      avgLPer100, avgLPer100_benzin, avgLPer100_lpg, avgLPer100_toplam,
-      avgLitreFiyat,
-
-      benzinStats: { min: bStats.min, max: bStats.max, median: bStats.median, stdDev: bStats.stdDev, p25: bStats.p25, p75: bStats.p75, p90: bStats.p90, cv: cvL100_benzin },
-      lpgStats: { min: lStats.min, max: lStats.max, median: lStats.median, stdDev: lStats.stdDev, p25: lStats.p25, p75: lStats.p75, p90: lStats.p90, cv: cvL100_lpg },
-      tlKmStats: tlStats,
-
-      dolumAraligi,
-      enEkonomikBenzin, enPahaliBenzin,
-      enEkonomikLpg, enPahaliLpg,
-      trendBenzin, trendLpg,
-
-      monthly,
-      projeksiyon,
-      birimFiyatTrendBenzin, birimFiyatTrendLpg,
-
-      items: normalized
+      benzin: {
+        count: benzinItems.length,
+        totalLitre: benzinTotalLitre,
+        totalTL: benzinTotalTL,
+        avgFiyat: benzinAvgFiyat,
+        fiyatTrend: benzinFiyatTrend,
+        items: benzinItems
+      }
     };
   },
 
@@ -5159,10 +5154,13 @@ const App = {
       title: '⛽ Akaryakıt Geçmişi',
       html: `<div style="text-align:left;max-height:75vh;overflow-y:auto;padding-right:4px;">
         ${this._buildFuelSummaryHTML(stats)}
-        ${this._buildFuelDualStatsHTML(stats)}
+
+        ${this._buildLpgDetailedHTML(stats)}
+
+        ${this._buildBenzinSimpleHTML(stats)}
 
         <div style="margin-bottom:10px;">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:6px;letter-spacing:.4px;">📈 Tüketim Trendi (Benzin vs LPG)</div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:6px;letter-spacing:.4px;">📈 LPG Tüketim Trendi</div>
           <div style="height:200px;position:relative;">
             <canvas id="${this._fuelChartId}"></canvas>
           </div>
@@ -5179,7 +5177,7 @@ const App = {
             ).join('')}
           </div>
           <div class="fuel-filter-chips" style="margin-bottom:8px;">
-            ${[['tum','Tüm Yakıtlar'],['benzin','⛽ Benzin'],['lpg','💧 LPG'],['her-ikisi','⛽+💧 Her İkisi']].map(([k, v]) =>
+            ${[['tum','Tüm Kayıtlar'],['lpg','💧 LPG'],['benzin','⛽ Benzin'],['her-ikisi','⛽+💧 Her İkisi']].map(([k, v]) =>
               `<span class="fuel-filter-chip ${this._fuelFilter.tip === k ? 'active' : ''}" data-tip="${k}" onclick="App._setFuelFilterTip('${k}')">${v}</span>`
             ).join('')}
           </div>
@@ -5220,49 +5218,64 @@ const App = {
       }
     });
   },
-
   _renderFuelTrendChart(items) {
     if (!this._fuelChartId) return;
-    const validItems = items.filter(i => i._mesafe > 0);
-    if (validItems.length < 2) return;
+
+    /* LPG dolumları arası ardışık hesapla */
+    const lpgWithKm = items
+      .filter(i => i._lpg.litre > 0 && i._km > 0)
+      .sort((a, b) => {
+        if (a.tarih !== b.tarih) return a.tarih.localeCompare(b.tarih);
+        return (a.createdAt || '').localeCompare(b.createdAt || '');
+      });
+
+    const chartData = [];
+    for (let i = 1; i < lpgWithKm.length; i++) {
+      const diff = lpgWithKm[i]._km - lpgWithKm[i-1]._km;
+      if (diff > 0) {
+        chartData.push({
+          date: lpgWithKm[i].tarih,
+          l100: (lpgWithKm[i]._lpg.litre * 100) / diff,
+          tlKm: lpgWithKm[i]._lpg.toplam / diff
+        });
+      }
+    }
+
+    if (chartData.length < 2) {
+      Charts.destroy(this._fuelChartId);
+      return;
+    }
 
     Charts.destroy(this._fuelChartId);
     const el = document.getElementById(this._fuelChartId);
     if (!el) return;
 
-    const datasets = [];
-    if (validItems.some(i => i._benzin.litre > 0)) {
-      datasets.push({
-        label: 'Benzin L/100km',
-        data: validItems.map(i => i._benzin.litre > 0 ? ((i._benzin.litre * 100) / i._mesafe) : null),
-        borderColor: '#2563EB',
-        backgroundColor: 'rgba(37,99,235,.08)',
-        tension: 0.35, fill: false, borderWidth: 2.5, pointRadius: 3,
-        spanGaps: true, yAxisID: 'y'
-      });
-    }
-    if (validItems.some(i => i._lpg.litre > 0)) {
-      datasets.push({
-        label: 'LPG L/100km',
-        data: validItems.map(i => i._lpg.litre > 0 ? ((i._lpg.litre * 100) / i._mesafe) : null),
-        borderColor: '#0891B2',
-        backgroundColor: 'rgba(8,145,178,.08)',
-        tension: 0.35, fill: false, borderWidth: 2.5, pointRadius: 3,
-        spanGaps: true, yAxisID: 'y'
-      });
-    }
-    datasets.push({
-      label: 'TL/km',
-      data: validItems.map(i => i._toplamTL / i._mesafe),
-      borderColor: '#D97706',
-      backgroundColor: 'rgba(217,119,6,.08)',
-      tension: 0.35, fill: false, borderWidth: 2, pointRadius: 2,
-      borderDash: [4, 4], yAxisID: 'y1'
-    });
-
     Charts.instances[this._fuelChartId] = new Chart(el.getContext('2d'), {
       type: 'line',
-      data: { labels: validItems.map(i => dayjs(i.tarih).format('DD MMM')), datasets },
+      data: {
+        labels: chartData.map(c => dayjs(c.date).format('DD MMM')),
+        datasets: [
+          {
+            label: 'LPG L/100km',
+            data: chartData.map(c => c.l100),
+            borderColor: '#0891B2',
+            backgroundColor: 'rgba(8,145,178,.10)',
+            tension: 0.35, fill: true, borderWidth: 2.5,
+            pointRadius: 4, pointBackgroundColor: '#0891B2',
+            yAxisID: 'y'
+          },
+          {
+            label: 'LPG TL/km',
+            data: chartData.map(c => c.tlKm),
+            borderColor: '#D97706',
+            backgroundColor: 'rgba(217,119,6,.08)',
+            tension: 0.35, fill: false, borderWidth: 2,
+            pointRadius: 3, pointBackgroundColor: '#D97706',
+            borderDash: [4, 4],
+            yAxisID: 'y1'
+          }
+        ]
+      },
       options: {
         responsive: true, maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
@@ -5270,10 +5283,9 @@ const App = {
           legend: { position: 'bottom', labels: { font: { size: 10 }, usePointStyle: true, padding: 8 } },
           tooltip: {
             callbacks: {
-              label: ctx => {
-                if (ctx.dataset.yAxisID === 'y1') return ` ${ctx.dataset.label}: ${Number(ctx.raw).toFixed(3)}`;
-                return ` ${ctx.dataset.label}: ${Number(ctx.raw).toFixed(2)}`;
-              }
+              label: ctx => ctx.dataset.yAxisID === 'y'
+                ? ` ${ctx.dataset.label}: ${Number(ctx.raw).toFixed(2)}`
+                : ` ${ctx.dataset.label}: ${Number(ctx.raw).toFixed(3)}`
             }
           }
         },
@@ -5285,7 +5297,6 @@ const App = {
       }
     });
   },
-
   _filterFuelItems(items, filter) {
     let f = items.slice();
     if (filter.range !== 'tum') {
@@ -5298,7 +5309,9 @@ const App = {
       if (cutoff) f = f.filter(i => dayjs(i.tarih).isAfter(cutoff));
     }
     if (filter.tip && filter.tip !== 'tum') {
-      f = f.filter(i => i._tip === filter.tip);
+      if (filter.tip === 'benzin')         f = f.filter(i => i._benzin.litre > 0);
+      else if (filter.tip === 'lpg')       f = f.filter(i => i._lpg.litre > 0);
+      else if (filter.tip === 'her-ikisi') f = f.filter(i => i._tip === 'her-ikisi');
     }
     if (filter.q) {
       const q = filter.q.toLowerCase();
@@ -5380,26 +5393,25 @@ const App = {
       try { this._renderFuelTrendChart(filtered); } catch (e) { console.warn('[FuelHistory] Chart refresh:', e); }
     });
   },
-
   _buildFuelRecordsHTML(items) {
     if (!items.length) {
       return '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;"><i class="fas fa-inbox" style="font-size:24px;opacity:.4;display:block;margin-bottom:6px;"></i>Kayıt yok</div>';
     }
     return items.map(i => {
       const tipBadges = [];
-      if (i._benzin.litre > 0) tipBadges.push('<span style="background:#EFF6FF;color:#2563EB;padding:2px 8px;border-radius:6px;font-size:9px;font-weight:700;">⛽ BENZİN</span>');
       if (i._lpg.litre > 0)    tipBadges.push('<span style="background:#ECFEFF;color:#0891B2;padding:2px 8px;border-radius:6px;font-size:9px;font-weight:700;">💧 LPG</span>');
+      if (i._benzin.litre > 0) tipBadges.push('<span style="background:#EFF6FF;color:#2563EB;padding:2px 8px;border-radius:6px;font-size:9px;font-weight:700;">⛽ BENZİN</span>');
 
       const metrics = [];
-      if (i._mesafe > 0) metrics.push(`<span class="fuel-record-metric">📏 <strong>${i._mesafe.toLocaleString('tr-TR')}</strong> km</span>`);
+      if (i._km > 0) metrics.push(`<span class="fuel-record-metric">🛣️ <strong>${i._km.toLocaleString('tr-TR')}</strong> km</span>`);
+      if (i._lpg.litre > 0) metrics.push(`<span class="fuel-record-metric" style="color:#0891B2;">💧 <strong>${i._lpg.litre.toFixed(1)}</strong> L</span>`);
+      if (i._lpgL100) metrics.push(`<span class="fuel-record-metric" style="color:var(--warning);font-weight:700;">${i._lpgL100.toFixed(2)} L/100km</span>`);
       if (i._benzin.litre > 0) metrics.push(`<span class="fuel-record-metric" style="color:#2563EB;">⛽ <strong>${i._benzin.litre.toFixed(1)}</strong> L</span>`);
-      if (i._lpg.litre > 0)    metrics.push(`<span class="fuel-record-metric" style="color:#0891B2;">💧 <strong>${i._lpg.litre.toFixed(1)}</strong> L</span>`);
-      if (i._mesafe > 0) metrics.push(`<span class="fuel-record-metric">💰 <strong>${(i._toplamTL / i._mesafe).toFixed(3)}</strong> TL/km</span>`);
 
       return `<div class="fuel-record-row" onclick="App._openFuelRecordDetail(${i.id})">
         <div>
           <div class="fuel-record-date">${dayjs(i.tarih).format('DD MMM YY')}</div>
-          <div style="display:flex;gap:3px;margin-top:2px;">${tipBadges.join('')}</div>
+          <div style="display:flex;gap:3px;margin-top:2px;flex-wrap:wrap;">${tipBadges.join('')}</div>
         </div>
         <div class="fuel-record-main">
           <div class="fuel-record-amount"><strong>${Calc.fmt(i._toplamTL)}</strong></div>
@@ -5419,81 +5431,230 @@ const App = {
     </div>`;
   },
 
-  _buildFuelDualStatsHTML(s) {
-    const benzinHas = s.totalBenzinLitre > 0;
-    const lpgHas = s.totalLpgLitre > 0;
-
-    if (!benzinHas && !lpgHas) return '';
-
-    return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-      ${benzinHas ? `
-        <div style="padding:12px;background:linear-gradient(135deg,#EFF6FF,#DBEAFE);border-radius:10px;border-left:3px solid #2563EB;">
-          <div style="font-size:10px;color:#1E40AF;text-transform:uppercase;font-weight:800;letter-spacing:.5px;margin-bottom:6px;">⛽ Benzin</div>
-          <div style="font-family:'Plus Jakarta Sans';font-size:13px;font-weight:800;color:#0F2A5C;margin-bottom:2px;">${s.totalBenzinLitre.toFixed(2)} L</div>
-          <div style="font-size:11px;color:#3D4A5C;">${Calc.fmt(s.totalBenzinTL)}</div>
-          <div style="margin-top:6px;padding-top:6px;border-top:1px dashed rgba(37,99,235,.3);">
-            <div style="font-size:9px;color:#7B8A9E;text-transform:uppercase;font-weight:700;">Ort. Tüketim</div>
-            <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:900;color:#2563EB;">
-              ${s.totalKmBenzin > 0 ? s.avgLPer100_benzin.toFixed(2) : '—'} <span style="font-size:10px;">L/100km</span>
-            </div>
-            ${s.totalKmBenzin > 0 ? `<div style="font-size:9px;color:#7B8A9E;margin-top:2px;">${Math.round(s.totalKmBenzin).toLocaleString('tr-TR')} km</div>` : ''}
-          </div>
-        </div>
-      ` : '<div></div>'}
-      ${lpgHas ? `
-        <div style="padding:12px;background:linear-gradient(135deg,#ECFEFF,#CFFAFE);border-radius:10px;border-left:3px solid #0891B2;">
-          <div style="font-size:10px;color:#0E7490;text-transform:uppercase;font-weight:800;letter-spacing:.5px;margin-bottom:6px;">💧 LPG</div>
-          <div style="font-family:'Plus Jakarta Sans';font-size:13px;font-weight:800;color:#0F2A5C;margin-bottom:2px;">${s.totalLpgLitre.toFixed(2)} L</div>
-          <div style="font-size:11px;color:#3D4A5C;">${Calc.fmt(s.totalLpgTL)}</div>
-          <div style="margin-top:6px;padding-top:6px;border-top:1px dashed rgba(8,145,178,.3);">
-            <div style="font-size:9px;color:#7B8A9E;text-transform:uppercase;font-weight:700;">Ort. Tüketim</div>
-            <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:900;color:#0891B2;">
-              ${s.totalKmLpg > 0 ? s.avgLPer100_lpg.toFixed(2) : '—'} <span style="font-size:10px;">L/100km</span>
-            </div>
-            ${s.totalKmLpg > 0 ? `<div style="font-size:9px;color:#7B8A9E;margin-top:2px;">${Math.round(s.totalKmLpg).toLocaleString('tr-TR')} km</div>` : ''}
-          </div>
-        </div>
-      ` : '<div></div>'}
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">
-      <div style="padding:8px;background:var(--surface2);border-radius:8px;text-align:center;">
-        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">Toplam L/100km</div>
-        <div style="font-family:'Plus Jakarta Sans';font-size:14px;font-weight:900;color:var(--warning);margin-top:2px;">${s.avgLPer100_toplam.toFixed(2)}</div>
-      </div>
-      <div style="padding:8px;background:var(--surface2);border-radius:8px;text-align:center;">
-        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">Ort. TL/km</div>
-        <div style="font-family:'Plus Jakarta Sans';font-size:14px;font-weight:900;color:var(--info);margin-top:2px;">${s.avgTlPerKm.toFixed(3)}</div>
-      </div>
-      <div style="padding:8px;background:var(--surface2);border-radius:8px;text-align:center;">
-        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">Ort. Dolum Aralığı</div>
-        <div style="font-family:'Plus Jakarta Sans';font-size:14px;font-weight:900;color:var(--text);margin-top:2px;">${s.dolumAraligi ? s.dolumAraligi.ortalama.toFixed(0) + ' gün' : '—'}</div>
-      </div>
-    </div>`;
-  },
 
   _buildFuelMonthlyHTML(s) {
-    if (!s.monthly.length) return '';
-    const rows = s.monthly.slice(-6).map(m => `
-      <div style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;padding:8px 10px;font-size:11px;border-bottom:1px dashed var(--border);align-items:center;">
-        <span style="font-weight:700;color:var(--text);min-width:70px;">${m.label}</span>
-        <span style="color:var(--text3);font-size:10px;">${m.count} dolum</span>
-        <span style="color:var(--danger);font-weight:800;text-align:right;">${Calc.fmt(m.tl)}</span>
-        <span style="color:var(--warning);font-weight:700;text-align:right;">${m.litre.toFixed(1)} L</span>
-        <span style="color:var(--text2);text-align:right;font-size:10px;">${m.km.toLocaleString('tr-TR')} km</span>
+    if (!s.lpg.monthly.length) return '';
+    const rows = s.lpg.monthly.slice(-6).map(m => `
+      <div style="display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:6px;padding:8px 10px;font-size:10.5px;border-bottom:1px dashed var(--border);align-items:center;">
+        <span style="font-weight:700;color:var(--text);min-width:65px;">${m.label}</span>
+        <span style="color:var(--text3);font-size:9.5px;">${m.count} dolum</span>
+        <span style="color:#0891B2;font-weight:800;text-align:right;">${m.lpgLitre.toFixed(1)} L</span>
+        <span style="color:var(--danger);font-weight:700;text-align:right;">${Calc.fmt(m.lpgTL)}</span>
+        <span style="color:var(--text2);text-align:right;font-size:9.5px;">${m.km.toLocaleString('tr-TR')} km</span>
+        <span style="color:${m.avgL100 > 0 ? 'var(--warning)' : 'var(--text3)'};text-align:right;font-size:9.5px;font-weight:700;">${m.avgL100 > 0 ? m.avgL100.toFixed(2) : '—'}</span>
       </div>
     `).join('');
     return `<div style="margin-bottom:10px;">
-      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:6px;letter-spacing:.4px;">📅 Aylık Özet</div>
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:6px;letter-spacing:.4px;">📅 Aylık LPG Özeti</div>
       <div style="background:var(--surface2);border-radius:10px;overflow:hidden;">
-        <div style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;padding:6px 10px;font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;background:var(--surface);border-bottom:1px solid var(--border);">
-          <span>Dönem</span><span></span><span style="text-align:right;">Tutar</span><span style="text-align:right;">Litre</span><span style="text-align:right;">KM</span>
+        <div style="display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:6px;padding:6px 10px;font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;background:var(--surface);border-bottom:1px solid var(--border);">
+          <span>Dönem</span><span></span><span style="text-align:right;">Litre</span><span style="text-align:right;">Tutar</span><span style="text-align:right;">KM</span><span style="text-align:right;">L/100</span>
         </div>
         ${rows}
       </div>
     </div>`;
   },
+  /* ═══ LPG DETAYLI PANEL (Büyük, kapsamlı) ═══ */
+  _buildLpgDetailedHTML(s) {
+    const l = s.lpg;
+    if (l.count === 0) return '';
 
+    const trendIcon = l.trend ? (l.trend.yon === 'up' ? '↑' : l.trend.yon === 'down' ? '↓' : '≈') : '—';
+    const trendColor = l.trend
+      ? (l.trend.yon === 'up' ? 'var(--danger)' : l.trend.yon === 'down' ? 'var(--accent)' : 'var(--text3)')
+      : 'var(--text3)';
+    const trendText = l.trend ? `${trendIcon} %${Math.abs(l.trend.yuzde).toFixed(1)}` : '—';
+
+    return `
+      <div style="border-left:4px solid #0891B2;background:linear-gradient(135deg,#ECFEFF 0%,#FFFFFF 100%);border-radius:12px;padding:14px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="width:32px;height:32px;border-radius:8px;background:#0891B2;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;">
+              <i class="fas fa-fire-flame-simple"></i>
+            </div>
+            <div>
+              <div style="font-size:14px;font-weight:800;color:#0E7490;letter-spacing:-.2px;">LPG · Ana Yakıt</div>
+              <div style="font-size:10px;color:#0891B2;">Detaylı Tüketim İstatistikleri</div>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:9px;color:#7B8A9E;text-transform:uppercase;font-weight:700;">Dolum</div>
+            <div style="font-size:16px;font-weight:800;color:#0F2A5C;">${l.count}</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div class="fuel-modal-stat">
+            <div class="fuel-modal-stat-label">Toplam Litre</div>
+            <div class="fuel-modal-stat-value cyan" style="font-size:16px;">${l.totalLitre.toFixed(2)} L</div>
+          </div>
+          <div class="fuel-modal-stat">
+            <div class="fuel-modal-stat-label">Toplam Tutar</div>
+            <div class="fuel-modal-stat-value red" style="font-size:16px;">${Calc.fmt(l.totalTL)}</div>
+          </div>
+          <div class="fuel-modal-stat">
+            <div class="fuel-modal-stat-label">Tüketim Hesabına Giren KM</div>
+            <div class="fuel-modal-stat-value blue" style="font-size:16px;">${l.totalKm.toLocaleString('tr-TR')} km</div>
+          </div>
+          <div class="fuel-modal-stat">
+            <div class="fuel-modal-stat-label">Ort. Tüketim</div>
+            <div class="fuel-modal-stat-value amber" style="font-size:16px;">${l.avgL100 > 0 ? l.avgL100.toFixed(2) : '—'} <span style="font-size:10px;">L/100km</span></div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">
+          <div class="fuel-modal-stat">
+            <div class="fuel-modal-stat-label">Ort. TL/km</div>
+            <div class="fuel-modal-stat-value" style="font-size:13px;color:var(--info);">${l.avgTlPerKm > 0 ? l.avgTlPerKm.toFixed(3) : '—'}</div>
+          </div>
+          <div class="fuel-modal-stat">
+            <div class="fuel-modal-stat-label">Ort. Fiyat</div>
+            <div class="fuel-modal-stat-value" style="font-size:13px;color:var(--warning);">${l.avgFiyat.toFixed(2)} TL/L</div>
+          </div>
+          <div class="fuel-modal-stat">
+            <div class="fuel-modal-stat-label">Trend</div>
+            <div class="fuel-modal-stat-value" style="font-size:13px;color:${trendColor};">${trendText}</div>
+          </div>
+        </div>
+
+        ${l.dolumAraligi ? `
+          <div style="background:rgba(8,145,178,.08);border-radius:8px;padding:8px 10px;margin-bottom:8px;">
+            <div style="font-size:9px;color:#0E7490;text-transform:uppercase;font-weight:700;margin-bottom:4px;">⏱️ Dolum Aralığı</div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);">
+              <span>Ort: <strong>${l.dolumAraligi.ortalama.toFixed(0)} gün</strong></span>
+              <span>Min: <strong>${l.dolumAraligi.min} gün</strong></span>
+              <span>Max: <strong>${l.dolumAraligi.max} gün</strong></span>
+            </div>
+          </div>
+        ` : ''}
+
+        ${l.stats.count > 0 ? `
+          <div style="background:var(--surface2);border-radius:8px;padding:10px;margin-bottom:8px;">
+            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:6px;">📊 Tüketim Dağılımı (L/100km · ${l.stats.count} ölçüm)</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px;">
+              <div><span style="color:var(--text3);">Min:</span> <strong>${l.stats.min.toFixed(2)}</strong></div>
+              <div><span style="color:var(--text3);">Medyan:</span> <strong>${l.stats.median.toFixed(2)}</strong></div>
+              <div><span style="color:var(--text3);">Max:</span> <strong>${l.stats.max.toFixed(2)}</strong></div>
+              <div><span style="color:var(--text3);">P25:</span> <strong>${l.stats.p25.toFixed(2)}</strong></div>
+              <div><span style="color:var(--text3);">P75:</span> <strong>${l.stats.p75.toFixed(2)}</strong></div>
+              <div><span style="color:var(--text3);">Std:</span> <strong>${l.stats.stdDev.toFixed(2)}</strong></div>
+            </div>
+          </div>
+        ` : ''}
+
+        ${l.enEkonomik && l.enPahali ? `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;font-size:11px;">
+            <div style="padding:7px 9px;background:#ECFDF5;border-radius:8px;border-left:3px solid var(--accent);">
+              <div style="font-size:9px;color:var(--accent);text-transform:uppercase;font-weight:700;">🏆 En Verimli</div>
+              <div style="font-weight:800;color:var(--text);margin-top:2px;">${(l.enEkonomik._lpgL100 || 0).toFixed(2)} L/100km</div>
+              <div style="font-size:9px;color:var(--text3);">${dayjs(l.enEkonomik.tarih).format('DD MMM YY')}</div>
+            </div>
+            <div style="padding:7px 9px;background:#FEF2F2;border-radius:8px;border-left:3px solid var(--danger);">
+              <div style="font-size:9px;color:var(--danger);text-transform:uppercase;font-weight:700;">⚠️ En Yüksek</div>
+              <div style="font-weight:800;color:var(--text);margin-top:2px;">${(l.enPahali._lpgL100 || 0).toFixed(2)} L/100km</div>
+              <div style="font-size:9px;color:var(--text3);">${dayjs(l.enPahali.tarih).format('DD MMM YY')}</div>
+            </div>
+          </div>
+        ` : ''}
+
+        ${l.projeksiyon.aylikTL > 0 ? `
+          <div style="background:rgba(8,145,178,.06);border-radius:8px;padding:8px 10px;margin-bottom:8px;">
+            <div style="font-size:9px;color:#0E7490;text-transform:uppercase;font-weight:700;margin-bottom:4px;">🔮 Aylık Projeksiyon (son 6 ay ort.)</div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);">
+              <span>${Calc.fmt(l.projeksiyon.aylikTL)}</span>
+              <span>${l.projeksiyon.aylikLitre.toFixed(1)} L</span>
+              <span>${l.projeksiyon.aylikKm.toLocaleString('tr-TR')} km</span>
+            </div>
+          </div>
+        ` : ''}
+
+        ${l.fiyatTrend ? `
+          <div style="background:var(--surface2);border-radius:8px;padding:8px 10px;font-size:11px;">
+            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:3px;">💵 LPG Birim Fiyat Trendi</div>
+            <div style="display:flex;justify-content:space-between;color:var(--text2);">
+              <span>${l.fiyatTrend.ilk.toFixed(2)} → ${l.fiyatTrend.son.toFixed(2)} TL/L</span>
+              <span style="color:${l.fiyatTrend.yuzde > 0 ? 'var(--danger)' : 'var(--accent)'};font-weight:800;">
+                ${l.fiyatTrend.yuzde > 0 ? '↑' : '↓'} %${Math.abs(l.fiyatTrend.yuzde).toFixed(1)}
+              </span>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  },
+
+  /* ═══ BENZİN BASİT PANEL (Sadece toplamlar) ═══ */
+  _buildBenzinSimpleHTML(s) {
+    const b = s.benzin;
+    if (b.count === 0) return '';
+
+    return `
+      <div style="border-left:4px solid #2563EB;background:linear-gradient(135deg,#EFF6FF 0%,#FFFFFF 100%);border-radius:12px;padding:12px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="width:26px;height:26px;border-radius:7px;background:#2563EB;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;">
+              <i class="fas fa-gas-pump"></i>
+            </div>
+            <div>
+              <div style="font-size:12px;font-weight:800;color:#1E40AF;">Benzin · Yardımcı Yakıt</div>
+              <div style="font-size:9px;color:#3B82F6;">Sadece toplam tutarlar</div>
+            </div>
+          </div>
+          <div style="font-size:10px;color:var(--text3);">${b.count} dolum</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+          <div class="fuel-modal-stat">
+            <div class="fuel-modal-stat-label">Litre</div>
+            <div class="fuel-modal-stat-value" style="font-size:13px;color:#2563EB;">${b.totalLitre.toFixed(2)} L</div>
+          </div>
+          <div class="fuel-modal-stat">
+            <div class="fuel-modal-stat-label">Tutar</div>
+            <div class="fuel-modal-stat-value red" style="font-size:13px;">${Calc.fmt(b.totalTL)}</div>
+          </div>
+          <div class="fuel-modal-stat">
+            <div class="fuel-modal-stat-label">Ort. Fiyat</div>
+            <div class="fuel-modal-stat-value" style="font-size:13px;color:var(--text2);">${b.avgFiyat.toFixed(2)}</div>
+          </div>
+        </div>
+
+        ${b.fiyatTrend ? `
+          <div style="margin-top:8px;font-size:10.5px;color:var(--text3);display:flex;justify-content:space-between;">
+            <span>Fiyat: ${b.fiyatTrend.ilk.toFixed(2)} → ${b.fiyatTrend.son.toFixed(2)} TL/L</span>
+            <span style="color:${b.fiyatTrend.yuzde > 0 ? 'var(--danger)' : 'var(--accent)'};font-weight:700;">
+              ${b.fiyatTrend.yuzde > 0 ? '↑' : '↓'} %${Math.abs(b.fiyatTrend.yuzde).toFixed(1)}
+            </span>
+          </div>
+        ` : ''}
+
+        <div style="margin-top:8px;font-size:9.5px;color:var(--text3);font-style:italic;padding-top:6px;border-top:1px dashed var(--border);">
+          ℹ️ Benzin için KM/tüketim hesabı yapılmaz. Sadece litre ve TL toplamı tutulur.
+        </div>
+      </div>
+    `;
+  },
+
+  /* ═══ ÜST ÖZET KARTLARI ═══ */
+  _buildFuelSummaryHTML(s) {
+    return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:10px;">
+      <div class="fuel-modal-stat">
+        <div class="fuel-modal-stat-label">Toplam Dolum</div>
+        <div class="fuel-modal-stat-value cyan">${s.count}</div>
+      </div>
+      <div class="fuel-modal-stat">
+        <div class="fuel-modal-stat-label">LPG</div>
+        <div class="fuel-modal-stat-value blue">${s.lpg.count}</div>
+      </div>
+      <div class="fuel-modal-stat">
+        <div class="fuel-modal-stat-label">Benzin</div>
+        <div class="fuel-modal-stat-value amber">${s.benzin.count}</div>
+      </div>
+      <div class="fuel-modal-stat">
+        <div class="fuel-modal-stat-label">Toplam Tutar</div>
+        <div class="fuel-modal-stat-value red" style="font-size:12px;">${Calc.fmt(s.lpg.totalTL + s.benzin.totalTL)}</div>
+      </div>
+    </div>`;
+  },
   _openFuelRecordDetail(id) {
     if (this._fuelChartId && Charts.instances[this._fuelChartId]) {
       try { Charts.destroy(this._fuelChartId); } catch (_) {}
@@ -5513,17 +5674,15 @@ const App = {
     const stats = Calc.fuelStats();
     if (stats.count === 0) { el.innerHTML = ''; return; }
 
-    /* Arşiv durumu */
+    const l = stats.lpg;
+    const b = stats.benzin;
+    const monthly = l.monthly.slice(-6);
+    const last = stats.items.slice(-6).reverse();
+
     const archivedCount = Object.values(state.archives)
       .flatMap(a => Array.isArray(a.giderler) ? a.giderler : [])
       .filter(g => g.kategori === 'Akaryakıt' && g.fuel).length;
     const activeCount = state.giderler.filter(g => g.kategori === 'Akaryakıt' && g.fuel).length;
-
-    const monthly = stats.monthly.slice(-6);
-    const last = stats.items.slice(-6).reverse();
-
-    const benzinHas = stats.totalBenzinLitre > 0;
-    const lpgHas    = stats.totalLpgLitre > 0;
 
     el.innerHTML = `<div class="card" style="border-left:4px solid var(--warning);background:linear-gradient(135deg,#FFFBEB 0%,#FFFFFF 100%);">
       <div class="section-header" style="flex-wrap:wrap;">
@@ -5544,72 +5703,34 @@ const App = {
         </div>
       </div>
 
-      ${archivedCount > 0 ? `
-        <div style="font-size:10.5px;color:var(--text3);text-align:center;padding:7px 10px;background:var(--surface2);border-radius:8px;margin-bottom:10px;display:flex;justify-content:center;gap:14px;flex-wrap:wrap;">
-          <span>📦 <strong style="color:var(--text2);">${archivedCount}</strong> arşiv</span>
-          <span>📝 <strong style="color:var(--text2);">${activeCount}</strong> aktif</span>
-          <span style="font-style:italic;opacity:.7;">takip için saklanır</span>
-        </div>
-      ` : ''}
-
-      ${benzinHas || lpgHas ? `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-          ${benzinHas ? `
-            <div style="padding:10px;background:linear-gradient(135deg,#EFF6FF,#DBEAFE);border-radius:10px;border-left:3px solid #2563EB;">
-              <div style="font-size:9px;color:#1E40AF;text-transform:uppercase;font-weight:800;letter-spacing:.5px;margin-bottom:4px;">⛽ Benzin</div>
-              <div style="font-family:'Plus Jakarta Sans';font-size:13px;font-weight:800;color:#0F2A5C;">${stats.totalBenzinLitre.toFixed(1)} L</div>
-              <div style="font-size:10px;color:#3D4A5C;margin-top:1px;">${Calc.fmt(stats.totalBenzinTL)}</div>
-              <div style="margin-top:5px;padding-top:5px;border-top:1px dashed rgba(37,99,235,.3);font-size:10px;color:#7B8A9E;">
-                <strong style="color:#2563EB;">${stats.totalKmBenzin > 0 ? stats.avgLPer100_benzin.toFixed(2) : '—'}</strong> L/100km
-                ${stats.totalKmBenzin > 0 ? `<div style="font-size:9px;opacity:.75;margin-top:1px;">${Math.round(stats.totalKmBenzin).toLocaleString('tr-TR')} km</div>` : ''}
-              </div>
-            </div>
-          ` : '<div></div>'}
-          ${lpgHas ? `
-            <div style="padding:10px;background:linear-gradient(135deg,#ECFEFF,#CFFAFE);border-radius:10px;border-left:3px solid #0891B2;">
-              <div style="font-size:9px;color:#0E7490;text-transform:uppercase;font-weight:800;letter-spacing:.5px;margin-bottom:4px;">💧 LPG</div>
-              <div style="font-family:'Plus Jakarta Sans';font-size:13px;font-weight:800;color:#0F2A5C;">${stats.totalLpgLitre.toFixed(1)} L</div>
-              <div style="font-size:10px;color:#3D4A5C;margin-top:1px;">${Calc.fmt(stats.totalLpgTL)}</div>
-              <div style="margin-top:5px;padding-top:5px;border-top:1px dashed rgba(8,145,178,.3);font-size:10px;color:#7B8A9E;">
-                <strong style="color:#0891B2;">${stats.totalKmLpg > 0 ? stats.avgLPer100_lpg.toFixed(2) : '—'}</strong> L/100km
-                ${stats.totalKmLpg > 0 ? `<div style="font-size:9px;opacity:.75;margin-top:1px;">${Math.round(stats.totalKmLpg).toLocaleString('tr-TR')} km</div>` : ''}
-              </div>
-            </div>
-          ` : '<div></div>'}
-        </div>
-      ` : ''}
-
-      <div class="stat-grid" style="margin-bottom:12px;">
-        <div class="stat-card"><div class="card-label">Toplam Harcama</div><div class="stat-amount red">${Calc.fmt(stats.totalTL)}</div></div>
-        <div class="stat-card"><div class="card-label">Toplam Litre</div><div class="stat-amount amber">${stats.totalLitre.toFixed(2)} L</div></div>
-        <div class="stat-card"><div class="card-label">Toplam KM</div><div class="stat-amount blue">${stats.totalKm.toLocaleString('tr-TR')} km</div></div>
-        <div class="stat-card"><div class="card-label">Ort. TL/km</div><div class="stat-amount cyan">${stats.avgTlPerKm.toFixed(3)}</div></div>
+      <div style="font-size:10.5px;color:var(--text3);text-align:center;padding:7px 10px;background:var(--surface2);border-radius:8px;margin-bottom:10px;">
+        ${stats.count} toplam dolum · ${l.count} LPG · ${b.count} Benzin
+        ${archivedCount > 0 ? ` · 📦 ${archivedCount} arşiv · 📝 ${activeCount} aktif` : ''}
       </div>
 
-      ${stats.kmValidCount < stats.count ? `
-        <div class="alert alert-warning" style="font-size:11px;padding:8px 12px;margin-bottom:10px;">
-          <i class="fas fa-info-circle"></i>
-          <div>${stats.count - stats.kmValidCount} dolum KM bilgisi içermediği için ortalama hesaplamalarına katılmadı.</div>
-        </div>` : ''}
+      ${this._buildLpgDetailedHTML(stats)}
+
+      ${this._buildBenzinSimpleHTML(stats)}
 
       <div style="margin-top:12px;">
-        <div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--text2);">📈 Tüketim Trendi</div>
+        <div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--text2);">📈 LPG Tüketim Trendi</div>
         <div class="chart-wrap" style="height:220px;"><canvas id="fuelAnalysisChart"></canvas></div>
       </div>
 
       ${monthly.length > 0 ? `
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
-          <div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--text2);">📅 Aylık Özet</div>
-          <div style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;padding:4px 0;border-bottom:1px solid var(--border);">
-            <span>Dönem</span><span></span><span>Harcama</span><span>Litre</span><span>KM</span>
+          <div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--text2);">📅 Aylık LPG Özeti</div>
+          <div style="display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:8px;font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;padding:4px 0;border-bottom:1px solid var(--border);">
+            <span>Dönem</span><span></span><span>Litre</span><span>Tutar</span><span>KM</span><span>L/100</span>
           </div>
           ${monthly.map(m => `
-            <div style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;padding:7px 0;font-size:11px;border-bottom:1px dashed var(--border);align-items:center;">
+            <div style="display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:8px;padding:7px 0;font-size:11px;border-bottom:1px dashed var(--border);align-items:center;">
               <span style="font-weight:700;color:var(--text);">${m.label}</span>
               <span style="color:var(--text3);font-size:10px;">${m.count} dolum</span>
-              <span style="color:var(--danger);font-weight:800;">${Calc.fmt(m.tl)}</span>
-              <span style="color:var(--warning);font-weight:700;">${m.litre.toFixed(1)} L</span>
+              <span style="color:#0891B2;font-weight:700;">${m.lpgLitre.toFixed(1)} L</span>
+              <span style="color:var(--danger);font-weight:800;">${Calc.fmt(m.lpgTL)}</span>
               <span style="color:var(--text2);">${m.km.toLocaleString('tr-TR')} km</span>
+              <span style="color:var(--warning);font-weight:700;">${m.avgL100 > 0 ? m.avgL100.toFixed(2) : '—'}</span>
             </div>
           `).join('')}
         </div>
@@ -5618,21 +5739,21 @@ const App = {
       ${last.length > 0 ? `
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
           <div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--text2);">⛽ Son Dolumlar</div>
-          ${last.map(i => `
-            <div style="padding:9px 11px;background:var(--surface2);border-radius:9px;margin-bottom:6px;font-size:11px;border-left:3px solid var(--warning);">
+          ${last.map(i => {
+            const lpgPart = i._lpg.litre > 0 ? `<span style="color:#0891B2;">💧 ${i._lpg.litre.toFixed(1)} L</span>` : '';
+            const benzinPart = i._benzin.litre > 0 ? `<span style="color:#2563EB;">⛽ ${i._benzin.litre.toFixed(1)} L</span>` : '';
+            const l100Part = i._lpgL100 ? `<span style="color:var(--warning);font-weight:700;">${i._lpgL100.toFixed(2)} L/100km</span>` : '';
+            return `<div style="padding:9px 11px;background:var(--surface2);border-radius:9px;margin-bottom:6px;font-size:11px;border-left:3px solid var(--warning);">
               <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
                 <strong style="color:var(--text);">${dayjs(i.tarih).format('DD MMM YYYY')}</strong>
                 <strong style="color:var(--danger);">${Calc.fmt(i._toplamTL)}</strong>
               </div>
               <div style="display:flex;gap:10px;color:var(--text3);font-size:10px;flex-wrap:wrap;">
                 <span>🛣️ ${i._km.toLocaleString('tr-TR')} km</span>
-                ${i._mesafe > 0 ? `<span>📏 ${i._mesafe.toLocaleString('tr-TR')} km</span>` : ''}
-                ${i._benzin.litre > 0 ? `<span style="color:#2563EB;">⛽ ${i._benzin.litre.toFixed(1)} L</span>` : ''}
-                ${i._lpg.litre > 0 ? `<span style="color:#0891B2;">💧 ${i._lpg.litre.toFixed(1)} L</span>` : ''}
-                ${i._mesafe > 0 ? `<span style="color:var(--info);font-weight:800;">${(i._toplamTL / i._mesafe).toFixed(3)} TL/km</span>` : ''}
+                ${lpgPart}${benzinPart}${l100Part}
               </div>
-            </div>
-          `).join('')}
+            </div>`;
+          }).join('')}
         </div>
       ` : ''}
     </div>`;
