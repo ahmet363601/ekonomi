@@ -1551,7 +1551,6 @@ input[type="month"].form-input,
   .fuel-hint { color: #FBBF24; }
 }
 </style>
-</style>
 
 </head>
 
@@ -3847,7 +3846,6 @@ const App = {
     preview.classList.add('visible');
   },
 
-  setRecentTab(t) { this._recentTab = t; this._recentPage = 1; UI.updateChips(document.getElementById('recentTabs'), t); this.renderRecentList(); },
   setRecentTab(t) { this._recentTab = t; this._recentPage = 1; UI.updateChips(document.getElementById('recentTabs'), t); this.renderRecentList(); },
   prevRecentPage() { if (this._recentPage > 1) { this._recentPage--; this.renderRecentList(); } },
   nextRecentPage() { this._recentPage++; this.renderRecentList(); },
@@ -6254,7 +6252,7 @@ openKategoriModal() {
     state.logs = [];
     state.backups = [];
     state.limitler = {};
-    state.kategoriler = {
+    // YANLIŞ olan satırı sil, tek bir tane bırak:
     state.kategoriler = {
       gelir: ['Maaş','Serbest Çalışma','Yatırım','Hediye','Kira Geliri','Diğer'],
       gider: ['Market','Fatura','Eğlence','Ulaşım','Sağlık','Eğitim','Yemek','Alışveriş','Akaryakıt','Diğer']
