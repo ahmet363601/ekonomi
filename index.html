@@ -3771,6 +3771,7 @@ const App = {
 
     if (isFuel) {
       this._setFuelTip(this._fuelTipCurrent || 'benzin');
+      this._updateFuelKmPlaceholder();   // 🆕 Son KM'yi placeholder'a yaz
     }
     this._updateKategoriAylikOzet();   // 🆕 Özet kutusunu güncelle
   },
@@ -3864,6 +3865,19 @@ const App = {
     if (!beforeDate) return all[all.length - 1] || null;
     const eligible = all.filter(g => g.tarih <= beforeDate);
     return eligible[eligible.length - 1] || null;
+  },
+
+  /* 🆕 Son akaryakıt KM'sini placeholder'a yaz */
+  _updateFuelKmPlaceholder() {
+    const kmEl = document.getElementById('fuelKm');
+    if (!kmEl) return;
+    const last = this._findPrevFuelRecord(null, null);
+    const lastKm = Number(last?.fuel?.km) || 0;
+    if (lastKm > 0) {
+      kmEl.placeholder = `Son KM: ${lastKm.toLocaleString('tr-TR')} km`;
+    } else {
+      kmEl.placeholder = 'İlk kayıt — mevcut km girin';
+    }
   },
 
   _updateFuelPreview() {
@@ -4097,6 +4111,7 @@ const App = {
       const tEl = document.getElementById('islemTarih');
       if (tEl && !tEl.value) tEl.value = dayjs().format('YYYY-MM-DD');
       this._updateKategoriAylikOzet();   // 🆕 Özet kutusunu ilk render'da göster
+      this._updateFuelKmPlaceholder();   // 🆕 Son KM placeholder'ını hazırla
     });
 
     await this.renderIslemList();
@@ -4256,6 +4271,7 @@ const App = {
     await this.renderIslemList();
     if (this.currentPage === 'dashboard') await this.renderRecentList();
     this._updateKategoriAylikOzet();   // 🆕 Özet kutusunu tazele
+    this._updateFuelKmPlaceholder();   // 🆕 Son KM placeholder'ını yenile
   },
 
   async editIslem(id, tip) {
@@ -4393,7 +4409,10 @@ const App = {
       showToast('🗑️ Silindi');
       await this.renderIslemList();
       if (this.currentPage === 'dashboard') await this.renderRecentList();
-      if (this.currentPage === 'islemler') this._updateKategoriAylikOzet();   // 🆕
+      if (this.currentPage === 'islemler') {
+        this._updateKategoriAylikOzet();   // 🆕
+        this._updateFuelKmPlaceholder();    // 🆕 Son KM değişmiş olabilir
+      }
     }
   },
 
