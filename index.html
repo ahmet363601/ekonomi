@@ -3843,7 +3843,8 @@ const App = {
           const banner = document.createElement('div');
           banner.className = 'alert';
           banner.style.cssText = 'background:var(--danger-light);color:var(--danger);border:1px solid var(--danger);margin-top:8px;cursor:pointer;';
-          banner.onclick = () => this.openStorageModal();
+          const self = this;
+          banner.onclick = () => self.openStorageModal();
           banner.innerHTML = `
             <i class="fas fa-exclamation-triangle"></i>
             <div>
@@ -5096,7 +5097,7 @@ const App = {
       })
     });
     if (value && value.miktar > 0) {
-      await CRUD.islemGuncelle(id, tip, value);
+      await CRUD.islemGuncelle(id, item.tip, value);  // item.tip kullan
       showToast('✅ Güncellendi!');
       await this.renderIslemList();
       if (this.currentPage === 'dashboard') await this.renderRecentList();
@@ -8918,29 +8919,29 @@ openKategoriModal() {
 
     const tipBadge = { gelir: 'success', gider: 'danger', alacak: 'success', borc: 'amber', kategori: 'blue', arsiv: 'cyan', log: 'blue' };
 
-    results.innerHTML = `<div style="font-size:11px;color:var(--text3);padding:5px 0 8px;font-weight:600;">
-      ${matches.length} sonuç${matches.length > 50 ? ' (ilk 50 gösteriliyor)' : ''}
-    </div>` +
-    matches.slice(0, 50).map(m => {
-      let onclick = 'Swal.close()';
-      if (m.tip === 'gelir' || m.tip === 'gider' || m.tip === 'alacak' || m.tip === 'borc') {
-        onclick = `Swal.close(); setTimeout(() => App.showTransactionDetail(${m.item.id}, '${m.tip}'), 200)`;
-      } else if (m.tip === 'arsiv') {
-        onclick = `Swal.close(); setTimeout(() => App.showArchiveDetail('${m.item.key}'), 200)`;
-      } else if (m.tip === 'log') {
-        onclick = `Swal.close(); setTimeout(() => App.showLogDetail(${m.item.id}), 200)`;
-      } else if (m.tip === 'kategori') {
-        onclick = `Swal.close(); setTimeout(() => { App._islemTip='${m.item.t}'; App.loadPage('islemler'); }, 200)`;
-      }
-      return `<div onclick="${onclick}" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:5px;background:var(--surface2);cursor:pointer;transition:var(--transition);" onmouseover="this.style.borderColor='var(--primary)';" onmouseout="this.style.borderColor='var(--border)';">
-        <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:2px;">
-          <strong style="font-size:13px;color:var(--text);">${UI.escHtml(m.label)}</strong>
-          <span class="badge badge-${tipBadge[m.tip] || 'blue'}" style="font-size:9px;padding:2px 6px;">${m.tip}</span>
-        </div>
-        <div style="font-size:11px;color:var(--text3);">${UI.escHtml(m.sub)}</div>
-      </div>`;
-    }).join('');
-  },
+results.innerHTML = `<div style="font-size:11px;color:var(--text3);padding:5px 0 8px;font-weight:600;">
+  ${matches.length} sonuç${matches.length > 50 ? ' (ilk 50 gösteriliyor)' : ''}
+</div>` +
+matches.slice(0, 50).map(m => {
+  let onclick = 'Swal.close()';
+  if (m.tip === 'gelir' || m.tip === 'gider' || m.tip === 'alacak' || m.tip === 'borc') {
+    onclick = `Swal.close(); setTimeout(() => App.showTransactionDetail(${m.item.id}, '${m.tip}'), 200)`;
+  } else if (m.tip === 'arsiv') {
+    onclick = `Swal.close(); setTimeout(() => App.showArchiveDetail('${m.item.key}'), 200)`;
+  } else if (m.tip === 'log') {
+    onclick = `Swal.close(); setTimeout(() => App.showLogDetail(${m.item.id}), 200)`;
+  } else if (m.tip === 'kategori') {
+    onclick = `Swal.close(); setTimeout(() => { App._islemTip='${m.item.t}'; App.loadPage('islemler'); }, 200)`;
+  }
+  return `<div onclick="${onclick}" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:5px;background:var(--surface2);cursor:pointer;transition:var(--transition);" onmouseover="this.style.borderColor='var(--primary)';" onmouseout="this.style.borderColor='var(--border)';">
+    <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:2px;">
+      <strong style="font-size:13px;color:var(--text);">${UI.escHtml(m.label)}</strong>
+      <span class="badge badge-${tipBadge[m.tip] || 'blue'}" style="font-size:9px;padding:2px 6px;">${m.tip}</span>
+    </div>
+    <div style="font-size:11px;color:var(--text3);">${UI.escHtml(m.sub)}</div>
+  </div>`;
+}).join('');  // ← DOĞRU: tek kapanış
+
 
 
 
