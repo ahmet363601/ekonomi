@@ -3834,30 +3834,7 @@ const App = {
       Charts.donut('dashDonutChart', Calc.kategoriGiderler(ayF));
     });
     await this.renderRecentList();
-        // 🆕 Depolama doluluk uyarısı (sadece >%80 ise göster)
-    try {
-      const info = await this._getStorageInfo();
-      if (info.available && info.percent > 80) {
-        const view = document.getElementById('view');
-        if (view) {
-          const banner = document.createElement('div');
-          banner.className = 'alert';
-          banner.style.cssText = 'background:var(--danger-light);color:var(--danger);border:1px solid var(--danger);margin-top:8px;cursor:pointer;';
-          const self = this;
-          banner.onclick = () => self.openStorageModal();
-          banner.innerHTML = `
-            <i class="fas fa-exclamation-triangle"></i>
-            <div>
-              <strong>Depolama %${info.percent.toFixed(1)} dolu!</strong>
-              Yedek alın veya eski arşivleri temizleyin.
-              <span style="text-decoration:underline;font-weight:700;">Detaylar →</span>
-            </div>
-          `;
-          view.appendChild(banner);
-        }
-      }
-    } catch (_) { /* sessiz geç */ }
-  },               // ← Tek kapanış, doğru
+  },
 
   /* ── AKARYAKIT — Çift Yakıt ── */
   _fuelTipCurrent: 'benzin',
@@ -7817,140 +7794,6 @@ openKategoriModal() {
     await this.loadPage(this.currentPage);
   }
 },
-    /* 🆕 DEPOLAMA — format + bilgi */
-  _formatBytes(bytes) {
-    if (!bytes || bytes === 0) return '0 B';
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(2) + ' MB';
-    return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
-  },
-
-async _getStorageInfo() {
-  // ⏱️ 3 saniye timeout — asla sonsuza kadar bekleme
-  const withTimeout = (promise, ms = 3000) => Promise.race([
-    promise,
-    new Promise((_, rej) => setTimeout(() => rej(new Error('Storage API timeout')), ms))
-  ]);
-
-  if (!navigator.storage || !navigator.storage.estimate) {
-    return { available: false, message: 'Depolama bilgisi bu tarayıcıda desteklenmiyor' };
-  }
-  try {
-    const est = await withTimeout(navigator.storage.estimate());
-    const usage = est.usage || 0;
-    const quota = est.quota || 0;
-    const percent = quota > 0 ? (usage / quota) * 100 : 0;
-
-    let persisted = false;
-    try {
-      if (navigator.storage.persisted) {
-        persisted = await withTimeout(navigator.storage.persisted(), 2000);
-      }
-    } catch (_) {}
-
-    return {
-      available: true,
-      usage, quota, percent, persisted,
-      usageFormatted: this._formatBytes(usage),
-      quotaFormatted: this._formatBytes(quota),
-      freeFormatted: this._formatBytes(Math.max(0, quota - usage)),
-      counts: {
-        gelirler: state.gelirler.length,
-        giderler: state.giderler.length,
-        borclar: state.borcalacaklar.length,
-        arsivler: Object.keys(state.archives).length,
-        loglar: state.logs.length,
-        yedekler: state.backups.length
-      }
-    };
-  } catch (e) {
-    return { available: false, message: 'Storage API yanıt vermiyor: ' + (e.message || 'timeout') };
-  }
-},
-
-  async openStorageModal() {
-    Swal.fire({
-      title: '💾 Depolama Durumu',
-      html: `<div id="storageDetailBody" style="text-align:left;min-height:120px;">
-        <div style="text-align:center;padding:20px;">
-          <div class="spinner" style="margin:0 auto;width:28px;height:28px;"></div>
-          <p style="font-size:11px;color:var(--text3);margin-top:10px;">Yükleniyor...</p>
-        </div>
-      </div>`,
-      width: Math.min(480, window.innerWidth - 24),
-      confirmButtonText: 'Kapat',
-      didOpen: async () => {
-        const info = await this._getStorageInfo();
-        const body = document.getElementById('storageDetailBody');
-        if (!body) return;
-
-        if (!info.available) {
-          body.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text3);">
-            <i class="fas fa-info-circle" style="font-size:32px;opacity:.4;margin-bottom:8px;"></i>
-            <p style="font-size:12px;">${UI.escHtml(info.message)}</p>
-          </div>`;
-          return;
-        }
-
-        const barColor = info.percent > 80 ? 'var(--danger)' : info.percent > 50 ? 'var(--warning)' : 'var(--accent)';
-        const warnMsg = info.percent > 80
-          ? '<div class="alert" style="background:var(--danger-light);color:var(--danger);border:1px solid var(--danger);margin-top:10px;font-size:11px;"><i class="fas fa-exclamation-triangle"></i><div><strong>Depolama doluyor!</strong> Yedek alıp eski arşivleri temizleyin.</div></div>'
-          : '';
-
-        body.innerHTML = `
-          <div style="padding:14px;background:var(--surface2);border-radius:10px;margin-bottom:12px;">
-            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-              <span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:700;">Kullanım</span>
-              <span style="font-size:13px;font-weight:800;color:${barColor};">%${info.percent.toFixed(1)}</span>
-            </div>
-            <div class="progress-track" style="margin:0;height:8px;">
-              <div class="progress-bar" style="width:${Math.min(100, info.percent)}%;background:${barColor};"></div>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:var(--text2);">
-              <span><strong>${info.usageFormatted}</strong> kullanılıyor</span>
-              <span><strong>${info.quotaFormatted}</strong> toplam</span>
-            </div>
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-            <div class="archive-stat-card">
-              <div class="archive-stat-label">Kullanılan</div>
-              <div class="archive-stat-value" style="font-size:13px;">${info.usageFormatted}</div>
-            </div>
-            <div class="archive-stat-card">
-              <div class="archive-stat-label">Boş Alan</div>
-              <div class="archive-stat-value green" style="font-size:13px;">${info.freeFormatted}</div>
-            </div>
-          </div>
-
-          <div style="padding:12px;background:var(--surface2);border-radius:10px;margin-bottom:12px;">
-            <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px;">📊 Veri Sayıları</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;">
-              <div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Gelir:</span><strong>${info.counts.gelirler}</strong></div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Gider:</span><strong>${info.counts.giderler}</strong></div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Borç/Alacak:</span><strong>${info.counts.borclar}</strong></div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Arşiv:</span><strong>${info.counts.arsivler}</strong></div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Log:</span><strong>${info.counts.loglar}</strong></div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Yedek:</span><strong>${info.counts.yedekler}</strong></div>
-            </div>
-          </div>
-
-          <div style="padding:10px 12px;background:${info.persisted ? 'var(--accent-light)' : 'var(--warning-light)'};border-radius:10px;border:1px solid ${info.persisted ? 'var(--accent)' : 'var(--warning)'};margin-bottom:12px;">
-            <div style="display:flex;align-items:center;gap:8px;font-size:11px;">
-              <i class="fas ${info.persisted ? 'fa-check-circle' : 'fa-info-circle'}" style="color:${info.persisted ? 'var(--accent)' : 'var(--warning)'};font-size:14px;"></i>
-              <div>
-                <strong style="color:${info.persisted ? 'var(--accent)' : 'var(--warning)'};">Kalıcı Depolama ${info.persisted ? 'Aktif' : 'Pasif'}</strong>
-                <div style="color:var(--text2);margin-top:2px;">${info.persisted ? 'Tarayıcı verilerinizi otomatik silmez.' : 'İlk kullanıcı etkileşiminde otomatik istenir.'}</div>
-              </div>
-            </div>
-          </div>
-
-          ${warnMsg}
-        `;
-      }
-    });
-  },
   async openSettingsModal() {
     const { value } = await Swal.fire({
       title: '⚙️ Ayarlar',
@@ -7971,16 +7814,8 @@ async _getStorageInfo() {
           </p>
         </div>
 
-        <!-- 🆕 DEPOLAMA -->
-        <div style="margin-top:16px;padding:12px 14px;background:var(--surface2);border-radius:12px;border:1px solid var(--border);">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-size:12px;font-weight:700;color:var(--text2);">💾 Depolama</div>
-            <button type="button" onclick="App.openStorageModal()" style="background:var(--primary-light);color:var(--primary);border:1px solid var(--primary);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:10px;font-weight:700;">Detaylar</button>
-          </div>
-          <div id="storageMini" style="font-size:11px;color:var(--text3);">Yükleniyor...</div>
-        </div>
-
         <div style="margin-top:16px;padding:14px;background:var(--primary-light);border-radius:12px;border:1px solid #BFDBFE;">
+        
           <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;">📲 Uygulamayı Yükle</div>
           <p style="font-size:11px;color:var(--text2);margin-bottom:10px;">Ana ekrana ekleyip çevrimdışı kullanın.</p>
           <button type="button" onclick="App.promptInstall()" style="padding:8px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;">Ana Ekrana Ekle</button>
@@ -7995,31 +7830,6 @@ async _getStorageInfo() {
       showCancelButton: true,
       cancelButtonText: 'İptal',
       width: Math.min(520, window.innerWidth - 24),
-      didOpen: async () => {
-        try {
-          const info = await this._getStorageInfo();
-          const mini = document.getElementById('storageMini');
-          if (!mini) return;
-          if (!info.available) {
-            mini.textContent = info.message;
-            return;
-          }
-          const color = info.percent > 80 ? 'var(--danger)' : info.percent > 50 ? 'var(--warning)' : 'var(--accent)';
-          mini.innerHTML = `
-            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-              <span>Kullanım</span>
-              <strong style="color:${color};">${info.usageFormatted} / ${info.quotaFormatted}</strong>
-            </div>
-            <div class="progress-track" style="margin:0;height:4px;">
-              <div class="progress-bar" style="width:${Math.min(100, info.percent)}%;background:${color};"></div>
-            </div>
-            <div style="margin-top:4px;text-align:right;font-size:10px;color:${color};font-weight:700;">%${info.percent.toFixed(1)}</div>
-          `;
-        } catch (e) {
-          const mini = document.getElementById('storageMini');
-          if (mini) mini.textContent = 'Bilgi alınamadı';
-        }
-      },
       preConfirm: () => ({
         varsayilanRaporAraligi: document.getElementById('sRa').value,
         gramAltinFiyati: parseFloat(document.getElementById('sGramAltin').value) || 0,
