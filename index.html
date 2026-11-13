@@ -2544,7 +2544,68 @@ sonIslemler() {
 
     return { data, kategoriler: siraliKats };
   },
+  /* ═══════════════════════════════════════════════════════
+     RAPORLAR — Belirli tarih aralığına göre trend (yeni)
+     ═══════════════════════════════════════════════════════ */
+  aylikTrendBetween(startDate, endDate, maxMonths = 12) {
+    const tumGelirler = this._allGelirler();
+    const tumGiderler = this._allGiderler();
+    const start = dayjs(startDate).startOf('month');
+    const end = dayjs(endDate);
+    const months = [];
+    let cur = start;
+    while (cur.isBefore(end) || cur.isSame(end, 'month')) {
+      months.push(cur.format('YYYY-MM'));
+      cur = cur.add(1, 'month');
+    }
+    const limited = months.slice(-maxMonths);
+    return limited.map(key => {
+      const mStart = dayjs(key + '-01').startOf('month');
+      const mEnd = dayjs(key + '-01').endOf('month');
+      const sStart = mStart.format('YYYY-MM-DD');
+      const sEnd = mEnd.format('YYYY-MM-DD');
+      return {
+        label: mStart.format('MMM YY'),
+        gelir: tumGelirler.filter(g => g.tarih >= sStart && g.tarih <= sEnd).reduce((s, g) => s + (Number(g.miktar) || 0), 0),
+        gider: tumGiderler.filter(g => g.tarih >= sStart && g.tarih <= sEnd).reduce((s, g) => s + (Number(g.miktar) || 0), 0)
+      };
+    });
+  },
 
+  kategoriTrendBetween(startDate, endDate, maxMonths = 12, topN = 6) {
+    const tumGiderler = this._allGiderler();
+    const start = dayjs(startDate).startOf('month');
+    const end = dayjs(endDate);
+    const months = [];
+    let cur = start;
+    while (cur.isBefore(end) || cur.isSame(end, 'month')) {
+      months.push(cur.format('YYYY-MM'));
+      cur = cur.add(1, 'month');
+    }
+    const limited = months.slice(-maxMonths);
+    const data = limited.map(key => {
+      const mStart = dayjs(key + '-01').startOf('month');
+      const mEnd = dayjs(key + '-01').endOf('month');
+      const sStart = mStart.format('YYYY-MM-DD');
+      const sEnd = mEnd.format('YYYY-MM-DD');
+      const kats = {};
+      tumGiderler
+        .filter(g => g.tarih >= sStart && g.tarih <= sEnd)
+        .forEach(g => {
+          const k = g.kategori || 'Diğer';
+          kats[k] = (kats[k] || 0) + (Number(g.miktar) || 0);
+        });
+      return { label: mStart.format('MMM YY'), ...kats };
+    });
+    const allKats = new Set();
+    data.forEach(r => Object.keys(r).forEach(k => { if (k !== 'label') allKats.add(k); }));
+    const toplamlar = {};
+    allKats.forEach(k => {
+      toplamlar[k] = data.reduce((s, d) => s + (Number(d[k]) || 0), 0);
+    });
+    const siraliKats = [...allKats].sort((a, b) => toplamlar[b] - toplamlar[a]).slice(0, topN);
+    return { data, kategoriler: siraliKats };
+  },
   /* 5. Dönem Karşılaştırma */
   /* 5. Dönem Karşılaştırma */
   donemKarsilastir(key1, key2) {
@@ -5773,7 +5834,7 @@ const App = {
           ${monthly.map(m => `
             <div style="display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:8px;padding:7px 0;font-size:11px;border-bottom:1px dashed var(--border);align-items:center;">
               <span style="font-weight:700;color:var(--text);">${m.label}</span>
-              <span style="color:var(--text3);font-size:10px;">${m.count} dolum</span>
+              <span style="color:var(--text3);font-size:10px;">${m.lpgCount} dolum</span>
               <span style="color:#0891B2;font-weight:700;">${m.lpgLitre.toFixed(1)} L</span>
               <span style="color:var(--danger);font-weight:800;">${Calc.fmt(m.lpgTL)}</span>
               <span style="color:var(--text2);">${m.km.toLocaleString('tr-TR')} km</span>
@@ -5821,37 +5882,28 @@ const App = {
           <div><label class="form-label">Başlangıç</label><input type="date" id="rStart" class="form-input" value="${this._raporStart}"></div>
           <div><label class="form-label">Bitiş</label><input type="date" id="rEnd" class="form-input" value="${this._raporEnd}"></div>
         </div>
-        <div class="tab-chips" style="margin-bottom:10px;">
-          ${[['bugun','Bugün'],['hafta','Hafta'],['ay','Bu Ay'],['3ay','3 Ay'],['6ay','6 Ay']].map(([t,l])=>`<span class="chip" onclick="App.quickFilter('${t}')">${l}</span>`).join('')}
+        <div class="tab-chips" style="margin-bottom:10px;flex-wrap:wrap;">
+          ${[['bugun','Bugün'],['hafta','Hafta'],['ay','Bu Ay'],['3ay','3 Ay'],['6ay','6 Ay'],['yil','Bu Yıl'],['tum','Tümü']].map(([t,l])=>`<span class="chip" onclick="App.quickFilter('${t}')">${l}</span>`).join('')}
         </div>
         <button class="btn btn-primary btn-full" onclick="App.applyRapor()"><i class="fas fa-filter"></i> Filtrele & Hesapla</button>
       </div>
 
       <div id="raporStats"></div>
-      <div class="card" id="raporChartCard" style="display:none;">
-        <div class="section-header"><span class="section-title">Gider Dağılımı</span></div>
-        <div class="chart-wrap"><canvas id="raporPieChart"></canvas></div>
-      </div>
-      <div class="card">
-        <div class="section-header"><span class="section-title">Aylık Trend (6 Ay)</span></div>
-        <div class="chart-wrap"><canvas id="raporLineChart"></canvas></div>
-      </div>
+      <div id="raporDetaylar"></div>
 
-      <!-- 🆕 CASH FLOW WATERFALL -->
       <div class="card">
         <div class="section-header">
-          <span class="section-title">Cash Flow Waterfall</span>
-          <button onclick="App.downloadChart('raporWaterfallChart', 'Cash_Flow_Waterfall')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;" title="PNG İndir">
+          <span class="section-title">Aylık Gelir/Gider Trendi</span>
+          <button onclick="App.downloadChart('raporLineChart', 'Aylik_Trend')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;" title="PNG İndir">
             <i class="fas fa-download"></i>
           </button>
         </div>
-        <div class="chart-wrap"><canvas id="raporWaterfallChart"></canvas></div>
+        <div class="chart-wrap"><canvas id="raporLineChart"></canvas></div>
       </div>
 
-      <!-- 🆕 KATEGORİ YARIŞI -->
       <div class="card">
         <div class="section-header">
-          <span class="section-title">Kategori Yarışı (6 Ay)</span>
+          <span class="section-title">Kategori Yarışı</span>
           <button onclick="App.downloadChart('raporKategoriTrendChart', 'Kategori_Yarisi')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;" title="PNG İndir">
             <i class="fas fa-download"></i>
           </button>
@@ -5859,7 +5911,6 @@ const App = {
         <div class="chart-wrap" style="height:240px;"><canvas id="raporKategoriTrendChart"></canvas></div>
       </div>
 
-      <!-- 🆕 DÖNEM KARŞILAŞTIRMA -->
       <div class="card">
         <div class="section-header">
           <span class="section-title" style="display:flex;align-items:center;gap:8px;">
@@ -5882,12 +5933,10 @@ const App = {
 
       <div id="fuelAnalysisCard"></div>
 
-      <div id="raporTxList"></div>
-
       <div class="card">
         <div class="section-header"><span class="section-title">Dışa Aktar</span></div>
         <div class="btn-row">
-          <button class="btn btn-danger flex-1" onclick="App.exportToPDF()"><i class="fas fa-file-pdf"></i> PDF</button>
+          <button class="btn btn-danger flex-1" onclick="App.exportToPDF()"><i class="fas fa-file-pdf"></i> PDF Rapor</button>
           <button class="btn btn-success flex-1" onclick="App.exportToExcel()"><i class="fas fa-file-excel"></i> Excel</button>
         </div>
         <div class="btn-row">
@@ -5911,7 +5960,19 @@ const App = {
       hafta: [now.subtract(7,'day').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')],
       ay:    [salaryRange.start, salaryRange.end],
       '3ay': [now.subtract(3,'month').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')],
-      '6ay': [now.subtract(6,'month').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')]
+      '6ay': [now.subtract(6,'month').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')],
+      yil:   [now.startOf('year').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')],
+      tum:   (() => {
+        const dates = [
+          ...state.gelirler.map(g => g.tarih).filter(Boolean),
+          ...state.giderler.map(g => g.tarih).filter(Boolean),
+          ...Object.values(state.archives).flatMap(a => [
+            ...(Array.isArray(a.gelirler) ? a.gelirler : []).map(x => x.tarih),
+            ...(Array.isArray(a.giderler) ? a.giderler : []).map(x => x.tarih)
+          ]).filter(Boolean)
+        ];
+        return dates.length ? dates.sort()[0] : '2000-01-01';
+      })()
     };
     if (map[t]) {
       const rStart = document.getElementById('rStart');
@@ -5934,59 +5995,245 @@ const App = {
     const topKat = Object.entries(katG).sort((a,b)=>b[1]-a[1])[0];
     const gunFark= Math.max(1, dayjs(end).diff(dayjs(start),'day') + 1);
     const avgGun = gider / gunFark;
+    const tasarrufOrani = gelir > 0 ? ((gelir - gider) / gelir) * 100 : 0;
 
+    // ─── Kategori analiz ───
+    const katGiderAnaliz = Object.entries(katG)
+      .sort((a,b)=>b[1]-a[1])
+      .map(([kat, tutar]) => ({
+        kat, tutar,
+        yuzde: gider > 0 ? (tutar / gider) * 100 : 0
+      }));
+
+    const katGelir = Calc._allGelirler()
+      .filter(g => g.tarih >= start && g.tarih <= end)
+      .reduce((m, g) => {
+        const k = g.kategori || 'Diğer';
+        m[k] = (m[k] || 0) + (Number(g.miktar) || 0);
+        return m;
+      }, {});
+    const katGelirAnaliz = Object.entries(katGelir)
+      .sort((a,b)=>b[1]-a[1])
+      .map(([kat, tutar]) => ({
+        kat, tutar,
+        yuzde: gelir > 0 ? (tutar / gelir) * 100 : 0
+      }));
+
+    // ─── Ay bazlı ───
+    const allGelirler = Calc._allGelirler().filter(g => g.tarih >= start && g.tarih <= end);
+    const allGiderler = Calc._allGiderler().filter(g => g.tarih >= start && g.tarih <= end);
+    const ayBazli = {};
+    [...allGelirler.map(x=>({...x,_tip:'gelir'})), ...allGiderler.map(x=>({...x,_tip:'gider'}))].forEach(tx => {
+      const key = dayjs(tx.tarih).format('YYYY-MM');
+      if (!ayBazli[key]) ayBazli[key] = { gelir: 0, gider: 0, islem: 0 };
+      if (tx._tip === 'gelir') ayBazli[key].gelir += Number(tx.miktar) || 0;
+      else ayBazli[key].gider += Number(tx.miktar) || 0;
+      ayBazli[key].islem++;
+    });
+    const ayList = Object.entries(ayBazli)
+      .sort((a,b) => a[0].localeCompare(b[0]))
+      .map(([key, data]) => ({
+        key, label: dayjs(key + '-01').format('MMMM YYYY'),
+        ...data, net: data.gelir - data.gider,
+        tasarruf: data.gelir > 0 ? ((data.gelir - data.gider) / data.gelir) * 100 : 0
+      }));
+
+    // ─── Yıl bazlı ───
+    const yilBazli = {};
+    [...allGelirler.map(x=>({...x,_tip:'gelir'})), ...allGiderler.map(x=>({...x,_tip:'gider'}))].forEach(tx => {
+      const y = dayjs(tx.tarih).format('YYYY');
+      if (!yilBazli[y]) yilBazli[y] = { gelir: 0, gider: 0, islem: 0 };
+      if (tx._tip === 'gelir') yilBazli[y].gelir += Number(tx.miktar) || 0;
+      else yilBazli[y].gider += Number(tx.miktar) || 0;
+      yilBazli[y].islem++;
+    });
+    const yilList = Object.entries(yilBazli)
+      .sort((a,b) => a[0].localeCompare(b[0]))
+      .map(([key, data]) => ({
+        key, ...data, net: data.gelir - data.gider,
+        tasarruf: data.gelir > 0 ? ((data.gelir - data.gider) / data.gelir) * 100 : 0
+      }));
+
+    const enIyiAy = ayList.length ? ayList.reduce((a,b) => a.net > b.net ? a : b) : null;
+    const enKotuAy = ayList.length ? ayList.reduce((a,b) => a.net < b.net ? a : b) : null;
+
+    const enBuyukGiderler = [...allGiderler].sort((a,b) => (Number(b.miktar)||0) - (Number(a.miktar)||0)).slice(0, 5);
+    const enBuyukGelirler = [...allGelirler].sort((a,b) => (Number(b.miktar)||0) - (Number(a.miktar)||0)).slice(0, 5);
+
+    // ─── STAT KARTLARI ───
     const statsEl = document.getElementById('raporStats');
     if (statsEl) statsEl.innerHTML = `
       <div class="stat-grid">
         <div class="stat-card"><div class="card-label">Toplam Gelir</div><div class="stat-amount green">${Calc.fmt(gelir)}</div></div>
         <div class="stat-card"><div class="card-label">Toplam Gider</div><div class="stat-amount red">${Calc.fmt(gider)}</div></div>
         <div class="stat-card"><div class="card-label">Net Bakiye</div><div class="stat-amount ${bakiye>=0?'blue':'red'}">${Calc.fmt(bakiye)}</div></div>
+        <div class="stat-card"><div class="card-label">Tasarruf Oranı</div><div class="stat-amount ${tasarrufOrani>=20?'green':tasarrufOrani>0?'amber':'red'}">%${tasarrufOrani.toFixed(1)}</div></div>
         <div class="stat-card"><div class="card-label">Günlük Ort. Gider</div><div class="stat-amount amber">${Calc.fmt(avgGun)}</div></div>
+        <div class="stat-card"><div class="card-label">Toplam İşlem</div><div class="stat-amount blue">${allGelirler.length + allGiderler.length}</div></div>
       </div>
-      ${topKat ? `<div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;margin-bottom:12px;">
-        <div><div class="card-label">En Yüksek Kategori</div><div style="font-family:'Plus Jakarta Sans';font-size:16px;font-weight:800;">${UI.escHtml(topKat[0])}</div></div>
-        <div style="font-family:'Plus Jakarta Sans';font-size:20px;font-weight:900;color:var(--danger);">${Calc.fmt(topKat[1])}</div>
-      </div>` : ''}`;
+    `;
 
-    const pieCard = document.getElementById('raporChartCard');
-    if (Object.keys(katG).length && pieCard) {
-      pieCard.style.display = '';
-      requestAnimationFrame(() => Charts.donut('raporPieChart', katG));
-    }
+    // ─── DETAY BÖLÜMLERİ ───
+    const detayEl = document.getElementById('raporDetaylar');
+    if (detayEl) detayEl.innerHTML = `
+      ${ayList.length > 0 ? `
+      <div class="card">
+        <div class="section-header">
+          <span class="section-title">📅 Aylık Döküm (${ayList.length} dönem)</span>
+        </div>
+        ${ayList.map(a => `
+          <div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:6px;border-left:3px solid ${a.net>=0?'var(--accent)':'var(--danger)'};">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <strong style="font-size:12px;">${a.label}</strong>
+              <strong style="font-size:13px;color:${a.net>=0?'var(--accent)':'var(--danger)'};">${Calc.fmt(a.net)}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--text3);flex-wrap:wrap;gap:6px;">
+              <span>↑ ${Calc.fmt(a.gelir)}</span>
+              <span>↓ ${Calc.fmt(a.gider)}</span>
+              <span>${a.islem} işlem</span>
+              <span style="color:${a.tasarruf>=20?'var(--accent)':a.tasarruf>0?'var(--warning)':'var(--danger)'};">Tasarruf: %${a.tasarruf.toFixed(1)}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      ` : ''}
+
+      ${yilList.length > 1 ? `
+      <div class="card">
+        <div class="section-header">
+          <span class="section-title">📆 Yıllık Döküm</span>
+        </div>
+        ${yilList.map(y => `
+          <div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:6px;border-left:3px solid ${y.net>=0?'var(--accent)':'var(--danger)'};">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <strong style="font-size:13px;">${y.key}</strong>
+              <strong style="font-size:13px;color:${y.net>=0?'var(--accent)':'var(--danger)'};">${Calc.fmt(y.net)}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--text3);flex-wrap:wrap;gap:6px;">
+              <span>↑ ${Calc.fmt(y.gelir)}</span>
+              <span>↓ ${Calc.fmt(y.gider)}</span>
+              <span>${y.islem} işlem</span>
+              <span>Tasarruf: %${y.tasarruf.toFixed(1)}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      ` : ''}
+
+      ${(enIyiAy || enKotuAy) ? `
+      <div class="stat-grid">
+        ${enIyiAy ? `
+          <div class="stat-card" style="border-left:4px solid var(--accent);">
+            <div class="card-label">🏆 En İyi Dönem</div>
+            <div style="font-family:'Plus Jakarta Sans';font-size:13px;font-weight:800;margin-top:4px;">${enIyiAy.label}</div>
+            <div class="stat-amount green" style="font-size:15px;">${Calc.fmt(enIyiAy.net)}</div>
+          </div>
+        ` : ''}
+        ${enKotuAy ? `
+          <div class="stat-card" style="border-left:4px solid var(--danger);">
+            <div class="card-label">⚠️ En Kötü Dönem</div>
+            <div style="font-family:'Plus Jakarta Sans';font-size:13px;font-weight:800;margin-top:4px;">${enKotuAy.label}</div>
+            <div class="stat-amount red" style="font-size:15px;">${Calc.fmt(enKotuAy.net)}</div>
+          </div>
+        ` : ''}
+      </div>
+      ` : ''}
+
+      ${katGiderAnaliz.length > 0 ? `
+      <div class="card">
+        <div class="section-header">
+          <span class="section-title">🏷️ Gider Kategorileri</span>
+        </div>
+        ${katGiderAnaliz.slice(0, 10).map((k, i) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed var(--border);font-size:12px;">
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;gap:6px;align-items:center;">
+                <span style="color:var(--text3);font-weight:700;min-width:18px;">${i+1}.</span>
+                <strong>${UI.escHtml(k.kat)}</strong>
+              </div>
+              <div class="progress-track" style="margin:4px 0 0;">
+                <div class="progress-bar" style="width:${k.yuzde}%;background:${Charts.palette[i % Charts.palette.length]};"></div>
+              </div>
+            </div>
+            <div style="text-align:right;min-width:90px;margin-left:8px;">
+              <div style="color:var(--danger);font-weight:800;">${Calc.fmt(k.tutar)}</div>
+              <div style="font-size:10px;color:var(--text3);">%${k.yuzde.toFixed(1)}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      ` : ''}
+
+      ${katGelirAnaliz.length > 0 ? `
+      <div class="card">
+        <div class="section-header">
+          <span class="section-title">💰 Gelir Kaynakları</span>
+        </div>
+        ${katGelirAnaliz.slice(0, 10).map((k, i) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed var(--border);font-size:12px;">
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;gap:6px;align-items:center;">
+                <span style="color:var(--text3);font-weight:700;min-width:18px;">${i+1}.</span>
+                <strong>${UI.escHtml(k.kat)}</strong>
+              </div>
+              <div class="progress-track" style="margin:4px 0 0;">
+                <div class="progress-bar" style="width:${k.yuzde}%;background:var(--accent);"></div>
+              </div>
+            </div>
+            <div style="text-align:right;min-width:90px;margin-left:8px;">
+              <div style="color:var(--accent);font-weight:800;">${Calc.fmt(k.tutar)}</div>
+              <div style="font-size:10px;color:var(--text3);">%${k.yuzde.toFixed(1)}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      ` : ''}
+
+      ${enBuyukGiderler.length > 0 ? `
+      <div class="card">
+        <div class="section-header">
+          <span class="section-title">🔝 En Yüksek 5 Gider</span>
+        </div>
+        ${enBuyukGiderler.map((g, i) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed var(--border);font-size:12px;">
+            <div>
+              <div style="font-weight:700;">${i+1}. ${UI.escHtml(g.kategori || 'Gider')}</div>
+              <div style="font-size:10px;color:var(--text3);">${dayjs(g.tarih).format('DD MMM YYYY')}${g.aciklama ? ' · ' + UI.escHtml(g.aciklama.substring(0, 20)) : ''}</div>
+            </div>
+            <span style="color:var(--danger);font-weight:800;">${Calc.fmt(g.miktar)}</span>
+          </div>
+        `).join('')}
+      </div>
+      ` : ''}
+
+      ${enBuyukGelirler.length > 0 ? `
+      <div class="card">
+        <div class="section-header">
+          <span class="section-title">🔝 En Yüksek 5 Gelir</span>
+        </div>
+        ${enBuyukGelirler.map((g, i) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed var(--border);font-size:12px;">
+            <div>
+              <div style="font-weight:700;">${i+1}. ${UI.escHtml(g.kategori || 'Gelir')}</div>
+              <div style="font-size:10px;color:var(--text3);">${dayjs(g.tarih).format('DD MMM YYYY')}${g.aciklama ? ' · ' + UI.escHtml(g.aciklama.substring(0, 20)) : ''}</div>
+            </div>
+            <span style="color:var(--accent);font-weight:800;">${Calc.fmt(g.miktar)}</span>
+          </div>
+        `).join('')}
+      </div>
+      ` : ''}
+    `;
+
+    // ─── GRAFİKLER ───
     requestAnimationFrame(() => {
-      Charts.line('raporLineChart', Calc.aylikTrend(6));
-
-      /* 🆕 FAZ 2 — Waterfall */
-      const wf = Calc.waterfallData(f);
-      Charts.waterfall('raporWaterfallChart', wf.steps);
-
-      /* 🆕 FAZ 2 — Kategori Yarışı */
-      const kt = Calc.kategoriTrend(6);
+      const monthCount = Math.max(1, Math.min(12, dayjs(end).diff(dayjs(start), 'month') + 1));
+      Charts.line('raporLineChart', Calc.aylikTrendBetween(start, end, monthCount));
+      const kt = Calc.kategoriTrendBetween(start, end, monthCount);
       Charts.kategoriTrend('raporKategoriTrendChart', kt.data, kt.kategoriler);
     });
 
-    /* 🆕 FAZ 2 — Karşılaştırma select'lerini doldur */
-    /* 🆕 FAZ 2 — Karşılaştırma select'lerini doldur */
     this._fillKarsilastirmaSelects();
-
-    /* 🆕 Akaryakıt analiz paneli */
     this.renderFuelAnalysis();
-
-    const txData = [
-      ...Calc._allGelirler().filter(g=>g.tarih>=start&&g.tarih<=end).map(g=>({...g,_tip:'gelir'})),
-      ...Calc._allGiderler().filter(g=>g.tarih>=start&&g.tarih<=end).map(g=>({...g,_tip:'gider'}))
-    ].sort((a,b)=>b.tarih>a.tarih?1:-1);
-
-    const txEl = document.getElementById('raporTxList');
-    if (txEl) txEl.innerHTML = txData.length
-      ? `<div class="card">
-          <div class="section-header"><span class="section-title">İşlem Listesi (${txData.length})</span></div>
-          <div style="max-height:380px;overflow-y:auto;">
-            ${txData.slice(0,50).map(i=>UI.txItem(i,`App.showTransactionDetail(${i.id},'${i._tip}')`)).join('')}
-          </div>
-          ${txData.length>50?`<p style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0;">... ve ${txData.length-50} işlem daha</p>`:''}
-        </div>`
-      : '';
   },
   /* ⛽ Akaryakıt PDF Rapor */
   async exportFuelPDF() {
@@ -6288,20 +6535,211 @@ const App = {
 
   /* ⛽ Akaryakıt Trend PNG */
   async exportFuelChartPNG() {
-    const chartId = this._fuelChartId && Charts.instances[this._fuelChartId] ? this._fuelChartId : 'fuelAnalysisChart';
-    const chart = Charts.instances[chartId];
-    if (!chart) { showToast('⚠️ Grafik bulunamadı'); return; }
     try {
-      const url = chart.toBase64Image('image/png', 1);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `akaryakit_trend_${dayjs().format('YYYY-MM-DD_HHmm')}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      showToast('📊 PNG indirildi');
+      showToast('📊 PNG hazırlanıyor...');
+      const stats = Calc.fuelStats();
+      if (stats.count === 0) { showToast('ℹ️ Kayıt yok'); return; }
+
+      const l = stats.lpg;
+      const b = stats.benzin;
+
+      const W = 1200;
+      let H = 400;  // dynamic later
+      
+      // ─── Helper'lar ───
+      const _roundRect = (ctx, x, y, w, h, r, fill) => {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+        ctx.fillStyle = fill;
+        ctx.fill();
+      };
+      
+      // Estimate height
+      const hasChart = Charts.instances[this._fuelChartId] || Charts.instances['fuelAnalysisChart'];
+      H += 100; // summary card area
+      H += 300; // detail card
+      if (b.count > 0) H += 140;
+      if (hasChart) H += 420;
+      if (l.monthly.length > 0) H += 100 + Math.min(12, l.monthly.length) * 30;
+      H += 80; // footer
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext('2d');
+      
+      const txt = (text, x, y, size, color, weight, align) => {
+        ctx.font = `${weight || 400} ${size}px Inter, -apple-system, Arial, sans-serif`;
+        ctx.fillStyle = color || '#0B1527';
+        ctx.textAlign = align || 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(String(text || ''), x, y);
+      };
+      
+      // ─── BG ───
+      ctx.fillStyle = '#F7F8FA';
+      ctx.fillRect(0, 0, W, H);
+      
+      // ─── HEADER ───
+      const headerGrad = ctx.createLinearGradient(0, 0, W, 150);
+      headerGrad.addColorStop(0, '#0891B2');
+      headerGrad.addColorStop(1, '#0E7490');
+      ctx.fillStyle = headerGrad;
+      ctx.fillRect(0, 0, W, 150);
+      
+      txt('AKARYAKIT ANALİZİ', 60, 40, 36, '#FFFFFF', 800);
+      txt('LPG Odaklı Tüketim & İstatistik Raporu', 60, 90, 18, '#CFEFFB', 500);
+      txt(dayjs().format('DD MMMM YYYY · HH:mm'), W - 60, 90, 16, '#CFEFFB', 500, 'right');
+      
+      let y = 190;
+      
+      // ─── SUMMARY CARDS ───
+      const cardW = (W - 120 - 30) / 4;
+      const cardH = 100;
+      const drawCard = (x, yy, label, value, accent) => {
+        _roundRect(ctx, x, yy, cardW, cardH, 12, '#FFFFFF');
+        ctx.fillStyle = accent;
+        ctx.fillRect(x, yy, cardW, 6);
+        txt(label, x + 20, yy + 25, 12, '#7B8A9E', 600);
+        txt(value, x + 20, yy + 55, 22, accent, 800);
+      };
+      
+      drawCard(60,              y, 'TOPLAM DOLUM', String(stats.count),                  '#0891B2');
+      drawCard(60 + cardW + 10, y, 'LPG LİTRE',    l.totalLitre.toFixed(2) + ' L',        '#0891B2');
+      drawCard(60 + (cardW + 10) * 2, y, 'LPG TUTAR', Calc.fmt(l.totalTL),               '#B91C1C');
+      drawCard(60 + (cardW + 10) * 3, y, 'LPG L/100KM', l.avgL100 > 0 ? l.avgL100.toFixed(2) : '—', '#D97706');
+      
+      y += cardH + 20;
+      
+      // ─── LPG DETAYLARI ───
+      _roundRect(ctx, 60, y, W - 120, 280, 16, '#FFFFFF');
+      txt('LPG DETAYLI İSTATİSTİKLER', 90, y + 20, 20, '#0E7490', 800);
+      
+      const dY = y + 60;
+      const dW = (W - 120 - 90) / 4;
+      const dX = 90;
+      
+      const drawDetail = (x, yy, label, value, color) => {
+        txt(label, x, yy, 12, '#7B8A9E', 600);
+        txt(value, x, yy + 22, 20, color, 800);
+      };
+      
+      drawDetail(dX,            dY, 'Ölçülen KM',    l.totalKm.toLocaleString('tr-TR') + ' km', '#2563EB');
+      drawDetail(dX + dW,       dY, 'Ort. L/100km',  l.avgL100 > 0 ? l.avgL100.toFixed(2) : '—', '#D97706');
+      drawDetail(dX + dW * 2,   dY, 'Ort. TL/km',    l.avgTlPerKm > 0 ? l.avgTlPerKm.toFixed(3) : '—', '#0891B2');
+      drawDetail(dX + dW * 3,   dY, 'Ort. TL/L',     l.avgFiyat.toFixed(2),                       '#92400E');
+      
+      const s2Y = dY + 70;
+      txt('Tüketim Dağılımı', dX, s2Y, 14, '#3D4A5C', 700);
+      const s3Y = s2Y + 28;
+      if (l.stats.count > 0) {
+        txt(`Min: ${l.stats.min.toFixed(2)}`, dX, s3Y, 13, '#7B8A9E', 500);
+        txt(`Medyan: ${l.stats.median.toFixed(2)}`, dX + 220, s3Y, 13, '#7B8A9E', 500);
+        txt(`Max: ${l.stats.max.toFixed(2)}`, dX + 480, s3Y, 13, '#7B8A9E', 500);
+        txt(`Std: ${l.stats.stdDev.toFixed(3)}`, dX + 720, s3Y, 13, '#7B8A9E', 500);
+      }
+      
+      const s4Y = s3Y + 30;
+      if (l.dolumAraligi) {
+        txt(`Dolum Aralığı: Ort. ${l.dolumAraligi.ortalama.toFixed(0)} gün (min ${l.dolumAraligi.min}, max ${l.dolumAraligi.max})`, dX, s4Y, 13, '#7B8A9E', 500);
+      }
+      if (l.trend) {
+        const ok = l.trend.yon === 'up' ? '↑' : '↓';
+        const c = l.trend.yon === 'up' ? '#B91C1C' : '#047857';
+        txt(`Son Trend: ${l.trend.onceki.toFixed(2)} → ${l.trend.son.toFixed(2)} (${ok} %${Math.abs(l.trend.yuzde).toFixed(1)})`, dX + 500, s4Y, 13, c, 700);
+      }
+      
+      y += 300;
+      
+      // ─── BENZİN ───
+      if (b.count > 0) {
+        _roundRect(ctx, 60, y, W - 120, 120, 16, '#FFFFFF');
+        txt('BENZİN — YARDIMCI YAKIT', 90, y + 20, 16, '#1E40AF', 800);
+        txt(`${b.count} dolum · ${b.totalLitre.toFixed(2)} L · ${Calc.fmt(b.totalTL)} · Ort. ${b.avgFiyat.toFixed(2)} TL/L`, 90, y + 55, 14, '#3D4A5C', 500);
+        txt('Not: Benzin için KM/tüketim hesabı yapılmaz.', 90, y + 85, 12, '#7B8A9E', 400);
+        y += 140;
+      }
+      
+      // ─── CHART ───
+      if (hasChart) {
+        _roundRect(ctx, 60, y, W - 120, 400, 16, '#FFFFFF');
+        txt('LPG TÜKETİM TRENDİ', 90, y + 20, 16, '#0E7490', 800);
+        try {
+          const chartUrl = hasChart.toBase64Image('image/png', 1);
+          const img = new Image();
+          await new Promise((resolve) => {
+            img.onload = resolve;
+            img.onerror = resolve;
+            img.src = chartUrl;
+          });
+          if (img.complete && img.naturalWidth > 0) {
+            ctx.drawImage(img, 90, y + 60, W - 180, 320);
+          }
+        } catch (chartErr) {
+          console.warn('[PNG] Chart draw failed:', chartErr);
+        }
+        y += 420;
+      }
+      
+      // ─── AYLIK TABLO ───
+      if (l.monthly.length > 0) {
+        const rows = l.monthly.slice(-12);
+        const tableH = 70 + rows.length * 30;
+        _roundRect(ctx, 60, y, W - 120, tableH, 16, '#FFFFFF');
+        txt('AYLIK LPG ÖZETİ', 90, y + 20, 16, '#0E7490', 800);
+        
+        txt('DÖNEM',  90,  y + 60, 11, '#7B8A9E', 700);
+        txt('DOLUM',  400, y + 60, 11, '#7B8A9E', 700);
+        txt('LİTRE',  550, y + 60, 11, '#7B8A9E', 700);
+        txt('TUTAR',  750, y + 60, 11, '#7B8A9E', 700);
+        txt('KM',     950, y + 60, 11, '#7B8A9E', 700);
+        txt('L/100', 1100, y + 60, 11, '#7B8A9E', 700);
+        
+        rows.forEach((m, i) => {
+          const ry = y + 90 + i * 30;
+          txt(m.label,                             90, ry, 13, '#0B1527', 600);
+          txt(String(m.lpgCount || 0),            400, ry, 13, '#3D4A5C', 500);
+          txt(m.lpgLitre.toFixed(1) + ' L',       550, ry, 13, '#0891B2', 700);
+          txt(Calc.fmt(m.lpgTL),                  750, ry, 13, '#B91C1C', 700);
+          txt(m.km.toLocaleString('tr-TR') + ' km', 950, ry, 13, '#3D4A5C', 500);
+          txt(m.avgL100 > 0 ? m.avgL100.toFixed(2) : '—', 1100, ry, 13, '#D97706', 700);
+        });
+        
+        y += tableH + 20;
+      }
+      
+      // ─── FOOTER ───
+      ctx.fillStyle = '#7B8A9E';
+      ctx.font = '500 14px Inter, Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('EBHA Mani · Paranı gör, geleceğini planla', W / 2, H - 40);
+      
+      // ─── DOWNLOAD ───
+      canvas.toBlob(blob => {
+        if (!blob) { showToast('⚠️ PNG oluşturulamadı'); return; }
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `akaryakit_analiz_${dayjs().format('YYYY-MM-DD_HHmm')}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast('📊 PNG indirildi!');
+      }, 'image/png');
+      
     } catch (e) {
-      showToast('⚠️ PNG indirilemedi');
+      console.error('[exportFuelChartPNG] Hata:', e);
+      showToast('⚠️ PNG indirilemedi: ' + (e.message || 'Bilinmeyen hata'));
     }
   },
   /* ══════════════════════════════════════
@@ -7478,7 +7916,7 @@ openKategoriModal() {
 
     Swal.fire({
       title: 'PDF hazırlanıyor...',
-      html: 'Türkçe font ve rapor yükleniyor',
+      html: 'Türkçe font ve kapsamlı analizler yükleniyor',
       allowOutsideClick: false,
       didOpen: () => Swal.showLoading()
     });
@@ -7488,117 +7926,187 @@ openKategoriModal() {
       const doc = new jsPDF('p', 'mm', 'a4');
       const W = doc.internal.pageSize.getWidth();
       const H = doc.internal.pageSize.getHeight();
-      const M = 20;
+      const M = 15;
 
       const hasUni = await _loadPdfFonts(doc);
       const FONT = hasUni ? 'Roboto' : 'helvetica';
 
-      /* ═══ KAPAK ═══ */
-      doc.setFillColor(30, 64, 175);
-      doc.rect(0, 0, W, 48, 'F');
-      doc.setFillColor(37, 99, 235);
-      doc.rect(0, 22, W, 26, 'F');
-      doc.setFillColor(59, 130, 246);
-      doc.circle(W - 15, 10, 34, 'F');
-      doc.setFillColor(37, 99, 235);
-      doc.circle(W - 15, 10, 26, 'F');
-
-      doc.setFont(FONT, 'bold');
-      doc.setFontSize(24);
-      doc.setTextColor(255, 255, 255);
-      _txt(doc, 'EBHA MANİ', M, 22, null, hasUni);
-
-      doc.setFont(FONT, 'normal');
-      doc.setFontSize(10);
-      doc.setTextColor(219, 234, 254);
-      _txt(doc, 'Finansal Rapor', M, 31, null, hasUni);
-
-      doc.setFontSize(9);
-      _txt(doc, dayjs().format('DD MMMM YYYY · HH:mm'), W - M, 42, { align: 'right' }, hasUni);
-
-      /* ═══ ÖZET KARTLARI ═══ */
-      let y = 58;
+      // ─── HESAPLAMALAR ───
       const gelirT = Calc._toplamGelirTum({ start: rStart, end: rEnd });
       const giderT = Calc._toplamGiderTum({ start: rStart, end: rEnd });
       const bakiye = gelirT - giderT;
       const borcT = Calc.aktifBorcAlacak();
+      const gunFark = Math.max(1, dayjs(rEnd).diff(dayjs(rStart), 'day') + 1);
+      const avgGun = giderT / gunFark;
+      const tasarrufOrani = gelirT > 0 ? ((gelirT - giderT) / gelirT) * 100 : 0;
+      const katG = Calc._kategoriGiderlerTum({ start: rStart, end: rEnd });
+      const sortedKat = Object.entries(katG).sort((a, b) => b[1] - a[1]).slice(0, 10);
 
+      // Ay bazlı özet
+      const ayBazli = {};
+      [...gelirlerFiltre.map(x=>({...x,_tip:'gelir'})), ...giderlerFiltre.map(x=>({...x,_tip:'gider'}))].forEach(tx => {
+        const key = dayjs(tx.tarih).format('YYYY-MM');
+        if (!ayBazli[key]) ayBazli[key] = { gelir: 0, gider: 0, islem: 0 };
+        if (tx._tip === 'gelir') ayBazli[key].gelir += Number(tx.miktar) || 0;
+        else ayBazli[key].gider += Number(tx.miktar) || 0;
+        ayBazli[key].islem++;
+      });
+      const ayList = Object.entries(ayBazli).sort((a,b) => a[0].localeCompare(b[0]));
+
+      // ─── KAPAK ───
+      doc.setFillColor(15, 42, 92);
+      doc.rect(0, 0, W, 55, 'F');
+      doc.setFillColor(30, 64, 175);
+      doc.rect(0, 30, W, 25, 'F');
+      doc.setFillColor(59, 130, 246);
+      doc.circle(W - 20, 12, 34, 'F');
+      doc.setFillColor(30, 64, 175);
+      doc.circle(W - 20, 12, 26, 'F');
+
+      doc.setFont(FONT, 'bold');
+      doc.setFontSize(26);
+      doc.setTextColor(255, 255, 255);
+      _txt(doc, 'EBHA MANİ', M, 22, null, hasUni);
+
+      doc.setFont(FONT, 'normal');
+      doc.setFontSize(11);
+      doc.setTextColor(219, 234, 254);
+      _txt(doc, 'Kapsamlı Finansal Rapor', M, 34, null, hasUni);
+
+      doc.setFontSize(9);
+      _txt(doc, dayjs().format('DD MMMM YYYY · HH:mm'), W - M, 48, { align: 'right' }, hasUni);
+
+      // ─── DÖNEM BİLGİSİ ───
+      let y = 65;
+      doc.setFillColor(247, 248, 250);
+      doc.roundedRect(M, y, W - 2 * M, 12, 2, 2, 'F');
+      doc.setFont(FONT, 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(61, 74, 92);
+      _txt(doc, `Rapor Dönemi: ${dayjs(rStart).format('DD MMM YYYY')} → ${dayjs(rEnd).format('DD MMM YYYY')} (${gunFark} gün)`, M + 4, y + 8, null, hasUni);
+      y += 20;
+
+      // ─── 1. SATIR: GELİR / GİDER / NET / TASARRUF ───
       const cw = (W - 2 * M - 9) / 4;
       const ch = 24;
+      _kart(doc, M,             y, cw, ch, { label: 'Toplam Gelir', value: Calc.fmt(gelirT),        accent: [5,150,105]   }, hasUni, FONT);
+      _kart(doc, M + cw + 3,    y, cw, ch, { label: 'Toplam Gider', value: Calc.fmt(giderT),        accent: [220,38,38]   }, hasUni, FONT);
+      _kart(doc, M + (cw+3)*2,  y, cw, ch, { label: 'Net Bakiye',   value: Calc.fmt(bakiye),        accent: [37,99,235]   }, hasUni, FONT);
+      _kart(doc, M + (cw+3)*3,  y, cw, ch, { label: 'Tasarruf',     value: `%${tasarrufOrani.toFixed(1)}`, accent: tasarrufOrani >= 20 ? [5,150,105] : (tasarrufOrani > 0 ? [217,119,6] : [185,28,28]) }, hasUni, FONT);
+      y += ch + 8;
 
-      _kart(doc, M,               y, cw, ch, { label: 'Gelir', value: Calc.fmt(gelirT), accent: [5,150,105]   }, hasUni, FONT);
-      _kart(doc, M + cw + 3,      y, cw, ch, { label: 'Gider', value: Calc.fmt(giderT), accent: [220,38,38]  }, hasUni, FONT);
-      _kart(doc, M + (cw+3)*2,    y, cw, ch, { label: 'Net',   value: Calc.fmt(bakiye), accent: [37,99,235]  }, hasUni, FONT);
-      _kart(doc, M + (cw+3)*3,    y, cw, ch, { label: 'Borç',  value: Calc.fmt(borcT),  accent: [217,119,6] }, hasUni, FONT);
+      // ─── 2. SATIR: İŞLEM / GÜNLÜK ORT / BORÇ / EN YÜKSEK KAT ───
+      _kart(doc, M,             y, cw, ch, { label: 'İşlem',        value: String(gelirlerFiltre.length + giderlerFiltre.length), accent: [37,99,235] }, hasUni, FONT);
+      _kart(doc, M + cw + 3,    y, cw, ch, { label: 'Günlük Ort.',  value: Calc.fmt(avgGun),        accent: [217,119,6]   }, hasUni, FONT);
+      _kart(doc, M + (cw+3)*2,  y, cw, ch, { label: 'Aktif Borç',   value: Calc.fmt(borcT),         accent: [146,64,14]   }, hasUni, FONT);
+      _kart(doc, M + (cw+3)*3,  y, cw, ch, { label: 'En Yüksek Kat', value: sortedKat.length ? String(sortedKat[0][0]).substring(0, 12) : '—', accent: [8,145,178] }, hasUni, FONT);
+      y += ch + 12;
 
-      y += ch + 10;
+      // ─── KATEGORİ ANALİZİ ───
+      if (sortedKat.length > 0) {
+        _baslik(doc, 'KATEGORİ ANALİZİ', y, hasUni, FONT);
+        y += 10;
 
-      /* ═══ GİDER DAĞILIMI ═══ */
-      _baslik(doc, 'GİDER DAĞILIMI', y, hasUni, FONT);
-      y += 10;
+        const maxKat = sortedKat[0][1];
+        const palet = [[37,99,235],[5,150,105],[217,119,6],[220,38,38],[124,58,237],[8,145,178],[234,88,12],[219,39,119],[100,116,139],[71,85,105]];
 
-      const katG = Calc._kategoriGiderlerTum({ start: rStart, end: rEnd });
-      const sortedKat = Object.entries(katG).sort((a, b) => b[1] - a[1]).slice(0, 8);
-      const maxKat = sortedKat.length ? sortedKat[0][1] : 1;
-      const palet = [
-        [37,99,235], [5,150,105], [217,119,6], [220,38,38],
-        [124,58,237], [8,145,178], [234,88,12], [219,39,119]
-      ];
+        sortedKat.forEach(([kat, val], i) => {
+          if (y > H - 30) { doc.addPage(); y = 20; }
+          const renk = palet[i % palet.length];
+          const yuzde = giderT > 0 ? (val / giderT) * 100 : 0;
 
-      sortedKat.forEach(([kat, val], i) => {
-        if (y > H - 40) { doc.addPage(); y = 20; }
-        const renk = palet[i % palet.length];
+          doc.setFont(FONT, 'normal');
+          doc.setFontSize(9);
+          doc.setTextColor(15, 23, 42);
+          _txt(doc, String(kat).substring(0, 16), M, y + 3, null, hasUni);
 
-        doc.setFont(FONT, 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(15, 23, 42);
-        _txt(doc, String(kat).substring(0, 16), M, y + 3, null, hasUni);
+          doc.setTextColor(123, 138, 158);
+          doc.setFontSize(7.5);
+          _txt(doc, `%${yuzde.toFixed(1)}`, M + 55, y + 3, null, hasUni);
 
-        _bar(doc, M + 40, y - 1, W - M - 40 - 32, 3, val / maxKat, renk);
+          _bar(doc, M + 70, y - 1, W - M - 70 - 30, 3, val / maxKat, renk);
 
+          doc.setFont(FONT, 'bold');
+          doc.setTextColor(...renk);
+          doc.setFontSize(9);
+          _txt(doc, Calc.fmt(val), W - M, y + 3, { align: 'right' }, hasUni);
+          y += 8;
+        });
+        y += 4;
+      }
+
+      // ─── AYLIK DÖKÜM ───
+      if (ayList.length > 0 && y < H - 60) {
+        if (y > H - 80) { doc.addPage(); y = 20; }
+        _baslik(doc, 'AYLIK DÖKÜM', y, hasUni, FONT);
+        y += 10;
+
+        doc.setFillColor(248, 250, 252);
+        doc.rect(M, y - 4, W - 2 * M, 6, 'F');
         doc.setFont(FONT, 'bold');
-        doc.setTextColor(...renk);
-        _txt(doc, Calc.fmt(val), W - M, y + 3, { align: 'right' }, hasUni);
-        y += 8;
-      });
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        _txt(doc, 'AY',      M + 3,   y, null, hasUni);
+        _txt(doc, 'GELİR',   M + 45,  y, null, hasUni);
+        _txt(doc, 'GİDER',   M + 90,  y, null, hasUni);
+        _txt(doc, 'NET',     M + 130, y, null, hasUni);
+        _txt(doc, 'İŞLEM',   M + 170, y, { align: 'right' }, hasUni);
+        y += 5;
 
-      /* ═══ 🆕 GRAFİKLER (Chart.js → jsPDF.addImage) ═══ */
+        ayList.slice(-12).forEach(([key, d], idx) => {
+          if (y > H - 20) { doc.addPage(); y = 20; }
+          if (idx % 2 === 0) {
+            doc.setFillColor(252, 253, 255);
+            doc.rect(M, y - 4, W - 2 * M, 6.5, 'F');
+          }
+          const net = d.gelir - d.gider;
+          doc.setFont(FONT, 'normal');
+          doc.setFontSize(8.5);
+          doc.setTextColor(15, 23, 42);
+          _txt(doc, dayjs(key + '-01').format('MMM YYYY'), M + 3, y, null, hasUni);
+          doc.setTextColor(5, 150, 105);
+          _txt(doc, Calc.fmt(d.gelir), M + 45, y, null, hasUni);
+          doc.setTextColor(220, 38, 38);
+          _txt(doc, Calc.fmt(d.gider), M + 90, y, null, hasUni);
+          doc.setFont(FONT, 'bold');
+          doc.setTextColor(...(net >= 0 ? [37,99,235] : [220,38,38]));
+          _txt(doc, Calc.fmt(net), M + 130, y, null, hasUni);
+          doc.setFont(FONT, 'normal');
+          doc.setTextColor(100, 116, 139);
+          _txt(doc, String(d.islem), M + 170, y, { align: 'right' }, hasUni);
+          y += 6.5;
+        });
+        y += 6;
+      }
+
+      // ─── GRAFİKLER ───
       if (sortedKat.length > 0 && typeof Chart !== 'undefined') {
         try {
-          if (y > H - 110) { doc.addPage(); y = 20; }
-
-          /* Donut grafiği */
-          _baslik(doc, 'GİDER DAĞILIM GRAFİĞİ', y, hasUni, FONT);
+          if (y > H - 100) { doc.addPage(); y = 20; }
+          _baslik(doc, 'GİDER DAĞILIMI', y, hasUni, FONT);
           y += 8;
 
+          const palet = [[37,99,235],[5,150,105],[217,119,6],[220,38,38],[124,58,237],[8,145,178],[234,88,12],[219,39,119]];
           const donutData = {
             labels: sortedKat.map(([k]) => k),
-            datasets: [{
-              data: sortedKat.map(([, v]) => v),
-              backgroundColor: sortedKat.map((_, i) => `rgb(${palet[i % palet.length].join(',')})`),
-              borderWidth: 0
-            }]
+            datasets: [{ data: sortedKat.map(([, v]) => v), backgroundColor: sortedKat.map((_, i) => `rgb(${palet[i % palet.length].join(',')})`), borderWidth: 0 }]
           };
-
           const donutBase64 = await _renderChartToBase64('doughnut', donutData, {
-            plugins: {
-              legend: { position: 'right', labels: { font: { size: 11 }, padding: 10, boxWidth: 14 } }
-            }
+            plugins: { legend: { position: 'right', labels: { font: { size: 11 }, padding: 10, boxWidth: 14 } } }
           });
-
           if (donutBase64) {
             const imgW = W - 2 * M;
-            const imgH = 75;
+            const imgH = 80;
             doc.addImage(donutBase64, 'PNG', M, y, imgW, imgH);
-            y += imgH + 6;
+            y += imgH + 8;
           }
 
-          /* Aylık trend line grafiği */
-          if (y > H - 100) { doc.addPage(); y = 20; }
+          if (y > H - 90) { doc.addPage(); y = 20; }
           _baslik(doc, 'AYLIK GELİR/GİDER TRENDİ', y, hasUni, FONT);
           y += 8;
 
-          const trend = Calc.aylikTrend(6);
+          const monthCount = Math.max(1, Math.min(12, dayjs(rEnd).diff(dayjs(rStart), 'month') + 1));
+          const trend = Calc.aylikTrendBetween(rStart, rEnd, monthCount);
           const lineData = {
             labels: trend.map(t => t.label),
             datasets: [
@@ -7606,17 +8114,10 @@ openKategoriModal() {
               { label: 'Gider', data: trend.map(t => t.gider), borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,.1)', borderWidth: 2, fill: true, tension: 0.3 }
             ]
           };
-
           const lineBase64 = await _renderChartToBase64('line', lineData, {
-            plugins: {
-              legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } }
-            },
-            scales: {
-              y: { ticks: { callback: v => 'TL ' + v.toLocaleString('tr-TR') }, grid: { color: 'rgba(148,163,184,.15)' } },
-              x: { grid: { display: false } }
-            }
+            plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } } },
+            scales: { y: { ticks: { callback: v => 'TL ' + v.toLocaleString('tr-TR') }, grid: { color: 'rgba(148,163,184,.15)' } }, x: { grid: { display: false } } }
           });
-
           if (lineBase64) {
             const imgW = W - 2 * M;
             const imgH = 70;
@@ -7624,82 +8125,89 @@ openKategoriModal() {
             y += imgH + 10;
           }
         } catch (chartErr) {
-          console.warn('[PDF] Grafik ekleme hatası (devam ediliyor):', chartErr);
+          console.warn('[PDF] Grafik ekleme hatası:', chartErr);
         }
       }
 
-      /* ═══ İŞLEM TABLOLARI ═══ */
-      const tablo = (list, baslik, renk, isaret) => {
-        if (!list || !list.length) return;
-        if (y > H - 50) { doc.addPage(); y = 20; }
-
-        y += 6;
-        _baslik(doc, baslik, y, hasUni, FONT);
+      // ─── AKARYAKIT ANALİZİ ───
+      const fuelStats = Calc.fuelStats({ start: rStart, end: rEnd });
+      if (fuelStats.count > 0) {
+        if (y > H - 60) { doc.addPage(); y = 20; }
+        _baslik(doc, 'AKARYAKIT ANALİZİ', y, hasUni, FONT);
         y += 10;
 
-        const cizBaslik = () => {
-          doc.setFillColor(248, 250, 252);
-          doc.rect(M, y - 4, W - 2 * M, 6, 'F');
-          doc.setFont(FONT, 'bold');
-          doc.setFontSize(7.5);
-          doc.setTextColor(100, 116, 139);
-          _txt(doc, 'TARİH', M + 3, y, null, hasUni);
-          _txt(doc, 'KATEGORİ', M + 28, y, null, hasUni);
-          _txt(doc, 'AÇIKLAMA', M + 78, y, null, hasUni);
-          _txt(doc, 'TUTAR', W - M - 3, y, { align: 'right' }, hasUni);
-          y += 5;
-        };
-        cizBaslik();
+        const l = fuelStats.lpg;
+        const b = fuelStats.benzin;
 
-        list.slice(0, 30).forEach((item, idx) => {
-          if (y > H - 30) { doc.addPage(); y = 20; cizBaslik(); }
+        const fcw = (W - 2 * M - 6) / 3;
+        _kart(doc, M,             y, fcw, 20, { label: 'LPG Litre', value: l.totalLitre.toFixed(2) + ' L', accent: [8,145,178] }, hasUni, FONT);
+        _kart(doc, M + fcw + 3,   y, fcw, 20, { label: 'LPG Tutar', value: Calc.fmt(l.totalTL),        accent: [185,28,28] }, hasUni, FONT);
+        _kart(doc, M + (fcw+3)*2, y, fcw, 20, { label: 'LPG L/100km', value: l.avgL100 > 0 ? l.avgL100.toFixed(2) : '—', accent: [217,119,6] }, hasUni, FONT);
+        y += 26;
 
+        doc.setFont(FONT, 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(61, 74, 92);
+        _txt(doc, `Ölçülen KM: ${l.totalKm.toLocaleString('tr-TR')} km  ·  Ort. TL/km: ${l.avgTlPerKm > 0 ? l.avgTlPerKm.toFixed(3) : '—'}  ·  Ort. TL/L: ${l.avgFiyat.toFixed(2)}`, M + 2, y, null, hasUni);
+        y += 6;
+        if (b.count > 0) {
+          _txt(doc, `Benzin (yardımcı): ${b.count} dolum · ${b.totalLitre.toFixed(2)} L · ${Calc.fmt(b.totalTL)}`, M + 2, y, null, hasUni);
+          y += 6;
+        }
+        y += 6;
+      }
+
+      // ─── EN YÜKSEK 5 GİDER + GELİR ───
+      const topGiderler = [...giderlerFiltre].sort((a,b) => (Number(b.miktar)||0) - (Number(a.miktar)||0)).slice(0, 5);
+      const topGelirler = [...gelirlerFiltre].sort((a,b) => (Number(b.miktar)||0) - (Number(a.miktar)||0)).slice(0, 5);
+
+      const tabloYaz = (list, baslik, renk, isaret) => {
+        if (!list.length) return;
+        if (y > H - 60) { doc.addPage(); y = 20; }
+        _baslik(doc, baslik, y, hasUni, FONT);
+        y += 10;
+        doc.setFillColor(248, 250, 252);
+        doc.rect(M, y - 4, W - 2 * M, 6, 'F');
+        doc.setFont(FONT, 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        _txt(doc, 'TARİH',     M + 3,   y, null, hasUni);
+        _txt(doc, 'KATEGORİ',  M + 28,  y, null, hasUni);
+        _txt(doc, 'AÇIKLAMA',  M + 78,  y, null, hasUni);
+        _txt(doc, 'TUTAR',     W - M - 3, y, { align: 'right' }, hasUni);
+        y += 5;
+        list.forEach((item, idx) => {
+          if (y > H - 20) { doc.addPage(); y = 20; }
           if (idx % 2 === 0) {
             doc.setFillColor(252, 253, 255);
             doc.rect(M, y - 4, W - 2 * M, 6.5, 'F');
           }
-
           doc.setFont(FONT, 'normal');
           doc.setFontSize(8.5);
           doc.setTextColor(71, 85, 105);
           _txt(doc, item.tarih || '', M + 3, y, null, hasUni);
-
           doc.setTextColor(15, 23, 42);
           _txt(doc, String(item.kategori || '').substring(0, 18), M + 28, y, null, hasUni);
-
           doc.setTextColor(148, 163, 184);
           _txt(doc, String(item.aciklama || '—').substring(0, 26), M + 78, y, null, hasUni);
-
           doc.setFont(FONT, 'bold');
           doc.setTextColor(...renk);
           _txt(doc, isaret + Calc.fmt(item.miktar), W - M - 3, y, { align: 'right' }, hasUni);
           y += 6.5;
         });
-
-        if (list.length > 30) {
-          doc.setFont(FONT, 'normal');
-          doc.setFontSize(7);
-          doc.setTextColor(148, 163, 184);
-          _txt(doc, `... ve ${list.length - 30} kayıt daha`, M, y + 2, null, hasUni);
-          y += 7;
-        }
+        y += 4;
       };
+      tabloYaz(topGiderler, 'EN YÜKSEK 5 GİDER', [220, 38, 38], '-');
+      tabloYaz(topGelirler, 'EN YÜKSEK 5 GELİR', [5, 150, 105], '+');
 
-      tablo(gelirlerFiltre, 'GELİRLER', [5, 150, 105], '+');
-      tablo(giderlerFiltre, 'GİDERLER', [220, 38, 38], '-');
-
-      /* ═══ BORÇ / ALACAK — birim farkındalı ═══ */
+      // ─── BORÇ / ALACAK ───
       const aktifBorclar = state.borcalacaklar.filter(x => !x.odendiMi);
-
       if (aktifBorclar.length) {
         if (y > H - 50) { doc.addPage(); y = 20; }
-        y += 6;
         _baslik(doc, 'BORÇ & ALACAK', y, hasUni, FONT);
         y += 10;
-
         aktifBorclar.slice(0, 20).forEach(function(borcItem) {
           if (y > H - 30) { doc.addPage(); y = 20; }
-
           const birim      = borcItem.birim || 'tl';
           const birimFiyat = Calc.birimFiyat(birim);
           const miktarNum  = Number(borcItem.miktar) || 0;
@@ -7707,40 +8215,29 @@ openKategoriModal() {
           const kalan      = Math.max(0, miktarNum - paid);
           const isAl       = borcItem.tip === 'alacak';
           const renk       = isAl ? [5, 150, 105] : [217, 119, 6];
-
           _roundRect(doc, M, y - 4, W - 2 * M, 15, 2, [252, 253, 255], [226, 232, 240]);
-
           doc.setFillColor(...renk);
           doc.roundedRect(M + 3, y - 2, 14, 4.5, 1, 1, 'F');
           doc.setFont(FONT, 'bold');
           doc.setFontSize(6);
           doc.setTextColor(255, 255, 255);
           _txt(doc, isAl ? 'ALACAK' : 'BORÇ', M + 10, y + 0.5, { align: 'center' }, hasUni);
-
           doc.setFont(FONT, 'bold');
           doc.setFontSize(9);
           doc.setTextColor(15, 23, 42);
           _txt(doc, String(borcItem.kisiAdi || '').substring(0, 30), M + 20, y + 1, null, hasUni);
-
-          /* Miktar — TL veya gram/çeyrek */
           const miktarGosterim = birim === 'tl'
             ? Calc.fmt(miktarNum)
             : `${miktarNum.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} ${Calc.birimKisa(birim)} (${Calc.fmt(miktarNum * birimFiyat)})`;
-
           doc.setFontSize(9);
           doc.setTextColor(...renk);
           _txt(doc, miktarGosterim, W - M - 3, y + 1, { align: 'right' }, hasUni);
-
-          /* Progress bar */
           const pct = miktarNum > 0 ? Math.min(1, paid / miktarNum) : 0;
           _bar(doc, M + 3, y + 5, 40, 2, pct, renk);
-
           doc.setFont(FONT, 'normal');
           doc.setFontSize(7);
           doc.setTextColor(148, 163, 184);
           _txt(doc, `%${Math.round(pct * 100)} ödendi`, M + 45, y + 6.5, null, hasUni);
-
-          /* Kalan — TL veya gram/çeyrek */
           if (kalan > 0) {
             const kalanGosterim = birim === 'tl'
               ? `Kalan: ${Calc.fmt(kalan)}`
@@ -7751,20 +8248,18 @@ openKategoriModal() {
             doc.setFont(FONT, 'bold');
             _txt(doc, '✓ Tamamlandı', W - M - 3, y + 6.5, { align: 'right' }, hasUni);
           }
-
           y += 17;
         });
       }
 
-      /* ═══ FOOTER ═══ */
+      // ─── FOOTER ───
       const total = doc.internal.getNumberOfPages();
       for (let i = 1; i <= total; i++) {
         doc.setPage(i);
         _footer(doc, i, total, hasUni, FONT);
       }
 
-      const fname = `ebhamani_rapor_${dayjs().format('YYYY-MM-DD_HHmm')}.pdf`;
-      doc.save(fname);
+      doc.save(`ebhamani_rapor_${dayjs().format('YYYY-MM-DD_HHmm')}.pdf`);
       Swal.close();
       showToast('📄 PDF indirildi!');
     } catch (err) {
@@ -7812,58 +8307,157 @@ openKategoriModal() {
   },
 
   async exportToJSON() {
-    const data = {
-      version: '5.1',
-      exportDate: new Date().toISOString(),
-      gelirler:      state.gelirler,
-      giderler:      state.giderler,
-      borcalacaklar: state.borcalacaklar,
-      kategoriler:   state.kategoriler,
-      limitler:      state.limitler,
-      archives:      state.archives
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
-    const url  = URL.createObjectURL(blob);
-    const a    = Object.assign(document.createElement('a'), { href:url, download:`ebhamani_yedek_${dayjs().format('YYYY-MM-DD_HHmm')}.json` });
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    localStorage.setItem('last_backup_date', new Date().toISOString());
-    showToast('💾 Yedek alındı!');
+    try {
+      const data = {
+        version: '6.0',
+        appName: 'EBHA Mani',
+        exportDate: new Date().toISOString(),
+        gelirler:      state.gelirler,
+        giderler:      state.giderler,
+        borcalacaklar: state.borcalacaklar,
+        kategoriler:   state.kategoriler,
+        limitler:      state.limitler,
+        ayarlar:       {
+          varsayilanRaporAraligi: state.ayarlar.varsayilanRaporAraligi,
+          gramAltinFiyati:        state.ayarlar.gramAltinFiyati,
+          ceyrekAltinFiyati:      state.ayarlar.ceyrekAltinFiyati
+        },
+        archives:      state.archives,
+        logs:          state.logs.slice(0, 100)
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+      const url  = URL.createObjectURL(blob);
+      const a    = Object.assign(document.createElement('a'), { href:url, download:`ebhamani_yedek_${dayjs().format('YYYY-MM-DD_HHmm')}.json` });
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      localStorage.setItem('last_backup_date', new Date().toISOString());
+
+      const stats = {
+        gelir: state.gelirler.length,
+        gider: state.giderler.length,
+        borc: state.borcalacaklar.length,
+        arsiv: Object.keys(state.archives).length
+      };
+      showToast(`💾 Yedek alındı! (${stats.gelir} gelir · ${stats.gider} gider · ${stats.borc} borç · ${stats.arsiv} arşiv)`);
+    } catch (e) {
+      console.error('[exportToJSON] Hata:', e);
+      Swal.fire({ icon: 'error', title: 'Yedek Hatası', text: e.message || 'Yedek alınamadı' });
+    }
   },
 
-    async importFromJSON(file) {
+  async importFromJSON(file) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async e => {
       try {
         const data = JSON.parse(e.target.result);
-        const asArr = v => Array.isArray(v) ? v.filter(x => x && x.miktar != null) : [];
+        const asArr = v => Array.isArray(v)
+          ? v.filter(x => x && typeof x === 'object' && x.miktar != null && !isNaN(Number(x.miktar)) && x.tarih)
+          : [];
 
-        state.gelirler      = asArr(data.gelirler);
-        state.giderler      = asArr(data.giderler);
-        state.borcalacaklar = asArr(data.borcalacaklar);
+        const newGelirler      = asArr(data.gelirler);
+        const newGiderler      = asArr(data.giderler);
+        const newBorcalacaklar = Array.isArray(data.borcalacaklar)
+          ? data.borcalacaklar.filter(b => b && typeof b === 'object' && b.kisiAdi && b.miktar != null)
+          : [];
 
+        let newKategoriler = { ...state.kategoriler };
         if (data.kategoriler && data.kategoriler.gelir && data.kategoriler.gider) {
-          state.kategoriler = {
+          newKategoriler = {
             gelir: Array.isArray(data.kategoriler.gelir) ? data.kategoriler.gelir : state.kategoriler.gelir,
             gider: Array.isArray(data.kategoriler.gider) ? data.kategoriler.gider : state.kategoriler.gider
           };
-        }
-        if (data.limitler && typeof data.limitler === 'object' && !Array.isArray(data.limitler)) {
-          state.limitler = data.limitler;
-        }
-        if (data.archives && typeof data.archives === 'object' && !Array.isArray(data.archives)) {
-          state.archives = data.archives;
+          if (!newKategoriler.gider.includes('Akaryakıt')) newKategoriler.gider.push('Akaryakıt');
         }
 
+        let newLimitler = {};
+        if (data.limitler && typeof data.limitler === 'object' && !Array.isArray(data.limitler)) {
+          Object.entries(data.limitler).forEach(([k, v]) => {
+            const num = Number(v);
+            if (!isNaN(num) && num > 0) newLimitler[k] = num;
+          });
+        }
+
+        let newArchives = {};
+        if (data.archives && typeof data.archives === 'object' && !Array.isArray(data.archives)) {
+          Object.entries(data.archives).forEach(([k, v]) => {
+            if (!/^\d{4}-\d{2}$/.test(k)) return;
+            if (!v || typeof v !== 'object') return;
+            newArchives[k] = {
+              gelirler:      Array.isArray(v.gelirler)      ? v.gelirler      : [],
+              giderler:      Array.isArray(v.giderler)      ? v.giderler      : [],
+              borcalacaklar: Array.isArray(v.borcalacaklar) ? v.borcalacaklar : [],
+              loglar:        Array.isArray(v.loglar)        ? v.loglar        : [],
+              salaryMonthRange: v.salaryMonthRange || SalaryMonth.range(k),
+              year:             v.year || k.substring(0, 4),
+              archivedAt:       v.archivedAt || new Date().toISOString(),
+              schemaVersion:    v.schemaVersion || 3,
+              pdfDataUrl:       typeof v.pdfDataUrl === 'string' ? v.pdfDataUrl : null,
+              pdfGeneratedAt:   v.pdfGeneratedAt || null
+            };
+          });
+        }
+
+        let newAyarlar = { ...state.ayarlar };
+        if (data.ayarlar && typeof data.ayarlar === 'object') {
+          newAyarlar = {
+            varsayilanRaporAraligi: data.ayarlar.varsayilanRaporAraligi || 'ay',
+            gramAltinFiyati:        Number(data.ayarlar.gramAltinFiyati) || 6400,
+            ceyrekAltinFiyati:      Number(data.ayarlar.ceyrekAltinFiyati) || 10500
+          };
+        }
+
+        // Onay iste
+        const onay = await Swal.fire({
+          icon: 'warning',
+          title: 'Yedeği Yükle',
+          html: `<div style="text-align:left;">
+            <p style="margin-bottom:8px;">Yedek dosyası: <strong>${UI.escHtml(file.name)}</strong></p>
+            <div style="padding:12px;background:var(--surface2);border-radius:10px;margin-bottom:10px;">
+              <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
+                <span>Gelirler:</span><strong>${newGelirler.length}</strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
+                <span>Giderler:</span><strong>${newGiderler.length}</strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
+                <span>Borç/Alacak:</span><strong>${newBorcalacaklar.length}</strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
+                <span>Arşivler:</span><strong>${Object.keys(newArchives).length}</strong>
+              </div>
+            </div>
+            <p style="font-size:12px;color:#DC2626;font-weight:600;">⚠️ Mevcut verileriniz TAMAMEN DEĞİŞTİRİLECEK!</p>
+            <p style="font-size:11px;color:#94a3b8;margin-top:6px;">Devam etmeden önce mevcut verilerinizin JSON yedeğini almanız önerilir.</p>
+          </div>`,
+          showCancelButton: true,
+          confirmButtonText: 'Evet, Yükle',
+          cancelButtonText: 'İptal',
+          confirmButtonColor: '#DC2626',
+          width: Math.min(500, window.innerWidth - 24)
+        });
+        if (!onay.isConfirmed) return;
+
+        state.gelirler      = newGelirler;
+        state.giderler      = newGiderler;
+        state.borcalacaklar = newBorcalacaklar.map(b => ({ ...b, birim: b.birim || 'tl' }));
+        state.kategoriler   = newKategoriler;
+        state.limitler      = newLimitler;
+        state.archives      = newArchives;
+        state.ayarlar       = newAyarlar;
+        state.logs          = [];
+
         await saveAllData();
-        await addLog('json_import', file.name);
+        await addLog('json_import', `${file.name} (${newGelirler.length + newGiderler.length} işlem)`);
         showToast('✅ Yedek başarıyla yüklendi!');
         await this.loadPage(this.currentPage);
       } catch (err) {
         console.error('[import] Hata:', err);
-        Swal.fire({ icon:'error', title:'Geçersiz Dosya', text:'JSON formatı hatalı veya eksik.' });
+        Swal.fire({ icon:'error', title:'Geçersiz Dosya', text: err.message || 'JSON formatı hatalı veya eksik.' });
       }
+    };
+    reader.onerror = () => {
+      Swal.fire({ icon:'error', title:'Dosya Okunamadı', text:'Dosya bozuk veya okunamıyor.' });
     };
     reader.readAsText(file);
   },
@@ -7905,8 +8499,19 @@ openKategoriModal() {
 
     const s1 = document.getElementById('cmpKey1');
     const s2 = document.getElementById('cmpKey2');
-    if (s1) { s1.innerHTML = opts; if (!s1.value) s1.value = SalaryMonth.currentKey(); }
-    if (s2) { s2.innerHTML = opts; if (!s2.value) s2.value = SalaryMonth.previousKey(); }
+    const prevVal1 = s1?.value;
+    const prevVal2 = s2?.value;
+
+    if (s1) {
+      s1.innerHTML = opts;
+      s1.value = (prevVal1 && keys.has(prevVal1)) ? prevVal1 : SalaryMonth.currentKey();
+      if (!s1.value) s1.value = sorted[0] || '';
+    }
+    if (s2) {
+      s2.innerHTML = opts;
+      s2.value = (prevVal2 && keys.has(prevVal2)) ? prevVal2 : SalaryMonth.previousKey();
+      if (!s2.value) s2.value = sorted[1] || sorted[0] || '';
+    }
 
     this.renderKarsilastirma();
   },
