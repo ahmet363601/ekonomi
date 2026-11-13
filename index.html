@@ -1550,6 +1550,123 @@ input[type="month"].form-input,
   .fuel-preview-row strong { color: #FCD34D; }
   .fuel-hint { color: #FBBF24; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   AKARYAKIT GEÇMİŞ MODAL
+   ═══════════════════════════════════════════════════════════════ */
+.swal2-popup.fuel-history-popup {
+  max-width: min(760px, calc(100vw - 16px)) !important;
+  padding: 16px 14px !important;
+}
+.swal2-popup.fuel-history-popup .swal2-title {
+  font-size: 18px !important;
+  padding: 0 0 6px 0 !important;
+}
+.swal2-popup.fuel-history-popup .swal2-html-container {
+  margin: 6px 0 0 !important;
+  padding: 0 !important;
+  font-size: 13px !important;
+}
+
+.fuel-modal-stat {
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+  border: 1px solid var(--border);
+}
+.fuel-modal-stat-label {
+  font-size: 9px;
+  color: var(--text3);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: .3px;
+  margin-bottom: 4px;
+}
+.fuel-modal-stat-value {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--text);
+  letter-spacing: -.3px;
+}
+.fuel-modal-stat-value.amber { color: var(--warning); }
+.fuel-modal-stat-value.blue  { color: var(--primary); }
+.fuel-modal-stat-value.green { color: var(--accent); }
+.fuel-modal-stat-value.red   { color: var(--danger); }
+.fuel-modal-stat-value.cyan  { color: var(--info); }
+
+.fuel-record-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--surface2);
+  border-radius: 10px;
+  margin-bottom: 6px;
+  border-left: 3px solid var(--warning);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.fuel-record-row:hover {
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.fuel-record-row:active { transform: scale(.98); }
+.fuel-record-date {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 70px;
+}
+.fuel-record-main { flex: 1; min-width: 0; }
+.fuel-record-amount { text-align: right; font-size: 11px; margin-bottom: 2px; }
+.fuel-record-amount strong { color: var(--danger); font-weight: 800; font-size: 12px; }
+.fuel-record-metrics {
+  display: flex;
+  gap: 6px;
+  font-size: 9.5px;
+  color: var(--text3);
+  flex-wrap: wrap;
+}
+.fuel-record-metric { white-space: nowrap; }
+.fuel-record-metric strong { color: var(--warning); }
+
+.fuel-filter-chips {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+  margin-bottom: 10px;
+}
+.fuel-filter-chips::-webkit-scrollbar { display: none; }
+.fuel-filter-chip {
+  padding: 5px 11px;
+  border-radius: 30px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--text2);
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+.fuel-filter-chip.active {
+  background: var(--warning);
+  border-color: var(--warning);
+  color: #fff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .fuel-modal-stat { background: var(--surface3); }
+  .fuel-record-row { background: var(--surface3); }
+  .fuel-record-row:hover { background: var(--surface2); }
+}
+</style>
 </style>
 
 </head>
@@ -2513,7 +2630,7 @@ sonIslemler() {
     return { yas, etiket, renk, aciklama, tasarrufOrani, borcOrani, gunSayisi: saglik.gunSayisi };
   },
 
-  /* 🆕 AKARYAKIT İSTATİSTİKLERİ */
+  /* 🆕 AKARYAKIT İSTATİSTİKLERİ — Kapsamlı */
   fuelStats(range) {
     let all = this._allGiderler().filter(g => g.kategori === 'Akaryakıt' && g.fuel);
     if (range && range.start) all = all.filter(g => g.tarih >= range.start);
@@ -2524,6 +2641,10 @@ sonIslemler() {
     });
 
     const itemsWithKm = all.filter(i => Number(i.fuel?.mesafe) > 0);
+    const itemsWithL100 = all.filter(i => Number(i.fuel?.lPer100km) > 0);
+    const itemsWithTLKm = all.filter(i => Number(i.fuel?.tlPerKm) > 0);
+    const itemsWithBF   = all.filter(i => i.fuel?.litre && i.fuel?.birimFiyat);
+
     const kmValidTL   = itemsWithKm.reduce((s, i) => s + (Number(i.miktar) || 0), 0);
     const kmValidL    = itemsWithKm.reduce((s, i) => s + (Number(i.fuel?.litre) || 0), 0);
     const totalKm     = itemsWithKm.reduce((s, i) => s + (Number(i.fuel?.mesafe) || 0), 0);
@@ -2531,15 +2652,163 @@ sonIslemler() {
     const totalTL    = all.reduce((s, i) => s + (Number(i.miktar) || 0), 0);
     const totalLitre = all.reduce((s, i) => s + (Number(i.fuel?.litre) || 0), 0);
 
+    const avgTlPerKm    = totalKm > 0 ? (kmValidTL / totalKm) : 0;
+    const avgLPer100    = totalKm > 0 ? ((kmValidL * 100) / totalKm) : 0;
+    const avgLitreFiyat = totalLitre > 0 ? (totalTL / totalLitre) : 0;
+
+    /* ═══ İSTATİSTİKSEL YARDIMCILAR ═══ */
+    const _median = (arr) => {
+      if (!arr.length) return 0;
+      const s = [...arr].sort((a, b) => a - b);
+      const mid = Math.floor(s.length / 2);
+      return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+    };
+    const _stdDev = (arr) => {
+      if (arr.length < 2) return 0;
+      const m = arr.reduce((s, v) => s + v, 0) / arr.length;
+      const v = arr.reduce((s, x) => s + Math.pow(x - m, 2), 0) / arr.length;
+      return Math.sqrt(v);
+    };
+    const _pct = (arr, p) => {
+      if (!arr.length) return 0;
+      const s = [...arr].sort((a, b) => a - b);
+      const idx = (p / 100) * (s.length - 1);
+      const lo = Math.floor(idx);
+      const hi = Math.ceil(idx);
+      if (lo === hi) return s[lo];
+      return s[lo] + (s[hi] - s[lo]) * (idx - lo);
+    };
+
+    const l100Arr = itemsWithL100.map(i => Number(i.fuel.lPer100km));
+    const tlKmArr = itemsWithTLKm.map(i => Number(i.fuel.tlPerKm));
+    const bfArr   = itemsWithBF.map(i => Number(i.fuel.birimFiyat));
+
+    const minL100 = l100Arr.length ? Math.min(...l100Arr) : 0;
+    const maxL100 = l100Arr.length ? Math.max(...l100Arr) : 0;
+    const minTLKm = tlKmArr.length ? Math.min(...tlKmArr) : 0;
+    const maxTLKm = tlKmArr.length ? Math.max(...tlKmArr) : 0;
+
+    const medianL100    = _median(l100Arr);
+    const medianTLKm    = _median(tlKmArr);
+    const medianLitreFiyat = _median(bfArr);
+    const stdDevL100    = _stdDev(l100Arr);
+    const stdDevTLKm    = _stdDev(tlKmArr);
+
+    const cvL100 = (l100Arr.length && avgLPer100 > 0) ? (stdDevL100 / avgLPer100) * 100 : 0;
+    const cvTLKm = (tlKmArr.length && avgTlPerKm > 0) ? (stdDevTLKm / avgTlPerKm) * 100 : 0;
+
+    const p25L100 = _pct(l100Arr, 25);
+    const p75L100 = _pct(l100Arr, 75);
+    const p90L100 = _pct(l100Arr, 90);
+
+    /* ═══ DOLUM ARALIĞI ═══ */
+    let dolumAraligi = null;
+    if (all.length >= 2) {
+      const tarihler = all.map(i => dayjs(i.tarih)).sort((a, b) => a.valueOf() - b.valueOf());
+      const farklar = [];
+      for (let i = 1; i < tarihler.length; i++) {
+        farklar.push(tarihler[i].diff(tarihler[i - 1], 'day'));
+      }
+      dolumAraligi = {
+        ortalama: farklar.reduce((s, v) => s + v, 0) / farklar.length,
+        min: Math.min(...farklar),
+        max: Math.max(...farklar),
+        medyan: _median(farklar)
+      };
+    }
+
+    /* ═══ EN EKONOMİK / EN PAHALI ═══ */
+    const enEkonomik = itemsWithL100.length ? itemsWithL100.reduce((a, b) => a.fuel.lPer100km < b.fuel.lPer100km ? a : b) : null;
+    const enPahali   = itemsWithL100.length ? itemsWithL100.reduce((a, b) => a.fuel.lPer100km > b.fuel.lPer100km ? a : b) : null;
+
+    /* ═══ TREND (son 2 tüketim) ═══ */
+    let trend = null;
+    if (itemsWithL100.length >= 2) {
+      const son    = Number(itemsWithL100[itemsWithL100.length - 1].fuel.lPer100km);
+      const onceki = Number(itemsWithL100[itemsWithL100.length - 2].fuel.lPer100km);
+      const fark   = son - onceki;
+      trend = {
+        yon: fark > 0.001 ? 'up' : (fark < -0.001 ? 'down' : 'same'),
+        fark,
+        yuzde: onceki > 0 ? (fark / onceki) * 100 : 0,
+        son, onceki
+      };
+    }
+
+    /* ═══ LİNEER REGRESYON EĞİMİ ═══ */
+    let regressionSlope = 0;
+    if (l100Arr.length >= 2) {
+      const n = l100Arr.length;
+      const xs = Array.from({ length: n }, (_, i) => i);
+      const sumX  = xs.reduce((s, x) => s + x, 0);
+      const sumY  = l100Arr.reduce((s, y) => s + y, 0);
+      const sumXY = xs.reduce((s, x, i) => s + x * l100Arr[i], 0);
+      const sumX2 = xs.reduce((s, x) => s + x * x, 0);
+      const denom = n * sumX2 - sumX * sumX;
+      if (denom !== 0) regressionSlope = (n * sumXY - sumX * sumY) / denom;
+    }
+
+    /* ═══ AYLIK DAĞILIM ═══ */
+    const byMonth = {};
+    all.forEach(i => {
+      const k = SalaryMonth.keyOf(i.tarih);
+      if (!byMonth[k]) byMonth[k] = { tl: 0, litre: 0, km: 0, count: 0, l100List: [], tlKmList: [] };
+      byMonth[k].tl    += Number(i.miktar) || 0;
+      byMonth[k].litre += Number(i.fuel?.litre) || 0;
+      byMonth[k].km    += Number(i.fuel?.mesafe) || 0;
+      byMonth[k].count += 1;
+      if (Number(i.fuel?.lPer100km) > 0) byMonth[k].l100List.push(Number(i.fuel.lPer100km));
+      if (Number(i.fuel?.tlPerKm) > 0)   byMonth[k].tlKmList.push(Number(i.fuel.tlPerKm));
+    });
+    const monthly = Object.entries(byMonth).map(([k, v]) => ({
+      key: k,
+      label: SalaryMonth.shortLabel(k),
+      tl: v.tl, litre: v.litre, km: v.km, count: v.count,
+      avgL100: v.l100List.length ? v.l100List.reduce((s, x) => s + x, 0) / v.l100List.length : 0,
+      avgTLKm: v.tlKmList.length ? v.tlKmList.reduce((s, x) => s + x, 0) / v.tlKmList.length : 0
+    })).sort((a, b) => a.key.localeCompare(b.key));
+
+    /* ═══ PROJEKSİYON (Son 6 / 3 ay ort.) ═══ */
+    const son6 = monthly.slice(-6);
+    const son3 = monthly.slice(-3);
+    const projeksiyon = {
+      aylikTL:     son6.length ? son6.reduce((s, m) => s + m.tl, 0) / son6.length : 0,
+      aylikLitre:  son6.length ? son6.reduce((s, m) => s + m.litre, 0) / son6.length : 0,
+      aylikKm:     son6.length ? son6.reduce((s, m) => s + m.km, 0) / son6.length : 0,
+      aylikTL_son3:    son3.length ? son3.reduce((s, m) => s + m.tl, 0) / son3.length : 0,
+      aylikLitre_son3: son3.length ? son3.reduce((s, m) => s + m.litre, 0) / son3.length : 0
+    };
+
+    /* ═══ YAKIT FİYATI TRENDİ ═══ */
+    let birimFiyatTrend = null;
+    if (itemsWithBF.length >= 2) {
+      const sorted = [...itemsWithBF].sort((a, b) => a.tarih.localeCompare(b.tarih));
+      const ilk = Number(sorted[0].fuel.birimFiyat);
+      const son = Number(sorted[sorted.length - 1].fuel.birimFiyat);
+      const fark = son - ilk;
+      birimFiyatTrend = { ilk, son, fark, yuzde: ilk > 0 ? (fark / ilk) * 100 : 0 };
+    }
+
     return {
+      /* Mevcut alanlar (geri uyumlu) */
       count: all.length,
       kmValidCount: itemsWithKm.length,
-      totalTL,
-      totalLitre,
-      totalKm,
-      avgTlPerKm:    totalKm > 0 ? (kmValidTL / totalKm) : 0,
-      avgLPer100:    totalKm > 0 ? ((kmValidL * 100) / totalKm) : 0,
-      avgLitreFiyat: totalLitre > 0 ? (totalTL / totalLitre) : 0,
+      totalTL, totalLitre, totalKm,
+      avgTlPerKm, avgLPer100, avgLitreFiyat,
+      /* Yeni alanlar */
+      l100ValidCount: itemsWithL100.length,
+      medianL100, medianTLKm, medianLitreFiyat,
+      stdDevL100, stdDevTLKm,
+      cvL100, cvTLKm,
+      minL100, maxL100, minTLKm, maxTLKm,
+      p25L100, p75L100, p90L100,
+      dolumAraligi,
+      enEkonomik, enPahali,
+      trend,
+      regressionSlope,
+      monthly,
+      projeksiyon,
+      birimFiyatTrend,
       items: all
     };
   },
@@ -3606,22 +3875,38 @@ const App = {
             : `⚠️ Bütçe aşımı: ${Calc.fmt(Math.abs(safe.kalanButce))}`}
         </div>
       </div>
-
-      <!-- 🆕 AKARYAKIT ÖZET KARTI -->
+      <!-- 🆕 AKARYAKIT ÖZET KARTI — tıklanabilir -->
       ${(() => {
         const fs = Calc.fuelStats();
         if (fs.count === 0) return '';
-        return `<div class="card" style="border-left:4px solid var(--warning);">
+        const lastFuel = fs.items[fs.items.length - 1];
+        const lastDate = lastFuel ? dayjs(lastFuel.tarih).format('DD MMM') : '—';
+
+        let trendBadge = '';
+        if (fs.trend) {
+          if (fs.trend.yon === 'up') {
+            trendBadge = `<span style="font-size:9px;color:var(--danger);font-weight:800;margin-left:4px;">↑%${Math.abs(fs.trend.yuzde).toFixed(1)}</span>`;
+          } else if (fs.trend.yon === 'down') {
+            trendBadge = `<span style="font-size:9px;color:var(--accent);font-weight:800;margin-left:4px;">↓%${Math.abs(fs.trend.yuzde).toFixed(1)}</span>`;
+          } else {
+            trendBadge = `<span style="font-size:9px;color:var(--text3);font-weight:700;margin-left:4px;">≈</span>`;
+          }
+        }
+
+        return `<div class="card" onclick="App.openFuelHistoryModal()" style="border-left:4px solid var(--warning);cursor:pointer;transition:var(--transition);" onmouseover="this.style.boxShadow='var(--shadow-md)';" onmouseout="this.style.boxShadow='var(--shadow-xs)';">
           <div class="section-header">
             <span class="section-title" style="display:flex;align-items:center;gap:8px;">
               <i class="fas fa-gas-pump" style="color:var(--warning);"></i>
               Akaryakıt Özeti
             </span>
-            <span class="badge badge-amber">${fs.count} dolum</span>
+            <span class="badge badge-amber" style="display:inline-flex;align-items:center;gap:6px;">
+              ${fs.count} dolum
+              <i class="fas fa-chevron-right" style="font-size:8px;opacity:.7;"></i>
+            </span>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px;">
             <div style="text-align:center;padding:8px;background:var(--warning-light);border-radius:8px;">
-              <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">Ort. Tüketim</div>
+              <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">Ort. Tüketim ${trendBadge}</div>
               <div style="font-family:'Plus Jakarta Sans';font-size:14px;font-weight:900;color:var(--warning);margin-top:2px;">${fs.avgLPer100 > 0 ? fs.avgLPer100.toFixed(2) : '—'} <span style="font-size:10px;font-weight:600;">L/100km</span></div>
             </div>
             <div style="text-align:center;padding:8px;background:var(--info-light);border-radius:8px;">
@@ -3629,8 +3914,15 @@ const App = {
               <div style="font-family:'Plus Jakarta Sans';font-size:14px;font-weight:900;color:var(--info);margin-top:2px;">${fs.avgTlPerKm > 0 ? fs.avgTlPerKm.toFixed(3) : '—'} <span style="font-size:10px;font-weight:600;">TL/km</span></div>
             </div>
           </div>
-          <div style="font-size:10px;color:var(--text3);margin-top:8px;text-align:center;">
-            Toplam: ${Calc.fmt(fs.totalTL)} · ${fs.totalLitre.toFixed(1)} L · ${fs.totalKm.toLocaleString('tr-TR')} km
+          <div style="font-size:10px;color:var(--text3);margin-top:8px;text-align:center;display:flex;justify-content:center;gap:6px;flex-wrap:wrap;">
+            <span>Toplam: <strong style="color:var(--text);">${Calc.fmt(fs.totalTL)}</strong></span>
+            <span>·</span>
+            <span><strong style="color:var(--warning);">${fs.totalLitre.toFixed(1)}</strong> L</span>
+            <span>·</span>
+            <span><strong style="color:var(--primary);">${fs.totalKm.toLocaleString('tr-TR')}</strong> km</span>
+          </div>
+          <div style="font-size:9.5px;color:var(--text3);margin-top:4px;text-align:center;opacity:.75;">
+            Son dolum: ${lastDate} · Detay için dokun
           </div>
         </div>`;
       })()}
@@ -4831,7 +5123,355 @@ const App = {
     showToast('🗑️ Kayıt kalıcı olarak silindi');
     await this.renderArsiv();
   },
+  /* ═══════════════════════════════════════════════════════════════
+     ⛽ AKARYAKIT GEÇMİŞ MODAL — Kapsamlı
+     ═══════════════════════════════════════════════════════════════ */
+  _fuelFilter: { q: '', range: 'tum' },
+  _fuelChartId: null,
+  _fuelSearchTimer: null,
 
+  async openFuelHistoryModal() {
+    const stats = Calc.fuelStats();
+    if (stats.count === 0) {
+      showToast('ℹ️ Henüz akaryakıt kaydı yok');
+      return;
+    }
+
+    this._fuelChartId = 'fuelHistoryChart_' + Date.now();
+    if (!this._fuelFilter) this._fuelFilter = { q: '', range: 'tum' };
+
+    const filtered = this._filterFuelItems(stats.items, this._fuelFilter);
+
+    await Swal.fire({
+      title: '⛽ Akaryakıt Geçmişi',
+      html: `<div style="text-align:left;max-height:70vh;overflow-y:auto;padding-right:4px;">
+        ${this._buildFuelSummaryHTML(stats)}
+        ${this._buildFuelAdvancedHTML(stats)}
+        ${this._buildFuelEkonomikHTML(stats)}
+        ${this._buildFuelAralikHTML(stats)}
+        ${this._buildFuelBirimFiyatHTML(stats)}
+
+        <div style="margin-bottom:10px;">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:6px;letter-spacing:.4px;">📈 Tüketim Trendi</div>
+          <div style="height:200px;position:relative;">
+            <canvas id="${this._fuelChartId}"></canvas>
+          </div>
+        </div>
+
+        ${this._buildFuelProjeksiyonHTML(stats)}
+        ${this._buildFuelMonthlyHTML(stats)}
+
+        <!-- Filtreler -->
+        <div style="margin-bottom:10px;padding-top:12px;border-top:1px solid var(--border);">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:6px;letter-spacing:.4px;">🔍 Dolum Kayıtları Filtresi</div>
+          <div class="fuel-filter-chips">
+            ${[
+              ['tum','Tümü'],
+              ['ay','Son 1 Ay'],
+              ['3ay','Son 3 Ay'],
+              ['6ay','Son 6 Ay'],
+              ['yil','Son 1 Yıl']
+            ].map(([k, v]) => `<span class="fuel-filter-chip ${this._fuelFilter.range === k ? 'active' : ''}" data-range="${k}" onclick="App._setFuelFilterRange('${k}')">${v}</span>`).join('')}
+          </div>
+          <div class="search-box" style="margin-bottom:0;">
+            <i class="fas fa-search"></i>
+            <input type="text" id="fuelFilterSearch" class="form-input" placeholder="Açıklama veya tarihte ara…" value="${UI.escHtml(this._fuelFilter.q)}" oninput="App._setFuelFilterQuery(this.value)">
+          </div>
+        </div>
+
+        <!-- Kayıt listesi -->
+        <div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:6px;letter-spacing:.4px;display:flex;justify-content:space-between;align-items:center;">
+            <span>⛽ Dolum Kayıtları</span>
+            <span id="fuelRecordsCount" style="font-size:9px;color:var(--text3);font-weight:600;text-transform:none;">${filtered.length} / ${stats.count}</span>
+          </div>
+          <div id="fuelRecordsList">
+            ${this._buildFuelRecordsHTML(filtered)}
+          </div>
+        </div>
+      </div>`,
+      width: Math.min(760, window.innerWidth - 16),
+      confirmButtonText: 'Kapat',
+      showCloseButton: true,
+      customClass: { popup: 'fuel-history-popup' },
+      didOpen: () => {
+        requestAnimationFrame(() => {
+          try {
+            const valid = filtered.filter(i => Number(i.fuel?.lPer100km) > 0);
+            if (valid.length >= 2) Charts.fuelTrend(this._fuelChartId, valid);
+          } catch (e) { console.warn('[FuelHistory] Chart:', e); }
+        });
+      },
+      willClose: () => {
+        if (Charts.instances[this._fuelChartId]) {
+          try { Charts.destroy(this._fuelChartId); } catch (e) {}
+        }
+        this._fuelChartId = null;
+      }
+    });
+  },
+
+  _filterFuelItems(items, filter) {
+    let f = items.slice();
+    if (filter.range !== 'tum') {
+      const now = dayjs();
+      let cutoff;
+      if (filter.range === 'ay')       cutoff = now.subtract(30, 'day');
+      else if (filter.range === '3ay') cutoff = now.subtract(90, 'day');
+      else if (filter.range === '6ay') cutoff = now.subtract(180, 'day');
+      else if (filter.range === 'yil') cutoff = now.subtract(365, 'day');
+      if (cutoff) f = f.filter(i => dayjs(i.tarih).isAfter(cutoff));
+    }
+    if (filter.q) {
+      const q = filter.q.toLowerCase();
+      f = f.filter(i =>
+        (i.aciklama || '').toLowerCase().includes(q) ||
+        (i.tarih || '').includes(q)
+      );
+    }
+    return f;
+  },
+
+  _setFuelFilterRange(k) {
+    if (!this._fuelFilter) this._fuelFilter = { q: '', range: 'tum' };
+    this._fuelFilter.range = k;
+    document.querySelectorAll('.fuel-filter-chip').forEach(c => {
+      c.classList.toggle('active', c.dataset.range === k);
+    });
+    this._refreshFuelHistoryList();
+  },
+
+  _setFuelFilterQuery(q) {
+    if (!this._fuelFilter) this._fuelFilter = { q: '', range: 'tum' };
+    this._fuelFilter.q = q;
+    clearTimeout(this._fuelSearchTimer);
+    this._fuelSearchTimer = setTimeout(() => this._refreshFuelHistoryList(), 300);
+  },
+
+  _refreshFuelHistoryList() {
+    const stats = Calc.fuelStats();
+    const filtered = this._filterFuelItems(stats.items, this._fuelFilter);
+
+    const listEl = document.getElementById('fuelRecordsList');
+    if (listEl) listEl.innerHTML = this._buildFuelRecordsHTML(filtered);
+
+    const countEl = document.getElementById('fuelRecordsCount');
+    if (countEl) countEl.textContent = `${filtered.length} / ${stats.count}`;
+
+    if (this._fuelChartId && Charts.instances[this._fuelChartId]) {
+      try { Charts.destroy(this._fuelChartId); } catch (e) {}
+    }
+    const valid = filtered.filter(i => Number(i.fuel?.lPer100km) > 0);
+    if (this._fuelChartId && valid.length >= 2) {
+      requestAnimationFrame(() => {
+        try { Charts.fuelTrend(this._fuelChartId, valid); }
+        catch (e) { console.warn('[FuelHistory] Chart refresh:', e); }
+      });
+    }
+  },
+
+  _buildFuelRecordsHTML(filtered) {
+    if (!filtered.length) {
+      return '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;"><i class="fas fa-inbox" style="font-size:24px;opacity:.4;display:block;margin-bottom:6px;"></i>Filtreye uygun kayıt yok</div>';
+    }
+    return filtered.slice().reverse().map(i => {
+      const metrics = [];
+      if (i.fuel?.mesafe)    metrics.push(`<span class="fuel-record-metric">📏 <strong>${Number(i.fuel.mesafe).toLocaleString('tr-TR')}</strong> km</span>`);
+      if (i.fuel?.litre)     metrics.push(`<span class="fuel-record-metric">💧 <strong>${Number(i.fuel.litre).toFixed(1)}</strong> L</span>`);
+      if (i.fuel?.lPer100km) metrics.push(`<span class="fuel-record-metric">⛽ <strong>${Number(i.fuel.lPer100km).toFixed(2)}</strong> L/100</span>`);
+      if (i.fuel?.tlPerKm)   metrics.push(`<span class="fuel-record-metric">💰 <strong>${Number(i.fuel.tlPerKm).toFixed(3)}</strong> TL/km</span>`);
+
+      return `<div class="fuel-record-row" onclick="App._openFuelRecordDetail(${i.id})">
+        <div>
+          <div class="fuel-record-date">${dayjs(i.tarih).format('DD MMM YY')}</div>
+          <div style="font-size:9px;color:var(--text3);margin-top:1px;">${i.aciklama ? UI.escHtml(i.aciklama.substring(0, 14)) : SalaryMonth.shortLabel(SalaryMonth.keyOf(i.tarih))}</div>
+        </div>
+        <div class="fuel-record-main">
+          <div class="fuel-record-amount"><strong>${Calc.fmt(i.miktar)}</strong></div>
+          <div class="fuel-record-metrics">${metrics.join('')}</div>
+        </div>
+        <i class="fas fa-chevron-right" style="color:var(--text3);font-size:10px;"></i>
+      </div>`;
+    }).join('');
+  },
+
+  _buildFuelSummaryHTML(s) {
+    return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">
+      <div class="fuel-modal-stat"><div class="fuel-modal-stat-label">Toplam Harcama</div><div class="fuel-modal-stat-value red">${Calc.fmt(s.totalTL)}</div></div>
+      <div class="fuel-modal-stat"><div class="fuel-modal-stat-label">Toplam Litre</div><div class="fuel-modal-stat-value amber">${s.totalLitre.toFixed(2)} L</div></div>
+      <div class="fuel-modal-stat"><div class="fuel-modal-stat-label">Toplam KM</div><div class="fuel-modal-stat-value blue">${s.totalKm.toLocaleString('tr-TR')} km</div></div>
+      <div class="fuel-modal-stat"><div class="fuel-modal-stat-label">Ort. Litre Fiyatı</div><div class="fuel-modal-stat-value cyan">${s.avgLitreFiyat > 0 ? s.avgLitreFiyat.toFixed(2) : '—'} TL/L</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">
+      <div style="padding:10px;background:var(--warning-light);border-radius:10px;text-align:center;border-left:3px solid var(--warning);">
+        <div class="fuel-modal-stat-label" style="color:var(--warning);">Ort. Tüketim${s.trend ? ` <i class="fas fa-${s.trend.yon === 'up' ? 'arrow-trend-up' : (s.trend.yon === 'down' ? 'arrow-trend-down' : 'minus')}" style="color:${s.trend.yon === 'up' ? 'var(--danger)' : (s.trend.yon === 'down' ? 'var(--accent)' : 'var(--text3)')};"></i>` : ''}</div>
+        <div style="font-family:'Plus Jakarta Sans';font-size:17px;font-weight:900;color:var(--warning);margin-top:3px;">${s.avgLPer100 > 0 ? s.avgLPer100.toFixed(2) : '—'} <span style="font-size:10px;">L/100km</span></div>
+        ${s.trend ? `<div style="font-size:10px;color:${s.trend.yon === 'up' ? 'var(--danger)' : (s.trend.yon === 'down' ? 'var(--accent)' : 'var(--text3)')};font-weight:700;margin-top:1px;">${s.trend.yon === 'up' ? '+' : ''}${s.trend.yuzde.toFixed(1)}% son dolum</div>` : ''}
+      </div>
+      <div style="padding:10px;background:var(--info-light);border-radius:10px;text-align:center;border-left:3px solid var(--info);">
+        <div class="fuel-modal-stat-label" style="color:var(--info);">Ort. Maliyet</div>
+        <div style="font-family:'Plus Jakarta Sans';font-size:17px;font-weight:900;color:var(--info);margin-top:3px;">${s.avgTlPerKm > 0 ? s.avgTlPerKm.toFixed(3) : '—'} <span style="font-size:10px;">TL/km</span></div>
+      </div>
+    </div>`;
+  },
+
+  _buildFuelAdvancedHTML(s) {
+    return `<div style="padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:10px;">
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:8px;letter-spacing:.4px;">📊 Gelişmiş İstatistikler (L/100km)</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:10px;">
+        <div style="text-align:center;padding:6px;background:var(--surface);border-radius:6px;">
+          <div style="color:var(--text3);font-size:8.5px;font-weight:600;">MEDYAN</div>
+          <div style="font-weight:800;color:var(--warning);margin-top:2px;font-size:11px;">${s.medianL100 > 0 ? s.medianL100.toFixed(2) : '—'}</div>
+        </div>
+        <div style="text-align:center;padding:6px;background:var(--surface);border-radius:6px;">
+          <div style="color:var(--text3);font-size:8.5px;font-weight:600;">STD SAPMA</div>
+          <div style="font-weight:800;color:var(--primary);margin-top:2px;font-size:11px;">${s.stdDevL100 > 0 ? s.stdDevL100.toFixed(2) : '—'}</div>
+        </div>
+        <div style="text-align:center;padding:6px;background:var(--surface);border-radius:6px;">
+          <div style="color:var(--text3);font-size:8.5px;font-weight:600;">MİN</div>
+          <div style="font-weight:800;color:var(--accent);margin-top:2px;font-size:11px;">${s.minL100 > 0 ? s.minL100.toFixed(2) : '—'}</div>
+        </div>
+        <div style="text-align:center;padding:6px;background:var(--surface);border-radius:6px;">
+          <div style="color:var(--text3);font-size:8.5px;font-weight:600;">MAX</div>
+          <div style="font-weight:800;color:var(--danger);margin-top:2px;font-size:11px;">${s.maxL100 > 0 ? s.maxL100.toFixed(2) : '—'}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:10px;margin-top:6px;">
+        <div style="text-align:center;padding:6px;background:var(--surface);border-radius:6px;">
+          <div style="color:var(--text3);font-size:8.5px;font-weight:600;">P25</div>
+          <div style="font-weight:800;color:var(--text2);margin-top:2px;font-size:11px;">${s.p25L100 > 0 ? s.p25L100.toFixed(2) : '—'}</div>
+        </div>
+        <div style="text-align:center;padding:6px;background:var(--surface);border-radius:6px;">
+          <div style="color:var(--text3);font-size:8.5px;font-weight:600;">P75</div>
+          <div style="font-weight:800;color:var(--text2);margin-top:2px;font-size:11px;">${s.p75L100 > 0 ? s.p75L100.toFixed(2) : '—'}</div>
+        </div>
+        <div style="text-align:center;padding:6px;background:var(--surface);border-radius:6px;">
+          <div style="color:var(--text3);font-size:8.5px;font-weight:600;">P90</div>
+          <div style="font-weight:800;color:var(--text2);margin-top:2px;font-size:11px;">${s.p90L100 > 0 ? s.p90L100.toFixed(2) : '—'}</div>
+        </div>
+        <div style="text-align:center;padding:6px;background:var(--surface);border-radius:6px;">
+          <div style="color:var(--text3);font-size:8.5px;font-weight:600;" title="Değişkenlik Katsayısı (düşük=stabil)">CV</div>
+          <div style="font-weight:800;color:${s.cvL100 > 20 ? 'var(--warning)' : 'var(--accent)'};margin-top:2px;font-size:11px;">${s.cvL100 > 0 ? s.cvL100.toFixed(1) + '%' : '—'}</div>
+        </div>
+      </div>
+      <div style="font-size:9px;color:var(--text3);margin-top:6px;text-align:center;font-style:italic;">
+        CV = Değişkenlik katsayısı · %20 altı = istikrarlı tüketim
+      </div>
+    </div>`;
+  },
+
+  _buildFuelEkonomikHTML(s) {
+    if (!s.enEkonomik && !s.enPahali) return '';
+    const ek = s.enEkonomik ? `<div style="padding:10px;background:var(--accent-light);border-radius:10px;border-left:3px solid var(--accent);">
+      <div style="font-size:9px;color:var(--accent);text-transform:uppercase;font-weight:700;margin-bottom:2px;">🏆 En Verimli</div>
+      <div style="font-size:13px;font-weight:900;color:var(--text);">${Number(s.enEkonomik.fuel.lPer100km).toFixed(2)} L/100km</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:1px;">${dayjs(s.enEkonomik.tarih).format('DD MMM YYYY')} · ${Calc.fmt(s.enEkonomik.miktar)}</div>
+    </div>` : '';
+    const ep = s.enPahali ? `<div style="padding:10px;background:var(--danger-light);border-radius:10px;border-left:3px solid var(--danger);">
+      <div style="font-size:9px;color:var(--danger);text-transform:uppercase;font-weight:700;margin-bottom:2px;">⚠️ En Yüksek</div>
+      <div style="font-size:13px;font-weight:900;color:var(--text);">${Number(s.enPahali.fuel.lPer100km).toFixed(2)} L/100km</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:1px;">${dayjs(s.enPahali.tarih).format('DD MMM YYYY')} · ${Calc.fmt(s.enPahali.miktar)}</div>
+    </div>` : '';
+    return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">${ek}${ep}</div>`;
+  },
+
+  _buildFuelAralikHTML(s) {
+    if (!s.dolumAraligi) return '';
+    return `<div style="margin-bottom:10px;">
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:6px;letter-spacing:.4px;">📅 Dolum Aralığı</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:10px;background:var(--surface2);border-radius:10px;">
+        <div style="text-align:center;">
+          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">Ortalama</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:13px;font-weight:900;color:var(--text);margin-top:2px;">${s.dolumAraligi.ortalama.toFixed(1)} <span style="font-size:9px;">gün</span></div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">En Kısa</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:13px;font-weight:900;color:var(--accent);margin-top:2px;">${s.dolumAraligi.min} <span style="font-size:9px;">gün</span></div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">En Uzun</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:13px;font-weight:900;color:var(--danger);margin-top:2px;">${s.dolumAraligi.max} <span style="font-size:9px;">gün</span></div>
+        </div>
+      </div>
+    </div>`;
+  },
+
+  _buildFuelBirimFiyatHTML(s) {
+    if (!s.birimFiyatTrend) return '';
+    const t = s.birimFiyatTrend;
+    const renk = t.fark > 0 ? 'var(--danger)' : 'var(--accent)';
+    return `<div style="margin-bottom:10px;padding:10px;background:var(--warning-light);border-radius:10px;border-left:3px solid var(--warning);">
+      <div style="font-size:9px;color:var(--warning);text-transform:uppercase;font-weight:700;margin-bottom:4px;">💰 Yakıt Fiyatı Değişimi</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="font-size:11px;color:var(--text2);">
+          İlk: <strong>${t.ilk.toFixed(2)} TL</strong> → Son: <strong>${t.son.toFixed(2)} TL</strong>
+        </div>
+        <div style="font-size:13px;font-weight:900;color:${renk};">
+          ${t.fark > 0 ? '↑' : (t.fark < 0 ? '↓' : '≈')} ${t.fark > 0 ? '+' : ''}${t.fark.toFixed(2)} TL · %${Math.abs(t.yuzde).toFixed(1)}
+        </div>
+      </div>
+    </div>`;
+  },
+
+  _buildFuelProjeksiyonHTML(s) {
+    const p = s.projeksiyon;
+    if (!p.aylikTL && !p.aylikLitre) return '';
+    return `<div style="margin-bottom:10px;">
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:6px;letter-spacing:.4px;">🔮 Projeksiyon (Son 6 Ay Ort.)</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:10px;background:var(--primary-light);border-radius:10px;">
+        <div style="text-align:center;">
+          <div style="font-size:9px;color:var(--primary);text-transform:uppercase;font-weight:700;">Aylık Tahmini</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:13px;font-weight:900;color:var(--primary);margin-top:2px;">${Calc.fmt(p.aylikTL)}</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:9px;color:var(--primary);text-transform:uppercase;font-weight:700;">Aylık Litre</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:13px;font-weight:900;color:var(--primary);margin-top:2px;">${p.aylikLitre.toFixed(1)} L</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:9px;color:var(--primary);text-transform:uppercase;font-weight:700;">Aylık KM</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:13px;font-weight:900;color:var(--primary);margin-top:2px;">${Math.round(p.aylikKm).toLocaleString('tr-TR')}</div>
+        </div>
+      </div>
+      ${p.aylikTL_son3 > 0 ? `<div style="font-size:10px;color:var(--text3);margin-top:4px;text-align:center;font-style:italic;">Son 3 ay ort.: ${Calc.fmt(p.aylikTL_son3)}/ay · ${p.aylikLitre_son3.toFixed(1)} L/ay</div>` : ''}
+    </div>`;
+  },
+
+  _buildFuelMonthlyHTML(s) {
+    if (!s.monthly.length) return '';
+    const rows = s.monthly.map(m => `
+      <div style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;padding:8px 10px;font-size:11px;border-bottom:1px dashed var(--border);align-items:center;">
+        <span style="font-weight:700;color:var(--text);min-width:80px;">${m.label}</span>
+        <span style="color:var(--text3);font-size:10px;">${m.count} dolum</span>
+        <span style="color:var(--danger);font-weight:800;text-align:right;">${Calc.fmt(m.tl)}</span>
+        <span style="color:var(--warning);font-weight:700;text-align:right;">${m.litre.toFixed(1)} L</span>
+        <span style="color:var(--text2);text-align:right;font-size:10px;">${m.avgL100 > 0 ? m.avgL100.toFixed(1) : '—'}</span>
+      </div>
+    `).join('');
+    return `<div style="margin-bottom:10px;">
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:6px;letter-spacing:.4px;">📅 Aylık Dağılım</div>
+      <div style="background:var(--surface2);border-radius:10px;overflow:hidden;">
+        <div style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;padding:6px 10px;font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;background:var(--surface);border-bottom:1px solid var(--border);">
+          <span>Dönem</span><span></span><span style="text-align:right;">TL</span><span style="text-align:right;">Litre</span><span style="text-align:right;">Ort. T.</span>
+        </div>
+        ${rows}
+      </div>
+    </div>`;
+  },
+
+  _openFuelRecordDetail(id) {
+    if (this._fuelChartId && Charts.instances[this._fuelChartId]) {
+      try { Charts.destroy(this._fuelChartId); } catch (e) {}
+    }
+    Swal.close();
+    setTimeout(() => {
+      try { this.showTransactionDetail(id, 'gider'); }
+      catch (e) { console.warn('[FuelHistory] Detail:', e); }
+    }, 180);
+  },
+
+  /* 🆕 AKARYAKIT ANALİZ PANELİ */
+  renderFuelAnalysis() {
 
   /* 🆕 AKARYAKIT ANALİZ PANELİ */
   renderFuelAnalysis() {
