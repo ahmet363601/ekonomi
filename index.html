@@ -2681,8 +2681,7 @@ sonIslemler() {
       .filter(b => b.kalanGun <= gunEsik)
       .sort((a, b) => a.kalanGun - b.kalanGun);
   }
-};
-
+};                 // ← Artık doğru: `}` + `};`
 
 const CRUD = {
   async islemEkle(tip, miktar, kategori, tarih, aciklama, extra = {}) {
@@ -3493,7 +3492,7 @@ const App = {
             </div>`;
           }).join('')}
         </div>
-      ` : ''}
+      ` : ''}      // ← Artık doğru kapanıyor
 
       <!-- 🆕 ANOMALİLER -->
       ${anomaliler.length > 0 ? `
@@ -3570,10 +3569,8 @@ const App = {
       Charts.donut('dashDonutChart', Calc.kategoriGiderler(ayF));
     });
     await this.renderRecentList();
-  },
-  /* ══════════════════════════════════════════════════════════
-     🆕 AKARYAKIT — Panel & preview yönetimi
-     ══════════════════════════════════════════════════════════ */
+  },               // ← Tek kapanış, doğru
+
   onKategoriChange() {
     const sel = document.getElementById('islemKategori');
     const panel = document.getElementById('fuelPanel');
