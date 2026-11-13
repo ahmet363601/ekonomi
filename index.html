@@ -7832,9 +7832,72 @@ _updateSim() {
     `;
   },
 
+};  // ← App burada kapanmalı
+
+/* ═══════════════════════════════════════════════════════════════
+   OTOMATİK ARŞİV KONTROLÜ
+   ═══════════════════════════════════════════════════════════════ */
+async function autoArchiveCheck() {
+  try {
+    const pending = SalaryMonth.pendingMonths();
+    if (!pending.length) return;
+
+    const totalGelir = pending.reduce((s, k) => {
+      const r = SalaryMonth.range(k);
+      return s + state.gelirler.filter(g => g.tarih >= r.start && g.tarih <= r.end).length;
+    }, 0);
+    const totalGider = pending.reduce((s, k) => {
+      const r = SalaryMonth.range(k);
+      return s + state.giderler.filter(g => g.tarih >= r.start && g.tarih <= r.end).length;
+    }, 0);
+
+    const { isConfirmed } = await Swal.fire({
+      icon: 'warning',
+      title: pending.length === 1
+        ? '⏰ Arşiv Gecikmiş'
+        : `⏰ ${pending.length} Dönem Arşivlenmeli`,
+      html: `<div style="text-align:left;">
+        <p><strong>${pending.length}</strong> dönem arşivlenmemiş durumda:</p>
+        <div style="margin:12px 0;padding:12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);max-height:180px;overflow-y:auto;">
+          ${pending.map(k => `
+            <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;">
+              <span style="font-weight:700;">${SalaryMonth.shortLabel(k)}</span>
+              <span style="color:var(--text3);font-size:10px;">${SalaryMonth.range(k).start.substring(5)} → ${SalaryMonth.range(k).end.substring(5)}</span>
+            </div>
+          `).join('')}
+        </div>
+        <p style="font-size:12px;color:#94a3b8;">
+          <strong>${totalGelir}</strong> gelir · <strong>${totalGider}</strong> gider toplam
+        </p>
+      </div>`,
+      showCancelButton: true,
+      confirmButtonText: '✅ Tümünü Arşivle',
+      cancelButtonText: 'Daha Sonra',
+      width: Math.min(480, window.innerWidth - 24)
+    });
+
+    if (!isConfirmed) return;
+
+    for (const k of pending) {
+      await CRUD.manualArchive(k);
+    }
+
+    showToast(`✅ ${pending.length} dönem arşivlendi`);
+
+    if (App.currentPage === 'dashboard') await App.renderDashboard();
+    else if (App.currentPage === 'arsiv') await App.renderArsiv();
+    else if (App.currentPage === 'islemler') await App.renderIslemler();
+    else if (App.currentPage === 'borcalacak') await App.renderBorcalacak();
+    else if (App.currentPage === 'rapor') await App.renderRapor();
+
+  } catch (e) {
+    console.warn('[autoArchiveCheck] Hata:', e);
+  }
+}
+
 /* ─────────────────────────────────────────────
-   MİGRASYON (Eski ayların otomatik arşivlenmesi)
-───────────────────────────────────────────── */
+   MİGRASYON
+   ───────────────────────────────────────────── */
 async function migrateOldData(force = false) {
   const seenKey = 'butcem_migrate_done';
   if (!force && localStorage.getItem(seenKey) === '1') return;
