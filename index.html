@@ -3399,7 +3399,6 @@ const App = {
       </div>`;
   }
 },
-
   /* ══════════════════════════════════════
      DASHBOARD
   ══════════════════════════════════════ */
@@ -3411,12 +3410,10 @@ const App = {
     const ayGelir= Calc.toplamGelir(ayF);
     const ayGider= Calc.toplamGider(ayF);
     const borcT  = Calc.aktifBorcAlacak();
-    const baOzet = Calc.borcAlacakOzet();  // toplam kırılım (gram/çeyrek/TL)
-    /* ═══════════════════════════════════════════════════════
-       🆕 DÜZELTME — Bu 2 satır renderDashboard'dan yanlışlıkla silinmişti
-       ═══════════════════════════════════════════════════════ */
+    const baOzet = Calc.borcAlacakOzet();
     const anomaliler = Calc.anomaliTespit();
     const vadeler = Calc.vadeleriGelenBorclar(7);
+
     const limitAlerts = Object.entries(state.limitler)
       .filter(([k, l]) => Calc.aylikGiderKategori(k) > l)
       .map(([k, l]) => `<div class="alert alert-warning">
@@ -3424,8 +3421,6 @@ const App = {
         <div><strong>${UI.escHtml(k)}</strong> limiti aşıldı — Limit: ${Calc.fmt(l)} · Harcanan: ${Calc.fmt(Calc.aylikGiderKategori(k))}</div>
       </div>`)
       .join('');
-
-
 
     const tabs = ['tum','gelir','gider','borc'];
     const tabLabels = { tum:'Tümü', gelir:'Gelir', gider:'Gider', borc:'Borç/Alacak' };
@@ -3446,23 +3441,24 @@ const App = {
       <div class="stat-grid">
         <div class="stat-card"><div class="card-label">Bu Ay Gelir</div><div class="stat-amount green">${Calc.fmt(ayGelir)}</div></div>
         <div class="stat-card"><div class="card-label">Bu Ay Gider</div><div class="stat-amount red">${Calc.fmt(ayGider)}</div></div>
-<div class="stat-card full">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-    <div class="card-label" style="margin-bottom:0;">Aktif Borç & Alacak</div>
-    <button onclick="App.openGoldRateModal()" title="Altın Kuru Güncelle"
-      style="background:var(--warning-light);color:var(--warning);border:1px solid var(--warning);width:26px;height:26px;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;padding:0;transition:var(--transition);flex-shrink:0;">
-      <i class="fas fa-coins"></i>
-    </button>
-  </div>
-  <div class="stat-amount amber">${Calc.fmt(borcT)}</div>
-  ${(baOzet.gram > 0 || baOzet.ceyrek > 0) ? `
-    <div style="font-size:11px;color:var(--text3);margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      ${baOzet.gram > 0 ? `<span><strong style="color:var(--warning);">${baOzet.gram.toLocaleString('tr-TR',{maximumFractionDigits:2})}</strong> gram</span>` : ''}
-      ${baOzet.gram > 0 && baOzet.ceyrek > 0 ? '<span style="opacity:.4;">·</span>' : ''}
-      ${baOzet.ceyrek > 0 ? `<span><strong style="color:var(--warning);">${baOzet.ceyrek.toLocaleString('tr-TR',{maximumFractionDigits:2})}</strong> çeyrek</span>` : ''}
-    </div>
-  ` : ''}
-</div>      </div>
+        <div class="stat-card full">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div class="card-label" style="margin-bottom:0;">Aktif Borç & Alacak</div>
+            <button onclick="App.openGoldRateModal()" title="Altın Kuru Güncelle"
+              style="background:var(--warning-light);color:var(--warning);border:1px solid var(--warning);width:26px;height:26px;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;padding:0;transition:var(--transition);flex-shrink:0;">
+              <i class="fas fa-coins"></i>
+            </button>
+          </div>
+          <div class="stat-amount amber">${Calc.fmt(borcT)}</div>
+          ${(baOzet.gram > 0 || baOzet.ceyrek > 0) ? `
+            <div style="font-size:11px;color:var(--text3);margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              ${baOzet.gram > 0 ? `<span><strong style="color:var(--warning);">${baOzet.gram.toLocaleString('tr-TR',{maximumFractionDigits:2})}</strong> gram</span>` : ''}
+              ${baOzet.gram > 0 && baOzet.ceyrek > 0 ? '<span style="opacity:.4;">·</span>' : ''}
+              ${baOzet.ceyrek > 0 ? `<span><strong style="color:var(--warning);">${baOzet.ceyrek.toLocaleString('tr-TR',{maximumFractionDigits:2})}</strong> çeyrek</span>` : ''}
+            </div>
+          ` : ''}
+        </div>
+      </div>
 
       ${limitAlerts}
 
@@ -3477,7 +3473,7 @@ const App = {
             <span class="badge ${vadeler.some(v => v.gecti) ? 'badge-danger' : 'badge-amber'}">${vadeler.length}</span>
           </div>
           ${vadeler.map(b => {
-            const durum = b.gecti 
+            const durum = b.gecti
               ? `<span style="color:var(--danger);font-weight:800;">${Math.abs(b.kalanGun)} gün gecikti!</span>`
               : b.bugun
               ? '<span style="color:var(--warning);font-weight:800;">Bugün vade!</span>'
@@ -3495,8 +3491,10 @@ const App = {
               </div>
             </div>`;
           }).join('')}
+        </div>
+      ` : ''}
 
-                <!-- 🆕 ANOMALİLER -->
+      <!-- 🆕 ANOMALİLER -->
       ${anomaliler.length > 0 ? `
         <div class="card" style="border-left:4px solid var(--warning);">
           <div class="section-header">
@@ -3564,14 +3562,6 @@ const App = {
           <button class="pg-btn" id="nextPg" onclick="App.nextRecentPage()"><i class="fas fa-chevron-right"></i></button>
         </div>
       </div>
-    </div>`;                        // ← BU ZATEN VAR (kontrol et)
-
-    requestAnimationFrame(() => {
-      Charts.bar('dashBarChart', Calc.aylikTrend(6));
-      Charts.donut('dashDonutChart', Calc.kategoriGiderler(ayF));
-    });
-    await this.renderRecentList();
-  },                                // ← BU EKSİK
     </div>`;
 
     requestAnimationFrame(() => {
@@ -3579,8 +3569,7 @@ const App = {
       Charts.donut('dashDonutChart', Calc.kategoriGiderler(ayF));
     });
     await this.renderRecentList();
-  },                                          // ← BU EKSİK!
-
+  },
   /* ══════════════════════════════════════════════════════════
      🆕 AKARYAKIT — Panel & preview yönetimi
      ══════════════════════════════════════════════════════════ */
