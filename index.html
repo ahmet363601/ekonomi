@@ -601,13 +601,7 @@ button, a, .chip, .nav-btn, .btn, .header-btn,
   flex-shrink: 0;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   HEAT CELL (Isı haritası)
-   ═══════════════════════════════════════════════════════════════ */
-.heat-cell { aspect-ratio: 1; }
-@supports not (aspect-ratio: 1) {
-  .heat-cell::before { content: ""; display: block; padding-top: 100%; }
-}
+
 
 /* ═══════════════════════════════════════════════════════════════
    CHART WRAPPER
@@ -3418,7 +3412,11 @@ const App = {
     const ayGider= Calc.toplamGider(ayF);
     const borcT  = Calc.aktifBorcAlacak();
     const baOzet = Calc.borcAlacakOzet();  // toplam kırılım (gram/çeyrek/TL)
-
+    /* ═══════════════════════════════════════════════════════
+       🆕 DÜZELTME — Bu 2 satır renderDashboard'dan yanlışlıkla silinmişti
+       ═══════════════════════════════════════════════════════ */
+    const anomaliler = Calc.anomaliTespit();
+    const vadeler = Calc.vadeleriGelenBorclar(7);
     const limitAlerts = Object.entries(state.limitler)
       .filter(([k, l]) => Calc.aylikGiderKategori(k) > l)
       .map(([k, l]) => `<div class="alert alert-warning">
@@ -7006,105 +7004,6 @@ openKategoriModal() {
     }).join('');
   },
 
-  /* 🆕 FAZ 3 — Senaryo Simülatörü */
-  async openSenaryoSimulator() {
-    await Swal.fire({
-      title: '🎮 Senaryo Simülatörü',
-      html: `<div style="text-align:left;">
-        <p style="font-size:12px;color:#64748b;margin-bottom:14px;">
-          Değişkenleri ayarla, geleceğini gör. <span style="color:var(--text3);">(Son 6 ay ortalaması baz alınır)</span>
-        </p>
-
-        <!-- 💰 GELİR -->
-        <div style="margin-bottom:14px;padding:12px;background:var(--accent-light);border-radius:10px;">
-          <div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px;">
-            💰 Gelir Değişkenleri
-          </div>
-
-          <div style="margin-bottom:12px;">
-            <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
-              <span>Maaş Zammı</span>
-              <span id="lblMaas" style="color:var(--accent);font-weight:800;">+0%</span>
-            </label>
-            <input type="range" id="simMaas" min="-30" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
-          </div>
-
-          <div>
-            <label style="font-size:12px;font-weight:600;display:block;color:#475569;margin-bottom:4px;">
-              Ek Aylık Gelir (TL)
-            </label>
-            <input type="number" id="simEkGelir" value="0" min="0" step="100" oninput="App._updateSim()"
-                   class="swal2-input" style="margin:0;width:100%;">
-          </div>
-        </div>
-
-        <!-- 💸 GİDER -->
-        <div style="margin-bottom:14px;padding:12px;background:var(--danger-light);border-radius:10px;">
-          <div style="font-size:11px;font-weight:700;color:var(--danger);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px;">
-            💸 Gider Değişkenleri
-          </div>
-
-          <div style="margin-bottom:10px;">
-            <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
-              <span>🏠 Kira/Fatura Artışı</span>
-              <span id="lblKira" style="color:var(--warning);font-weight:800;">+0%</span>
-            </label>
-            <input type="range" id="simKira" min="0" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
-          </div>
-
-          <div style="margin-bottom:10px;">
-            <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
-              <span>🛒 Market Azalt</span>
-              <span id="lblMarket" style="color:var(--accent);font-weight:800;">-0%</span>
-            </label>
-            <input type="range" id="simMarket" min="0" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
-          </div>
-
-          <div style="margin-bottom:10px;">
-            <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
-              <span>🍽️ Yemek Azalt</span>
-              <span id="lblYemek" style="color:var(--accent);font-weight:800;">-0%</span>
-            </label>
-            <input type="range" id="simYemek" min="0" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
-          </div>
-
-          <div style="margin-bottom:10px;">
-            <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
-              <span>🛍️ Alışveriş Azalt</span>
-              <span id="lblAlisveris" style="color:var(--accent);font-weight:800;">-0%</span>
-            </label>
-            <input type="range" id="simAlisveris" min="0" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
-          </div>
-
-          <div>
-            <label style="font-size:12px;font-weight:600;display:flex;justify-content:space-between;color:#475569;">
-              <span>🎬 Eğlence Azalt</span>
-              <span id="lblEglence" style="color:var(--accent);font-weight:800;">-0%</span>
-            </label>
-            <input type="range" id="simEglence" min="0" max="100" value="0" oninput="App._updateSim()" style="width:100%;margin-top:6px;">
-          </div>
-        </div>
-
-        <!-- 🎯 HEDEF -->
-        <div style="margin-bottom:14px;padding:12px;background:var(--primary-light);border-radius:10px;">
-          <div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px;">
-            🎯 Tasarruf Hedefi
-          </div>
-          <label style="font-size:12px;font-weight:600;display:block;color:#475569;margin-bottom:4px;">
-            Hedef Tutar (TL)
-          </label>
-          <input type="number" id="simHedef" value="0" min="0" step="1000" oninput="App._updateSim()"
-                 class="swal2-input" style="margin:0;width:100%;" placeholder="örn. 50.000">
-        </div>
-
-        <div id="simResults"></div>
-      </div>`,
-      width: Math.min(560, window.innerWidth - 24),
-      showCloseButton: true,
-      showConfirmButton: false,
-      didOpen: () => App._updateSim()
-    });
-  },
 
 
 };  // ← App burada kapanmalı
