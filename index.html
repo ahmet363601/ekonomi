@@ -4366,12 +4366,27 @@ const App = {
       <div class="card-sm" style="background:var(--warning-light);border:1px solid var(--warning);margin-bottom:10px;">
         <div class="archive-stat-label" style="color:var(--warning);">⛽ Akaryakıt Detayları</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;font-size:12px;">
-          <div>KM: <strong>${Number(item.fuel.km || 0).toLocaleString('tr-TR')}</strong></div>
-          ${item.fuel.litre ? `<div>Litre: <strong>${Number(item.fuel.litre).toFixed(2)} L</strong></div>` : ''}
-          ${item.fuel.birimFiyat ? `<div>TL/L: <strong>${Number(item.fuel.birimFiyat).toFixed(2)}</strong></div>` : ''}
-          ${item.fuel.mesafe ? `<div>Mesafe: <strong>${Number(item.fuel.mesafe).toLocaleString('tr-TR')} km</strong></div>` : ''}
-          ${item.fuel.tlPerKm ? `<div>TL/km: <strong>${Number(item.fuel.tlPerKm).toFixed(3)}</strong></div>` : ''}
-          ${item.fuel.lPer100km ? `<div>L/100km: <strong>${Number(item.fuel.lPer100km).toFixed(2)}</strong></div>` : ''}
+          <div style="grid-column:span 2;">KM: <strong>${Number(item.fuel.km || 0).toLocaleString('tr-TR')}</strong>
+            ${item.fuel.mesafe ? ` · Mesafe: <strong>${Number(item.fuel.mesafe).toLocaleString('tr-TR')} km</strong>` : ''}
+          </div>
+          ${item.fuel.benzin && item.fuel.benzin.litre > 0 ? `
+            <div style="grid-column:span 2;padding:8px;background:#EFF6FF;border-radius:8px;border-left:3px solid #2563EB;">
+              <div style="font-size:9px;color:#1E40AF;text-transform:uppercase;font-weight:800;margin-bottom:3px;">⛽ Benzin</div>
+              <div><strong>${Number(item.fuel.benzin.litre).toFixed(2)} L</strong> × ${Number(item.fuel.benzin.birimFiyat || 0).toFixed(2)} TL = <strong>${Calc.fmt(item.fuel.benzin.toplam || 0)}</strong></div>
+              ${item.fuel.benzin.l100km ? `<div style="font-size:11px;color:#2563EB;font-weight:700;">${Number(item.fuel.benzin.l100km).toFixed(2)} L/100km</div>` : ''}
+            </div>
+          ` : ''}
+          ${item.fuel.lpg && item.fuel.lpg.litre > 0 ? `
+            <div style="grid-column:span 2;padding:8px;background:#ECFEFF;border-radius:8px;border-left:3px solid #0891B2;">
+              <div style="font-size:9px;color:#0E7490;text-transform:uppercase;font-weight:800;margin-bottom:3px;">💧 LPG</div>
+              <div><strong>${Number(item.fuel.lpg.litre).toFixed(2)} L</strong> × ${Number(item.fuel.lpg.birimFiyat || 0).toFixed(2)} TL = <strong>${Calc.fmt(item.fuel.lpg.toplam || 0)}</strong></div>
+              ${item.fuel.lpg.l100km ? `<div style="font-size:11px;color:#0891B2;font-weight:700;">${Number(item.fuel.lpg.l100km).toFixed(2)} L/100km</div>` : ''}
+            </div>
+          ` : ''}
+          ${(!item.fuel.benzin || !item.fuel.benzin.litre) && (!item.fuel.lpg || !item.fuel.lpg.litre) && item.fuel.litre ? `
+            <div style="grid-column:span 2;">Litre: <strong>${Number(item.fuel.litre).toFixed(2)} L</strong></div>
+          ` : ''}
+          ${item.fuel.tlPerKm ? `<div style="grid-column:span 2;padding-top:5px;border-top:1px dashed rgba(180,83,9,.3);color:#B45309;font-weight:800;">💰 ${Number(item.fuel.tlPerKm).toFixed(3)} TL/km</div>` : ''}
         </div>
       </div>` : ''}
       ${item.aciklama ? `<div class="card-sm"><div class="archive-stat-label">Açıklama</div>
