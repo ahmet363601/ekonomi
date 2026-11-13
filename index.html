@@ -2630,6 +2630,10 @@ sonIslemler() {
     const itemsWithL100    = normalized.filter(i => (i._benzin.litre > 0 || i._lpg.litre > 0) && i._mesafe > 0);
 
     const totalKm          = itemsWithKm.reduce((s, i) => s + i._mesafe, 0);
+    // 🆕 DÜZELTME: Her yakıt için AYRI km — sadece o yakıtın alındığı segmentler
+    const totalKmBenzin    = itemsWithBenzin.reduce((s, i) => s + i._mesafe, 0);
+    const totalKmLpg       = itemsWithLpg.reduce((s, i) => s + i._mesafe, 0);
+
     const totalBenzinLitre = itemsWithBenzin.reduce((s, i) => s + i._benzin.litre, 0);
     const totalLpgLitre    = itemsWithLpg.reduce((s, i) => s + i._lpg.litre, 0);
     const totalBenzinTL    = normalized.reduce((s, i) => s + i._benzin.toplam, 0);
@@ -2638,8 +2642,9 @@ sonIslemler() {
     const totalLitre       = totalBenzinLitre + totalLpgLitre;
 
     const avgTlPerKm        = totalKm > 0 ? totalTL / totalKm : 0;
-    const avgLPer100_benzin = totalKm > 0 ? (totalBenzinLitre * 100) / totalKm : 0;
-    const avgLPer100_lpg    = totalKm > 0 ? (totalLpgLitre * 100) / totalKm : 0;
+    // 🆕 DÜZELTME: Benzin kendi km'sine, LPG kendi km'sine bölünür
+    const avgLPer100_benzin = totalKmBenzin > 0 ? (totalBenzinLitre * 100) / totalKmBenzin : 0;
+    const avgLPer100_lpg    = totalKmLpg > 0 ? (totalLpgLitre * 100) / totalKmLpg : 0;
     const avgLPer100_toplam = totalKm > 0 ? (totalLitre * 100) / totalKm : 0;
     const avgLPer100        = avgLPer100_toplam; // backward compat
     const avgLitreFiyat     = totalLitre > 0 ? totalTL / totalLitre : 0;
@@ -2783,6 +2788,7 @@ sonIslemler() {
       lpgValidCount: itemsWithLpg.length,
 
       totalTL, totalLitre, totalKm,
+      totalKmBenzin, totalKmLpg,
       totalBenzinLitre, totalLpgLitre,
       totalBenzinTL, totalLpgTL,
 
@@ -5382,7 +5388,10 @@ const App = {
           <div style="font-size:11px;color:#3D4A5C;">${Calc.fmt(s.totalBenzinTL)}</div>
           <div style="margin-top:6px;padding-top:6px;border-top:1px dashed rgba(37,99,235,.3);">
             <div style="font-size:9px;color:#7B8A9E;text-transform:uppercase;font-weight:700;">Ort. Tüketim</div>
-            <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:900;color:#2563EB;">${s.avgLPer100_benzin.toFixed(2)} <span style="font-size:10px;">L/100km</span></div>
+            <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:900;color:#2563EB;">
+              ${s.totalKmBenzin > 0 ? s.avgLPer100_benzin.toFixed(2) : '—'} <span style="font-size:10px;">L/100km</span>
+            </div>
+            ${s.totalKmBenzin > 0 ? `<div style="font-size:9px;color:#7B8A9E;margin-top:2px;">${Math.round(s.totalKmBenzin).toLocaleString('tr-TR')} km</div>` : ''}
           </div>
         </div>
       ` : '<div></div>'}
@@ -5393,7 +5402,10 @@ const App = {
           <div style="font-size:11px;color:#3D4A5C;">${Calc.fmt(s.totalLpgTL)}</div>
           <div style="margin-top:6px;padding-top:6px;border-top:1px dashed rgba(8,145,178,.3);">
             <div style="font-size:9px;color:#7B8A9E;text-transform:uppercase;font-weight:700;">Ort. Tüketim</div>
-            <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:900;color:#0891B2;">${s.avgLPer100_lpg.toFixed(2)} <span style="font-size:10px;">L/100km</span></div>
+            <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:900;color:#0891B2;">
+              ${s.totalKmLpg > 0 ? s.avgLPer100_lpg.toFixed(2) : '—'} <span style="font-size:10px;">L/100km</span>
+            </div>
+            ${s.totalKmLpg > 0 ? `<div style="font-size:9px;color:#7B8A9E;margin-top:2px;">${Math.round(s.totalKmLpg).toLocaleString('tr-TR')} km</div>` : ''}
           </div>
         </div>
       ` : '<div></div>'}
@@ -5503,7 +5515,8 @@ const App = {
               <div style="font-family:'Plus Jakarta Sans';font-size:13px;font-weight:800;color:#0F2A5C;">${stats.totalBenzinLitre.toFixed(1)} L</div>
               <div style="font-size:10px;color:#3D4A5C;margin-top:1px;">${Calc.fmt(stats.totalBenzinTL)}</div>
               <div style="margin-top:5px;padding-top:5px;border-top:1px dashed rgba(37,99,235,.3);font-size:10px;color:#7B8A9E;">
-                <strong style="color:#2563EB;">${stats.avgLPer100_benzin.toFixed(2)}</strong> L/100km
+                <strong style="color:#2563EB;">${stats.totalKmBenzin > 0 ? stats.avgLPer100_benzin.toFixed(2) : '—'}</strong> L/100km
+                ${stats.totalKmBenzin > 0 ? `<div style="font-size:9px;opacity:.75;margin-top:1px;">${Math.round(stats.totalKmBenzin).toLocaleString('tr-TR')} km</div>` : ''}
               </div>
             </div>
           ` : '<div></div>'}
@@ -5513,7 +5526,8 @@ const App = {
               <div style="font-family:'Plus Jakarta Sans';font-size:13px;font-weight:800;color:#0F2A5C;">${stats.totalLpgLitre.toFixed(1)} L</div>
               <div style="font-size:10px;color:#3D4A5C;margin-top:1px;">${Calc.fmt(stats.totalLpgTL)}</div>
               <div style="margin-top:5px;padding-top:5px;border-top:1px dashed rgba(8,145,178,.3);font-size:10px;color:#7B8A9E;">
-                <strong style="color:#0891B2;">${stats.avgLPer100_lpg.toFixed(2)}</strong> L/100km
+                <strong style="color:#0891B2;">${stats.totalKmLpg > 0 ? stats.avgLPer100_lpg.toFixed(2) : '—'}</strong> L/100km
+                ${stats.totalKmLpg > 0 ? `<div style="font-size:9px;opacity:.75;margin-top:1px;">${Math.round(stats.totalKmLpg).toLocaleString('tr-TR')} km</div>` : ''}
               </div>
             </div>
           ` : '<div></div>'}
@@ -5812,7 +5826,9 @@ const App = {
         doc.setFont(FONT, 'normal');
         doc.setFontSize(10);
         doc.setTextColor(15, 23, 42);
-        _txt(doc, `Toplam: ${stats.totalBenzinLitre.toFixed(2)} L · ${Calc.fmt(stats.totalBenzinTL)} · Ort. ${stats.avgLPer100_benzin.toFixed(2)} L/100km`, M + 4, y, null, hasUni);
+        const kmStrB = stats.totalKmBenzin > 0 ? `${Math.round(stats.totalKmBenzin).toLocaleString('tr-TR')} km` : '—';
+        const tuketimStrB = stats.totalKmBenzin > 0 ? `${stats.avgLPer100_benzin.toFixed(2)} L/100km` : '—';
+        _txt(doc, `Toplam: ${stats.totalBenzinLitre.toFixed(2)} L · ${Calc.fmt(stats.totalBenzinTL)} · ${kmStrB} · Ort. ${tuketimStrB}`, M + 4, y, null, hasUni);
         y += 10;
       }
 
@@ -5823,10 +5839,11 @@ const App = {
         doc.setFont(FONT, 'normal');
         doc.setFontSize(10);
         doc.setTextColor(15, 23, 42);
-        _txt(doc, `Toplam: ${stats.totalLpgLitre.toFixed(2)} L · ${Calc.fmt(stats.totalLpgTL)} · Ort. ${stats.avgLPer100_lpg.toFixed(2)} L/100km`, M + 4, y, null, hasUni);
+        const kmStrL = stats.totalKmLpg > 0 ? `${Math.round(stats.totalKmLpg).toLocaleString('tr-TR')} km` : '—';
+        const tuketimStrL = stats.totalKmLpg > 0 ? `${stats.avgLPer100_lpg.toFixed(2)} L/100km` : '—';
+        _txt(doc, `Toplam: ${stats.totalLpgLitre.toFixed(2)} L · ${Calc.fmt(stats.totalLpgTL)} · ${kmStrL} · Ort. ${tuketimStrL}`, M + 4, y, null, hasUni);
         y += 10;
       }
-
       /* Aylık özet */
       if (stats.monthly.length > 0) {
         if (y > H - 60) { doc.addPage(); y = 20; }
