@@ -5530,14 +5530,7 @@ const App = {
     }).join('');
   },
 
-  _buildFuelSummaryHTML(s) {
-    return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">
-      <div class="fuel-modal-stat"><div class="fuel-modal-stat-label">Toplam Harcama</div><div class="fuel-modal-stat-value red">${Calc.fmt(s.totalTL)}</div></div>
-      <div class="fuel-modal-stat"><div class="fuel-modal-stat-label">Toplam Litre</div><div class="fuel-modal-stat-value amber">${s.totalLitre.toFixed(2)} L</div></div>
-      <div class="fuel-modal-stat"><div class="fuel-modal-stat-label">Toplam KM</div><div class="fuel-modal-stat-value blue">${s.totalKm.toLocaleString('tr-TR')} km</div></div>
-      <div class="fuel-modal-stat"><div class="fuel-modal-stat-label">Toplam Dolum</div><div class="fuel-modal-stat-value cyan">${s.count} adet</div></div>
-    </div>`;
-  },
+
 
 
   _buildFuelMonthlyHTML(s) {
@@ -5574,11 +5567,11 @@ const App = {
     const trendText = l.trend ? `${trendIcon} %${Math.abs(l.trend.yuzde).toFixed(1)}` : '—';
 
     return `
-      <div style="border-left:4px solid #0891B2;background:linear-gradient(135deg,#ECFEFF 0%,#FFFFFF 100%);border-radius:12px;padding:14px;margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="border-left:4px solid var(--info);background:var(--surface2);border-radius:12px;padding:14px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <div style="display:flex;align-items:center;gap:8px;">
-            <div style="width:32px;height:32px;border-radius:8px;background:#0891B2;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;">
-              <i class="fas fa-fire-flame-simple"></i>
+            <div style="width:32px;height:32px;border-radius:8px;background:var(--info);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;">
+            <i class="fas fa-fire-flame-simple"></i>
             </div>
             <div>
               <div style="font-size:14px;font-weight:800;color:#0E7490;letter-spacing:-.2px;">LPG · Ana Yakıt</div>
@@ -5697,8 +5690,8 @@ const App = {
     if (b.count === 0) return '';
 
     return `
-      <div style="border-left:4px solid #2563EB;background:linear-gradient(135deg,#EFF6FF 0%,#FFFFFF 100%);border-radius:12px;padding:12px;margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="border-left:4px solid var(--primary);background:var(--surface2);border-radius:12px;padding:12px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <div style="display:flex;align-items:center;gap:8px;">
             <div style="width:26px;height:26px;border-radius:7px;background:#2563EB;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;">
               <i class="fas fa-gas-pump"></i>
@@ -5792,20 +5785,20 @@ const App = {
       .filter(g => g.kategori === 'Akaryakıt' && g.fuel).length;
     const activeCount = state.giderler.filter(g => g.kategori === 'Akaryakıt' && g.fuel).length;
 
-    el.innerHTML = `<div class="card" style="border-left:4px solid var(--warning);background:linear-gradient(135deg,#FFFBEB 0%,#FFFFFF 100%);">
+    el.innerHTML = `<div class="card" style="border-left:4px solid var(--info);">
       <div class="section-header" style="flex-wrap:wrap;">
         <span class="section-title" style="display:flex;align-items:center;gap:8px;">
-          <i class="fas fa-gas-pump" style="color:var(--warning);"></i>
+          <i class="fas fa-gas-pump" style="color:var(--info);"></i>
           Akaryakıt Analizi
         </span>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          <button onclick="App.openFuelHistoryModal()" style="background:var(--warning-light);color:var(--warning);border:1px solid var(--warning);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;">
+          <button onclick="App.openFuelHistoryModal()" style="background:var(--info-light);color:var(--info);border:1px solid var(--info);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;">
             <i class="fas fa-history"></i> Geçmiş
           </button>
           <button onclick="App.exportFuelPDF()" style="background:var(--danger-light);color:var(--danger);border:1px solid var(--danger);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;">
             <i class="fas fa-file-pdf"></i> PDF
           </button>
-          <button onclick="App.exportFuelChartPNG()" style="background:var(--info-light);color:var(--info);border:1px solid var(--info);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;">
+          <button onclick="App.exportFuelChartPNG()" style="background:var(--primary-light);color:var(--primary);border:1px solid var(--primary);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;">
             <i class="fas fa-image"></i> PNG
           </button>
         </div>
@@ -5835,7 +5828,7 @@ const App = {
             <div style="display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:8px;padding:7px 0;font-size:11px;border-bottom:1px dashed var(--border);align-items:center;">
               <span style="font-weight:700;color:var(--text);">${m.label}</span>
               <span style="color:var(--text3);font-size:10px;">${m.lpgCount} dolum</span>
-              <span style="color:#0891B2;font-weight:700;">${m.lpgLitre.toFixed(1)} L</span>
+              <span style="color:var(--info);font-weight:700;">${m.lpgLitre.toFixed(1)} L</span>
               <span style="color:var(--danger);font-weight:800;">${Calc.fmt(m.lpgTL)}</span>
               <span style="color:var(--text2);">${m.km.toLocaleString('tr-TR')} km</span>
               <span style="color:var(--warning);font-weight:700;">${m.avgL100 > 0 ? m.avgL100.toFixed(2) : '—'}</span>
@@ -5848,10 +5841,10 @@ const App = {
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
           <div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--text2);">⛽ Son Dolumlar</div>
           ${last.map(i => {
-            const lpgPart = i._lpg.litre > 0 ? `<span style="color:#0891B2;">💧 ${i._lpg.litre.toFixed(1)} L</span>` : '';
-            const benzinPart = i._benzin.litre > 0 ? `<span style="color:#2563EB;">⛽ ${i._benzin.litre.toFixed(1)} L</span>` : '';
+            const lpgPart = i._lpg.litre > 0 ? `<span style="color:var(--info);">💧 ${i._lpg.litre.toFixed(1)} L</span>` : '';
+            const benzinPart = i._benzin.litre > 0 ? `<span style="color:var(--primary);">⛽ ${i._benzin.litre.toFixed(1)} L</span>` : '';
             const l100Part = i._lpgL100 ? `<span style="color:var(--warning);font-weight:700;">${i._lpgL100.toFixed(2)} L/100km</span>` : '';
-            return `<div style="padding:9px 11px;background:var(--surface2);border-radius:9px;margin-bottom:6px;font-size:11px;border-left:3px solid var(--warning);">
+            return `<div style="padding:9px 11px;background:var(--surface2);border-radius:9px;margin-bottom:6px;font-size:11px;border-left:3px solid var(--info);">
               <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
                 <strong style="color:var(--text);">${dayjs(i.tarih).format('DD MMM YYYY')}</strong>
                 <strong style="color:var(--danger);">${Calc.fmt(i._toplamTL)}</strong>
@@ -5873,7 +5866,6 @@ const App = {
       } catch (e) { console.warn('[renderFuelAnalysis] Chart:', e); }
     });
   },
-
   async renderRapor() {
     document.getElementById('view').innerHTML = `<div class="page-in">
       <div class="card">
