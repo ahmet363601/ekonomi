@@ -3766,6 +3766,62 @@ const App = {
     if (isFuel) {
       this._setFuelTip(this._fuelTipCurrent || 'benzin');
     }
+    this._updateKategoriAylikOzet();   // 🆕 Özet kutusunu güncelle
+  },
+
+  /* 🆕 KATEGORİ AYLIK ÖZET GÖSTER */
+  _updateKategoriAylikOzet() {
+    const el = document.getElementById('kategoriAylikOzet');
+    if (!el) return;
+
+    const sel = document.getElementById('islemKategori');
+    const tip = document.getElementById('islemTipHidden')?.value || this._islemTip;
+    const kategori = sel?.value;
+
+    /* Gelirde veya Akaryakıt'ta gösterme (Akaryakıt'ın kendi detay paneli var) */
+    if (!kategori || tip !== 'gider' || kategori === 'Akaryakıt') {
+      el.style.display = 'none';
+      el.innerHTML = '';
+      return;
+    }
+
+    const toplam = Calc.aylikGiderKategori(kategori);
+    const limit = state.limitler[kategori];
+    const asim = limit && toplam > limit;
+    const yuzde = limit ? Math.min(100, (toplam / limit) * 100) : 0;
+    const kalan = limit && !asim ? (limit - toplam) : 0;
+
+    const limitHTML = limit ? `
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:var(--text3);margin-top:6px;">
+        <span>Limit: <strong style="color:var(--text2);">${Calc.fmt(limit)}</strong></span>
+        <span style="color:${asim ? 'var(--danger)' : 'var(--accent)'};font-weight:700;">
+          ${asim ? `Aşım: ${Calc.fmt(toplam - limit)}` : `Kalan: ${Calc.fmt(kalan)}`}
+        </span>
+      </div>
+      <div class="progress-track" style="margin:4px 0 0;height:4px;">
+        <div class="progress-bar" style="width:${yuzde}%;background:${asim ? 'var(--danger)' : 'var(--warning)'};"></div>
+      </div>
+    ` : '';
+
+    el.innerHTML = `
+      <div style="padding:10px 12px;background:${asim ? 'var(--danger-light)' : 'var(--primary-light)'};
+                  border-radius:9px;border:1px solid ${asim ? 'rgba(185,28,28,.35)' : 'var(--border)'};
+                  margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;">
+            <i class="fas fa-receipt" style="color:${asim ? 'var(--danger)' : 'var(--primary)'};font-size:11px;"></i>
+            Bu ay ${UI.escHtml(kategori)}
+          </span>
+          <strong style="font-family:'Inter',sans-serif;font-size:14px;
+                         color:${asim ? 'var(--danger)' : 'var(--primary)'};
+                         font-variant-numeric:tabular-nums;">
+            ${Calc.fmt(toplam)}
+          </strong>
+        </div>
+        ${limitHTML}
+      </div>
+    `;
+    el.style.display = 'block';
   },
 
   _setFuelTip(tip) {
@@ -3904,6 +3960,8 @@ const App = {
             ${kats.map(k => `<option>${UI.escHtml(k)}</option>`).join('')}
           </select>
         </div>
+        <!-- 🆕 KATEGORİ AYLIK TOPLAM ÖZETİ -->
+        <div id="kategoriAylikOzet" style="display:none;"></div>
         <!-- 🆕 AKARYAKIT DETAY PANELİ — Çift yakıt destekli -->
         <div id="fuelPanel" class="fuel-panel">
           <div class="fuel-panel-inner">
@@ -4028,11 +4086,11 @@ const App = {
         </div>
       </div>
     </div>`;
-
     // ✅ Tarih güvence: iOS Safari'de value attribute bazen yok sayılır
     requestAnimationFrame(() => {
       const tEl = document.getElementById('islemTarih');
       if (tEl && !tEl.value) tEl.value = dayjs().format('YYYY-MM-DD');
+      this._updateKategoriAylikOzet();   // 🆕 Özet kutusunu ilk render'da göster
     });
 
     await this.renderIslemList();
@@ -4191,6 +4249,7 @@ const App = {
     showToast(`${label} kaydedildi: ${Calc.fmt(miktar)}`);
     await this.renderIslemList();
     if (this.currentPage === 'dashboard') await this.renderRecentList();
+    this._updateKategoriAylikOzet();   // 🆕 Özet kutusunu tazele
   },
 
   async editIslem(id, tip) {
@@ -4328,6 +4387,7 @@ const App = {
       showToast('🗑️ Silindi');
       await this.renderIslemList();
       if (this.currentPage === 'dashboard') await this.renderRecentList();
+      if (this.currentPage === 'islemler') this._updateKategoriAylikOzet();   // 🆕
     }
   },
 
@@ -4859,13 +4919,11 @@ const App = {
       })
     });
     if (value && value.miktar > 0) {
-      await CRUD.araOdemeEkle(id, value.miktar, value.tarih, value.aciklama);
-      const gosterim = birim === 'tl'
-        ? Calc.fmt(value.miktar)
-        : `${value.miktar.toLocaleString('tr-TR',{maximumFractionDigits:2})} ${birimKisa} ≈ ${Calc.fmt(value.miktar * birimFiyat)}`;
-      showToast(`✅ Ara ödeme eklendi: ${gosterim}`);
-      await this.renderBorcList();
-      await this.renderBorcalacak();  // özetleri de yenile
+      await CRUD.islemGuncelle(id, tip, value);
+      showToast('✅ Güncellendi!');
+      await this.renderIslemList();
+      if (this.currentPage === 'dashboard') await this.renderRecentList();
+      if (this.currentPage === 'islemler') this._updateKategoriAylikOzet();   // 🆕
     }
   },
 
