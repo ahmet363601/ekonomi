@@ -2573,7 +2573,6 @@ sonIslemler() {
       data2: olustur(r2)
     };
   },
-
   /* ⛽ AKARYAKIT İSTATİSTİKLERİ — LPG odaklı, Benzin basit toplam */
   fuelStats(range) {
     let all = this._allGiderler().filter(g => g.kategori === 'Akaryakıt' && g.fuel);
@@ -2621,16 +2620,13 @@ sonIslemler() {
 
     /* ════════════════════════════════════════════════════════════
        LPG — TAM KAPSAMLI İSTATİSTİK (ÖNCELİKLİ)
-       ────────────────────────────────────────────────────────────
        Tüketim, sadece ARDIŞIK LPG dolumları arasındaki KM ile hesaplanır.
-       Benzin karışmaz. "her-ikisi" kayıtlarındaki LPG kısmı dahil edilir.
        ════════════════════════════════════════════════════════════ */
     const lpgItems = normalized.filter(i => i._lpg.litre > 0);
     const lpgTotalLitre = lpgItems.reduce((s, i) => s + i._lpg.litre, 0);
     const lpgTotalTL    = lpgItems.reduce((s, i) => s + i._lpg.toplam, 0);
     const lpgAvgFiyat   = lpgTotalLitre > 0 ? lpgTotalTL / lpgTotalLitre : 0;
 
-    /* LPG dolumları arası KM — her LPG dolumu için bir önceki LPG'ye göre */
     const lpgWithKm = lpgItems.filter(i => i._km > 0)
       .sort((a, b) => {
         if (a.tarih !== b.tarih) return a.tarih.localeCompare(b.tarih);
@@ -2656,12 +2652,13 @@ sonIslemler() {
     const lpgTotalKm = consumptionRecords.reduce((s, r) => s + r.mesafe, 0);
     const lpgLitreForCalc = consumptionRecords.reduce((s, r) => s + r.item._lpg.litre, 0);
     const lpgAvgL100 = lpgTotalKm > 0 ? (lpgLitreForCalc * 100) / lpgTotalKm : 0;
-    const lpgAvgTlPerKm = lpgTotalKm > 0 ? lpgTotalTL / lpgTotalKm : 0;
+    /* ✅ DÜZELTME: Sadece ölçülen TL / ölçülen km (ilk dolum TL'si hariç) */
+    const lpgTLForCalc = consumptionRecords.reduce((s, r) => s + r.item._lpg.toplam, 0);
+    const lpgAvgTlPerKm = lpgTotalKm > 0 ? lpgTLForCalc / lpgTotalKm : 0;
 
     const l100Arr = consumptionRecords.map(r => r.l100);
     const tlKmArr = consumptionRecords.map(r => r.tlKm);
 
-    /* İstatistik yardımcılar */
     const _median = (arr) => {
       if (!arr.length) return 0;
       const s = [...arr].sort((a, b) => a - b);
@@ -2697,7 +2694,6 @@ sonIslemler() {
       median: _median(tlKmArr)
     };
 
-    /* Dolum aralığı */
     let dolumAraligi = null;
     if (lpgItems.length >= 2) {
       const tarihler = lpgItems.map(i => dayjs(i.tarih)).sort((a, b) => a.valueOf() - b.valueOf());
@@ -2711,7 +2707,6 @@ sonIslemler() {
       };
     }
 
-    /* En ekonomik / en pahalı */
     const enEkonomik = consumptionRecords.length
       ? consumptionRecords.reduce((a, b) => a.l100 < b.l100 ? a : b).item
       : null;
@@ -2719,7 +2714,6 @@ sonIslemler() {
       ? consumptionRecords.reduce((a, b) => a.l100 > b.l100 ? a : b).item
       : null;
 
-    /* Trend */
     let trend = null;
     if (l100Arr.length >= 2) {
       const son = l100Arr[l100Arr.length - 1];
@@ -2731,7 +2725,6 @@ sonIslemler() {
       };
     }
 
-    /* Birim fiyat trendi */
     let lpgFiyatTrend = null;
     const lFiyatArr = lpgItems.filter(i => i._lpg.birimFiyat > 0)
       .sort((a, b) => a.tarih.localeCompare(b.tarih));
@@ -2744,28 +2737,35 @@ sonIslemler() {
       };
     }
 
-    /* Aylık dağılım */
+    /* ✅ DÜZELTME: Aylık blok — LPG dolum sayısı ayrı, tüketim sadece ölçülenlerden */
     const byMonth = {};
     normalized.forEach(i => {
       const k = SalaryMonth.keyOf(i.tarih);
       if (!byMonth[k]) byMonth[k] = {
-        lpgLitre: 0, lpgTL: 0, benzinLitre: 0, benzinTL: 0,
+        lpgLitre: 0, lpgTL: 0, lpgCount: 0,
+        consumptionLitre: 0, consumptionTL: 0,
+        benzinLitre: 0, benzinTL: 0, benzinCount: 0,
         km: 0, count: 0
       };
       byMonth[k].lpgLitre    += i._lpg.litre;
       byMonth[k].lpgTL       += i._lpg.toplam;
       byMonth[k].benzinLitre += i._benzin.litre;
       byMonth[k].benzinTL    += i._benzin.toplam;
-      byMonth[k].km          += i._lpgMesafe || 0;
-      byMonth[k].count       += 1;
+      if (i._lpg.litre > 0)    byMonth[k].lpgCount    += 1;
+      if (i._benzin.litre > 0) byMonth[k].benzinCount += 1;
+      if (i._lpgL100) {
+        byMonth[k].consumptionLitre += i._lpg.litre;
+        byMonth[k].consumptionTL    += i._lpg.toplam;
+        byMonth[k].km               += i._lpgMesafe || 0;
+      }
+      byMonth[k].count += 1;
     });
     const monthly = Object.entries(byMonth).map(([k, v]) => {
-      const avgL100 = v.km > 0 ? (v.lpgLitre * 100) / v.km : 0;
-      const tlPerKm = v.km > 0 ? v.lpgTL / v.km : 0;
+      const avgL100 = v.km > 0 ? (v.consumptionLitre * 100) / v.km : 0;
+      const tlPerKm = v.km > 0 ? v.consumptionTL / v.km : 0;
       return { key: k, label: SalaryMonth.shortLabel(k), ...v, avgL100, tlPerKm };
     }).sort((a, b) => a.key.localeCompare(b.key));
 
-    /* Projeksiyon (LPG bazlı) */
     const son6 = monthly.slice(-6);
     const son3 = monthly.slice(-3);
     const projeksiyon = {
@@ -2799,7 +2799,6 @@ sonIslemler() {
     return {
       count: normalized.length,
       items: normalized,
-
       lpg: {
         count: lpgItems.length,
         totalLitre: lpgTotalLitre,
@@ -2822,7 +2821,6 @@ sonIslemler() {
         consumptionRecords,
         items: lpgItems
       },
-
       benzin: {
         count: benzinItems.length,
         totalLitre: benzinTotalLitre,
@@ -3887,6 +3885,26 @@ const App = {
     const eligible = all.filter(g => g.tarih <= beforeDate);
     return eligible[eligible.length - 1] || null;
   },
+    /* ✅ Yeni: Belirli yakıt tipine göre önceki KM */
+  _findPrevFuelRecordSameType(excludeId, beforeDate, fuelType) {
+    const all = Calc._allGiderler()
+      .filter(g => g.kategori === 'Akaryakıt' && g.fuel && Number(g.fuel.km) > 0)
+      .filter(g => {
+        if (excludeId && g.id === excludeId) return false;
+        const t = g.fuel.tip || 'benzin';
+        if (fuelType === 'lpg')     return t === 'lpg'    || t === 'her-ikisi';
+        if (fuelType === 'benzin')  return t === 'benzin' || t === 'her-ikisi';
+        return true;
+      })
+      .sort((a, b) => {
+        if (a.tarih !== b.tarih) return a.tarih.localeCompare(b.tarih);
+        return (a.createdAt || '').localeCompare(b.createdAt || '');
+      });
+
+    if (!beforeDate) return all[all.length - 1] || null;
+    const eligible = all.filter(g => g.tarih <= beforeDate);
+    return eligible[eligible.length - 1] || null;
+  },
 
   /* 🆕 Son akaryakıt KM'sini placeholder'a yaz */
   _updateFuelKmPlaceholder() {
@@ -3926,33 +3944,38 @@ const App = {
     if (!preview) return;
     if (!kmVal || kmVal <= 0) { preview.classList.remove('visible'); preview.innerHTML = ''; return; }
 
-    const prev = this._findPrevFuelRecord(null, tarih);
-    const prevKm = prev?.fuel?.km;
     const parts = [];
 
-    if (prevKm && kmVal > prevKm) {
-      const mesafe = kmVal - prevKm;
-      parts.push(`<div class="fuel-preview-row"><span>📍 Önceki KM</span><strong>${prevKm.toLocaleString('tr-TR')} km</strong></div>`);
-      parts.push(`<div class="fuel-preview-row"><span>📏 Mesafe</span><strong>${mesafe.toLocaleString('tr-TR')} km</strong></div>`);
-      if (bLitreVal > 0 && (tip === 'benzin' || tip === 'her-ikisi')) {
-        parts.push(`<div class="fuel-preview-row"><span>⛽ Benzin Tüketimi</span><strong>${((bLitreVal * 100) / mesafe).toFixed(2)} L/100km</strong></div>`);
+    /* ✅ Her yakıt için KENDİ tipinden önceki km ile tüketim */
+    if ((tip === 'benzin' || tip === 'her-ikisi') && bLitreVal > 0) {
+      const prevB = this._findPrevFuelRecordSameType(null, tarih, 'benzin');
+      const prevBKm = prevB?.fuel?.km;
+      if (prevBKm && kmVal > prevBKm) {
+        const mesafe = kmVal - prevBKm;
+        parts.push(`<div class="fuel-preview-row"><span>⛽ Benzin (${prevBKm.toLocaleString('tr-TR')} → ${kmVal.toLocaleString('tr-TR')} km)</span><strong>${((bLitreVal * 100) / mesafe).toFixed(2)} L/100km</strong></div>`);
+      } else if (prevBKm) {
+        parts.push(`<div class="fuel-hint">⚠️ Benzin KM (${prevBKm.toLocaleString('tr-TR')}) ≥ girilen KM. Benzin tüketim hesabı yapılmadı.</div>`);
+      } else {
+        parts.push(`<div class="fuel-hint">ℹ️ İlk benzin dolumu — sonraki benzin dolumunda tüketim başlar.</div>`);
       }
-      if (lLitreVal > 0 && (tip === 'lpg' || tip === 'her-ikisi')) {
-        parts.push(`<div class="fuel-preview-row"><span>💧 LPG Tüketimi</span><strong>${((lLitreVal * 100) / mesafe).toFixed(2)} L/100km</strong></div>`);
+    }
+
+    if ((tip === 'lpg' || tip === 'her-ikisi') && lLitreVal > 0) {
+      const prevL = this._findPrevFuelRecordSameType(null, tarih, 'lpg');
+      const prevLKm = prevL?.fuel?.km;
+      if (prevLKm && kmVal > prevLKm) {
+        const mesafe = kmVal - prevLKm;
+        parts.push(`<div class="fuel-preview-row"><span>💧 LPG (${prevLKm.toLocaleString('tr-TR')} → ${kmVal.toLocaleString('tr-TR')} km)</span><strong>${((lLitreVal * 100) / mesafe).toFixed(2)} L/100km</strong></div>`);
+      } else if (prevLKm) {
+        parts.push(`<div class="fuel-hint">⚠️ LPG KM (${prevLKm.toLocaleString('tr-TR')}) ≥ girilen KM. LPG tüketim hesabı yapılmadı.</div>`);
+      } else {
+        parts.push(`<div class="fuel-hint">ℹ️ İlk LPG dolumu — sonraki LPG dolumunda tüketim başlar.</div>`);
       }
-      if (grandTotal > 0) {
-        parts.push(`<div class="fuel-preview-row"><span>💰 Maliyet</span><strong>${(grandTotal / mesafe).toFixed(3)} TL/km</strong></div>`);
-      }
-    } else if (prevKm && kmVal <= prevKm) {
-      parts.push(`<div class="fuel-hint">⚠️ Girdiğiniz KM önceki kayıttan (${prevKm.toLocaleString('tr-TR')}) küçük veya eşit. Mesafe hesabı yapılmadı.</div>`);
-    } else {
-      parts.push(`<div class="fuel-hint">ℹ️ İlk akaryakıt kaydı — mesafe hesabı bir sonraki dolumda başlar.</div>`);
     }
 
     preview.innerHTML = parts.join('');
     preview.classList.add('visible');
   },
-
   setRecentTab(t) { this._recentTab = t; this._recentPage = 1; UI.updateChips(document.getElementById('recentTabs'), t); this.renderRecentList(); },
   prevRecentPage() { if (this._recentPage > 1) { this._recentPage--; this.renderRecentList(); } },
   nextRecentPage() { this._recentPage++; this.renderRecentList(); },
@@ -4200,100 +4223,6 @@ const App = {
   },
 
   async submitIslem() {
-    const kategori = document.getElementById('islemKategori')?.value;
-    const tarih    = document.getElementById('islemTarih')?.value;
-    const aciklama = document.getElementById('islemAciklama')?.value || '';
-    const tip      = document.getElementById('islemTipHidden')?.value || this._islemTip;
-    const isFuel   = tip === 'gider' && kategori === 'Akaryakıt';
-
-    if (!tarih) { Swal.fire({ icon: 'warning', title: 'Tarih Gerekli!', timer: 1800, showConfirmButton: false }); return; }
-
-    let miktar, extra = {};
-
-    if (isFuel) {
-      /* ─── Akaryakıt: çift yakıt verisi topla ─── */
-      const fuelTip   = this._fuelTipCurrent || 'benzin';
-      const kmVal     = parseFloat(document.getElementById('fuelKm')?.value);
-      const bLitre    = parseFloat(document.getElementById('fuelBenzinLitre')?.value) || 0;
-      const bFiyat    = parseFloat(document.getElementById('fuelBenzinFiyat')?.value) || 0;
-      const lLitre    = parseFloat(document.getElementById('fuelLpgLitre')?.value) || 0;
-      const lFiyat    = parseFloat(document.getElementById('fuelLpgFiyat')?.value) || 0;
-
-      if (!kmVal || kmVal <= 0) { Swal.fire({ icon: 'warning', title: 'KM zorunlu!', text: 'Akaryakıt kaydı için güncel KM girin.', timer: 2000, showConfirmButton: false }); return; }
-
-      const benzinTL = (fuelTip === 'benzin' || fuelTip === 'her-ikisi') ? bLitre * bFiyat : 0;
-      const lpgTL    = (fuelTip === 'lpg'    || fuelTip === 'her-ikisi') ? lLitre * lFiyat : 0;
-      miktar = benzinTL + lpgTL;
-
-      if (miktar <= 0) { Swal.fire({ icon: 'warning', title: 'Tutar 0!', text: 'En az bir yakıt için litre ve fiyat girin.', timer: 2000, showConfirmButton: false }); return; }
-
-      const prev = this._findPrevFuelRecord(null, tarih);
-      const prevKm = prev?.fuel?.km;
-      const mesafe = (prevKm && kmVal > prevKm) ? (kmVal - prevKm) : null;
-
-      const fuel = {
-        km: kmVal,
-        mesafe,
-        oncekiKm: prevKm || null,
-        tip: fuelTip,
-        toplamTL: miktar,
-        toplamLitre: 0,
-        tlPerKm: null
-      };
-
-      if (fuelTip === 'benzin' || fuelTip === 'her-ikisi') {
-        fuel.benzin = {
-          litre: bLitre,
-          birimFiyat: bFiyat,
-          toplam: benzinTL,
-          l100km: (mesafe && bLitre) ? ((bLitre * 100) / mesafe) : null
-        };
-        fuel.toplamLitre += bLitre;
-      }
-      if (fuelTip === 'lpg' || fuelTip === 'her-ikisi') {
-        fuel.lpg = {
-          litre: lLitre,
-          birimFiyat: lFiyat,
-          toplam: lpgTL,
-          l100km: (mesafe && lLitre) ? ((lLitre * 100) / mesafe) : null
-        };
-        fuel.toplamLitre += lLitre;
-      }
-      if (mesafe && miktar) fuel.tlPerKm = miktar / mesafe;
-
-      /* Backward-compat alanları */
-      fuel.litre = fuel.toplamLitre;
-      fuel.birimFiyat = fuel.toplamLitre > 0 ? miktar / fuel.toplamLitre : 0;
-      fuel.lPer100km = mesafe && fuel.toplamLitre ? ((fuel.toplamLitre * 100) / mesafe) : null;
-
-      extra.fuel = fuel;
-    } else {
-      miktar = parseFloat(document.getElementById('islemMiktar')?.value);
-      if (!miktar || miktar <= 0) { Swal.fire({ icon: 'warning', title: 'Geçersiz Miktar!', text: 'Lütfen 0\'dan büyük bir miktar girin.', timer: 2000, showConfirmButton: false }); return; }
-    }
-
-    await CRUD.islemEkle(tip, miktar, kategori, tarih, aciklama, extra);
-
-    /* Temizle */
-    ['islemMiktar','islemAciklama','fuelKm','fuelBenzinLitre','fuelBenzinFiyat','fuelLpgLitre','fuelLpgFiyat'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.value = '';
-    });
-    const tarihEl = document.getElementById('islemTarih');
-    if (tarihEl) tarihEl.value = dayjs().format('YYYY-MM-DD');
-    const fp = document.getElementById('fuelPreview');
-    if (fp) { fp.innerHTML = ''; fp.classList.remove('visible'); }
-    const btlEl = document.getElementById('fuelBenzinTL'); if (btlEl) btlEl.textContent = 'TL 0,00';
-    const ltlEl = document.getElementById('fuelLpgTL');    if (ltlEl) ltlEl.textContent = 'TL 0,00';
-    const gtEl  = document.getElementById('fuelGrandTotal'); if (gtEl) gtEl.textContent = 'TL 0,00';
-
-    const label = isFuel ? '⛽ Akaryakıt' : (tip === 'gelir' ? '✅ Gelir' : '💸 Gider');
-    showToast(`${label} kaydedildi: ${Calc.fmt(miktar)}`);
-    await this.renderIslemList();
-    if (this.currentPage === 'dashboard') await this.renderRecentList();
-    this._updateKategoriAylikOzet();   // 🆕 Özet kutusunu tazele
-    this._updateFuelKmPlaceholder();   // 🆕 Son KM placeholder'ını yenile
-  },
 
   async editIslem(id, tip) {
     const item = (tip === 'gelir' ? state.gelirler : state.giderler).find(i => i.id == id);
@@ -4382,29 +4311,43 @@ const App = {
           data.miktar = benzinTL + lpgTL;
 
           if (kmVal && kmVal > 0) {
-            const prev = App._findPrevFuelRecord(id, data.tarih);
-            const prevKm = prev?.fuel?.km;
-            const mesafe = (prevKm && kmVal > prevKm) ? (kmVal - prevKm) : null;
+            const prevAll = App._findPrevFuelRecord(id, data.tarih);
+            const prevKmAll = prevAll?.fuel?.km;
+            const mesafeAll = (prevKmAll && kmVal > prevKmAll) ? (kmVal - prevKmAll) : null;
 
             const fuel = {
-              km: kmVal, mesafe, oncekiKm: prevKm || null,
+              km: kmVal, mesafe: mesafeAll, oncekiKm: prevKmAll || null,
               tip: fuelTip,
               toplamTL: data.miktar,
               toplamLitre: 0,
-              tlPerKm: (mesafe && data.miktar) ? (data.miktar / mesafe) : null
+              tlPerKm: (mesafeAll && data.miktar) ? (data.miktar / mesafeAll) : null
             };
+            /* ✅ Her yakıt için KENDİ tipinden önceki KM */
             if (fuelTip === 'benzin' || fuelTip === 'her-ikisi') {
-              fuel.benzin = { litre: bLitre, birimFiyat: bFiyat, toplam: benzinTL, l100km: (mesafe && bLitre) ? ((bLitre * 100) / mesafe) : null };
+              const prevB = App._findPrevFuelRecordSameType(id, data.tarih, 'benzin');
+              const prevBKm = prevB?.fuel?.km;
+              const bMesafe = (prevBKm && kmVal > prevBKm) ? (kmVal - prevBKm) : null;
+              fuel.benzin = {
+                litre: bLitre, birimFiyat: bFiyat, toplam: benzinTL,
+                oncekiKm: prevBKm || null, mesafe: bMesafe,
+                l100km: (bMesafe && bLitre) ? ((bLitre * 100) / bMesafe) : null
+              };
               fuel.toplamLitre += bLitre;
             }
             if (fuelTip === 'lpg' || fuelTip === 'her-ikisi') {
-              fuel.lpg = { litre: lLitre, birimFiyat: lFiyat, toplam: lpgTL, l100km: (mesafe && lLitre) ? ((lLitre * 100) / mesafe) : null };
+              const prevL = App._findPrevFuelRecordSameType(id, data.tarih, 'lpg');
+              const prevLKm = prevL?.fuel?.km;
+              const lMesafe = (prevLKm && kmVal > prevLKm) ? (kmVal - prevLKm) : null;
+              fuel.lpg = {
+                litre: lLitre, birimFiyat: lFiyat, toplam: lpgTL,
+                oncekiKm: prevLKm || null, mesafe: lMesafe,
+                l100km: (lMesafe && lLitre) ? ((lLitre * 100) / lMesafe) : null
+              };
               fuel.toplamLitre += lLitre;
             }
             fuel.litre = fuel.toplamLitre;
             fuel.birimFiyat = fuel.toplamLitre > 0 ? data.miktar / fuel.toplamLitre : 0;
-            fuel.lPer100km = mesafe && fuel.toplamLitre ? ((fuel.toplamLitre * 100) / mesafe) : null;
-
+            fuel.lPer100km = mesafeAll && fuel.toplamLitre ? ((fuel.toplamLitre * 100) / mesafeAll) : null;
             data.fuel = fuel;
           }
         } else {
@@ -4437,83 +4380,83 @@ const App = {
     }
   },
 
-
   async showTransactionDetail(id, tip) {
-  /* 🆕 Borç/Alacak için özel detay paneli */
-  if (tip === 'alacak' || tip === 'borc') {
-    return this._showBorcDetail(id);
-  }
+    if (tip === 'alacak' || tip === 'borc') {
+      return this._showBorcDetail(id);
+    }
 
-  const item = (tip === 'gelir' ? state.gelirler : state.giderler).find(i => i.id == id);
-  if (!item) { showToast('⚠️ Kayıt bulunamadı'); return; }
-  const isGelir = tip === 'gelir';
-  await Swal.fire({
-    title: (isGelir ? '📥 Gelir Detayı' : '📤 Gider Detayı'),
-    html: `<div style="text-align:left;">
-      <div class="card-sm" style="text-align:center;margin-bottom:12px;">
-        <div class="archive-stat-label">Kategori</div>
-        <div style="font-family:'Plus Jakarta Sans';font-size:16px;font-weight:800;margin-top:4px;">${UI.escHtml(item.kategori)}</div>
-      </div>
-      <div class="archive-detail-stats">
-        <div class="archive-stat-card">
-          <div class="archive-stat-label">Miktar</div>
-          <div class="archive-stat-value ${isGelir ? 'green' : 'red'}">${Calc.fmt(item.miktar)}</div>
+    const item = (tip === 'gelir' ? state.gelirler : state.giderler).find(i => i.id == id);
+    if (!item) { showToast('⚠️ Kayıt bulunamadı'); return; }
+    const isGelir = tip === 'gelir';
+    await Swal.fire({
+      title: (isGelir ? '📥 Gelir Detayı' : '📤 Gider Detayı'),
+      html: `<div style="text-align:left;">
+        <div class="card-sm" style="text-align:center;margin-bottom:12px;">
+          <div class="archive-stat-label">Kategori</div>
+          <div style="font-family:'Plus Jakarta Sans';font-size:16px;font-weight:800;margin-top:4px;">${UI.escHtml(item.kategori)}</div>
         </div>
-        <div class="archive-stat-card">
-          <div class="archive-stat-label">Tarih</div>
-          <div class="archive-stat-value" style="font-size:11px;">${dayjs(item.tarih).format('DD MMM YYYY')}</div>
-        </div>
-        <div class="archive-stat-card">
-          <div class="archive-stat-label">Dönem</div>
-          <div class="archive-stat-value" style="font-size:11px;">${SalaryMonth.shortLabel(SalaryMonth.keyOf(item.tarih))}</div>
-        </div>
-      </div>
-      ${item.fuel ? `
-      <div class="card-sm" style="background:var(--warning-light);border:1px solid var(--warning);margin-bottom:10px;">
-        <div class="archive-stat-label" style="color:var(--warning);">⛽ Akaryakıt Detayları</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;font-size:12px;">
-          <div style="grid-column:span 2;">KM: <strong>${Number(item.fuel.km || 0).toLocaleString('tr-TR')}</strong>
-            ${item.fuel.mesafe ? ` · Mesafe: <strong>${Number(item.fuel.mesafe).toLocaleString('tr-TR')} km</strong>` : ''}
+        <div class="archive-detail-stats">
+          <div class="archive-stat-card">
+            <div class="archive-stat-label">Miktar</div>
+            <div class="archive-stat-value ${isGelir ? 'green' : 'red'}">${Calc.fmt(item.miktar)}</div>
           </div>
-          ${item.fuel.benzin && item.fuel.benzin.litre > 0 ? `
-            <div style="grid-column:span 2;padding:8px;background:#EFF6FF;border-radius:8px;border-left:3px solid #2563EB;">
-              <div style="font-size:9px;color:#1E40AF;text-transform:uppercase;font-weight:800;margin-bottom:3px;">⛽ Benzin</div>
-              <div><strong>${Number(item.fuel.benzin.litre).toFixed(2)} L</strong> × ${Number(item.fuel.benzin.birimFiyat || 0).toFixed(2)} TL = <strong>${Calc.fmt(item.fuel.benzin.toplam || 0)}</strong></div>
-              ${item.fuel.benzin.l100km ? `<div style="font-size:11px;color:#2563EB;font-weight:700;">${Number(item.fuel.benzin.l100km).toFixed(2)} L/100km</div>` : ''}
-            </div>
-          ` : ''}
-          ${item.fuel.lpg && item.fuel.lpg.litre > 0 ? `
-            <div style="grid-column:span 2;padding:8px;background:#ECFEFF;border-radius:8px;border-left:3px solid #0891B2;">
-              <div style="font-size:9px;color:#0E7490;text-transform:uppercase;font-weight:800;margin-bottom:3px;">💧 LPG</div>
-              <div><strong>${Number(item.fuel.lpg.litre).toFixed(2)} L</strong> × ${Number(item.fuel.lpg.birimFiyat || 0).toFixed(2)} TL = <strong>${Calc.fmt(item.fuel.lpg.toplam || 0)}</strong></div>
-              ${item.fuel.lpg.l100km ? `<div style="font-size:11px;color:#0891B2;font-weight:700;">${Number(item.fuel.lpg.l100km).toFixed(2)} L/100km</div>` : ''}
-            </div>
-          ` : ''}
-          ${(!item.fuel.benzin || !item.fuel.benzin.litre) && (!item.fuel.lpg || !item.fuel.lpg.litre) && item.fuel.litre ? `
-            <div style="grid-column:span 2;">Litre: <strong>${Number(item.fuel.litre).toFixed(2)} L</strong></div>
-          ` : ''}
-          ${item.fuel.tlPerKm ? `<div style="grid-column:span 2;padding-top:5px;border-top:1px dashed rgba(180,83,9,.3);color:#B45309;font-weight:800;">💰 ${Number(item.fuel.tlPerKm).toFixed(3)} TL/km</div>` : ''}
+          <div class="archive-stat-card">
+            <div class="archive-stat-label">Tarih</div>
+            <div class="archive-stat-value" style="font-size:11px;">${dayjs(item.tarih).format('DD MMM YYYY')}</div>
+          </div>
+          <div class="archive-stat-card">
+            <div class="archive-stat-label">Dönem</div>
+            <div class="archive-stat-value" style="font-size:11px;">${SalaryMonth.shortLabel(SalaryMonth.keyOf(item.tarih))}</div>
+          </div>
         </div>
-      </div>` : ''}
-      ${item.aciklama ? `<div class="card-sm"><div class="archive-stat-label">Açıklama</div>
-        <div style="font-size:13px;margin-top:4px;">${UI.escHtml(item.aciklama)}</div></div>` : ''}
-      <div class="card-sm"><div class="archive-stat-label">Oluşturulma</div>
-        <div style="font-size:11px;margin-top:3px;">${dayjs(item.createdAt).format('DD MMMM YYYY HH:mm')}</div></div>
-    </div>`,
-    showDenyButton: true,
-    showCancelButton: true,
-    confirmButtonText: 'Kapat',
-    denyButtonText: '✏️ Düzenle',
-    cancelButtonText: '🗑️ Sil',
-    denyButtonColor: 'var(--primary)',
-    cancelButtonColor: 'var(--danger)',
-    width: Math.min(480, window.innerWidth - 24)
-  }).then(r => {
-    if (r.isDenied) App.editIslem(id, tip);
-    else if (r.dismiss === Swal.DismissReason.cancel) App.deleteIslem(id, tip);
-  });
-},
+        ${item.fuel ? `
+        <div class="card-sm" style="background:var(--warning-light);border:1px solid var(--warning);margin-bottom:10px;">
+          <div class="archive-stat-label" style="color:var(--warning);">⛽ Akaryakıt Detayları</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;font-size:12px;">
+            <div style="grid-column:span 2;">KM: <strong>${Number(item.fuel.km || 0).toLocaleString('tr-TR')}</strong></div>
 
+            ${item.fuel.benzin && item.fuel.benzin.litre > 0 ? `
+              <div style="grid-column:span 2;padding:8px;background:#EFF6FF;border-radius:8px;border-left:3px solid #2563EB;">
+                <div style="font-size:9px;color:#1E40AF;text-transform:uppercase;font-weight:800;margin-bottom:3px;">⛽ Benzin</div>
+                <div><strong>${Number(item.fuel.benzin.litre).toFixed(2)} L</strong> × ${Number(item.fuel.benzin.birimFiyat || 0).toFixed(2)} TL = <strong>${Calc.fmt(item.fuel.benzin.toplam || 0)}</strong></div>
+                ${item.fuel.benzin.mesafe ? `<div style="font-size:10px;color:var(--text3);margin-top:2px;">Önceki benzin dolumundan: ${Number(item.fuel.benzin.mesafe).toLocaleString('tr-TR')} km</div>` : ''}
+                ${item.fuel.benzin.l100km ? `<div style="font-size:11px;color:#2563EB;font-weight:700;margin-top:2px;">${Number(item.fuel.benzin.l100km).toFixed(2)} L/100km</div>` : '<div style="font-size:10px;color:var(--text3);font-style:italic;">İlk benzin dolumu — tüketim hesabı yapılmadı</div>'}
+              </div>
+            ` : ''}
+
+            ${item.fuel.lpg && item.fuel.lpg.litre > 0 ? `
+              <div style="grid-column:span 2;padding:8px;background:#ECFEFF;border-radius:8px;border-left:3px solid #0891B2;">
+                <div style="font-size:9px;color:#0E7490;text-transform:uppercase;font-weight:800;margin-bottom:3px;">💧 LPG</div>
+                <div><strong>${Number(item.fuel.lpg.litre).toFixed(2)} L</strong> × ${Number(item.fuel.lpg.birimFiyat || 0).toFixed(2)} TL = <strong>${Calc.fmt(item.fuel.lpg.toplam || 0)}</strong></div>
+                ${item.fuel.lpg.mesafe ? `<div style="font-size:10px;color:var(--text3);margin-top:2px;">Önceki LPG dolumundan: ${Number(item.fuel.lpg.mesafe).toLocaleString('tr-TR')} km</div>` : ''}
+                ${item.fuel.lpg.l100km ? `<div style="font-size:11px;color:#0891B2;font-weight:700;margin-top:2px;">${Number(item.fuel.lpg.l100km).toFixed(2)} L/100km</div>` : '<div style="font-size:10px;color:var(--text3);font-style:italic;">İlk LPG dolumu — tüketim hesabı yapılmadı</div>'}
+              </div>
+            ` : ''}
+
+            ${(!item.fuel.benzin || !item.fuel.benzin.litre) && (!item.fuel.lpg || !item.fuel.lpg.litre) && item.fuel.litre ? `
+              <div style="grid-column:span 2;">Litre: <strong>${Number(item.fuel.litre).toFixed(2)} L</strong></div>
+            ` : ''}
+            ${item.fuel.tlPerKm ? `<div style="grid-column:span 2;padding-top:5px;border-top:1px dashed rgba(180,83,9,.3);color:#B45309;font-weight:800;">💰 Toplam: ${Number(item.fuel.tlPerKm).toFixed(3)} TL/km (bu dolum öncesi mesafeye göre)</div>` : ''}
+          </div>
+        </div>` : ''}
+        ${item.aciklama ? `<div class="card-sm"><div class="archive-stat-label">Açıklama</div>
+          <div style="font-size:13px;margin-top:4px;">${UI.escHtml(item.aciklama)}</div></div>` : ''}
+        <div class="card-sm"><div class="archive-stat-label">Oluşturulma</div>
+          <div style="font-size:11px;margin-top:3px;">${dayjs(item.createdAt).format('DD MMMM YYYY HH:mm')}</div></div>
+      </div>`,
+      showDenyButton: true,
+      showCancelButton: true,
+      confirmButtonText: 'Kapat',
+      denyButtonText: '✏️ Düzenle',
+      cancelButtonText: '🗑️ Sil',
+      denyButtonColor: 'var(--primary)',
+      cancelButtonColor: 'var(--danger)',
+      width: Math.min(480, window.innerWidth - 24)
+    }).then(r => {
+      if (r.isDenied) App.editIslem(id, tip);
+      else if (r.dismiss === Swal.DismissReason.cancel) App.deleteIslem(id, tip);
+    });
+  },
 
     async _showBorcDetail(id) {
     const b = state.borcalacaklar.find(x => x.id == id);
@@ -5437,7 +5380,7 @@ const App = {
     const rows = s.lpg.monthly.slice(-6).map(m => `
       <div style="display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:6px;padding:8px 10px;font-size:10.5px;border-bottom:1px dashed var(--border);align-items:center;">
         <span style="font-weight:700;color:var(--text);min-width:65px;">${m.label}</span>
-        <span style="color:var(--text3);font-size:9.5px;">${m.count} dolum</span>
+        <span style="color:var(--text3);font-size:9.5px;">${m.lpgCount} dolum</span>
         <span style="color:#0891B2;font-weight:800;text-align:right;">${m.lpgLitre.toFixed(1)} L</span>
         <span style="color:var(--danger);font-weight:700;text-align:right;">${Calc.fmt(m.lpgTL)}</span>
         <span style="color:var(--text2);text-align:right;font-size:9.5px;">${m.km.toLocaleString('tr-TR')} km</span>
@@ -5963,57 +5906,181 @@ const App = {
       const hasUni = await _loadPdfFonts(doc);
       const FONT = hasUni ? 'Roboto' : 'helvetica';
 
-      /* Kapak */
-      doc.setFillColor(146, 64, 14);
-      doc.rect(0, 0, W, 40, 'F');
+      const l = stats.lpg;
+      const b = stats.benzin;
+
+      /* KAPAK — LPG cyan */
+      doc.setFillColor(8, 145, 178);
+      doc.rect(0, 0, W, 42, 'F');
+      doc.setFillColor(14, 116, 144);
+      doc.rect(0, 20, W, 22, 'F');
+
       doc.setFont(FONT, 'bold');
       doc.setFontSize(22);
       doc.setTextColor(255, 255, 255);
-      _txt(doc, 'AKARYAKIT RAPORU', M, 18, null, hasUni);
+      _txt(doc, 'AKARYAKIT RAPORU', M, 16, null, hasUni);
+
       doc.setFont(FONT, 'normal');
-      doc.setFontSize(10);
-      doc.setTextColor(254, 243, 199);
-      _txt(doc, dayjs().format('DD MMMM YYYY · HH:mm'), M, 28, null, hasUni);
+      doc.setFontSize(11);
+      doc.setTextColor(207, 250, 254);
+      _txt(doc, 'LPG Odaklı Tüketim & İstatistik Analizi', M, 26, null, hasUni);
 
-      let y = 50;
+      doc.setFontSize(9);
+      doc.setTextColor(207, 250, 254);
+      _txt(doc, dayjs().format('DD MMMM YYYY · HH:mm'), W - M, 34, { align: 'right' }, hasUni);
 
-      /* Özet kartlar */
+      let y = 52;
+
+      /* ÜST ÖZET — 4 kart */
       const cw = (W - 2 * M - 9) / 4;
-      _kart(doc, M, y, cw, 22, { label: 'Toplam Harcama', value: Calc.fmt(stats.totalTL), accent: [185,28,28] }, hasUni, FONT);
-      _kart(doc, M + cw + 3, y, cw, 22, { label: 'Toplam Litre', value: stats.totalLitre.toFixed(2) + ' L', accent: [217,119,6] }, hasUni, FONT);
-      _kart(doc, M + (cw+3)*2, y, cw, 22, { label: 'Toplam KM', value: stats.totalKm.toLocaleString('tr-TR') + ' km', accent: [37,99,235] }, hasUni, FONT);
-      _kart(doc, M + (cw+3)*3, y, cw, 22, { label: 'Ort. TL/km', value: stats.avgTlPerKm.toFixed(3), accent: [8,145,178] }, hasUni, FONT);
+      _kart(doc, M,               y, cw, 22, { label: 'Toplam Dolum', value: String(stats.count),                         accent: [8,145,178] }, hasUni, FONT);
+      _kart(doc, M + cw + 3,      y, cw, 22, { label: 'LPG Litre',    value: l.totalLitre.toFixed(2) + ' L',              accent: [8,145,178] }, hasUni, FONT);
+      _kart(doc, M + (cw+3)*2,    y, cw, 22, { label: 'LPG Tutar',    value: Calc.fmt(l.totalTL),                         accent: [185,28,28] }, hasUni, FONT);
+      _kart(doc, M + (cw+3)*3,    y, cw, 22, { label: 'LPG L/100km',  value: l.avgL100 > 0 ? l.avgL100.toFixed(2) : '—',  accent: [217,119,6] }, hasUni, FONT);
       y += 30;
 
-      /* Benzin */
-      if (stats.totalBenzinLitre > 0) {
-        _baslik(doc, '⛽ BENZİN', y, hasUni, FONT);
-        y += 8;
+      /* LPG DETAYLI */
+      if (l.count > 0) {
+        if (y > H - 60) { doc.addPage(); y = 20; }
+        _baslik(doc, 'LPG — DETAYLI TÜKETİM İSTATİSTİKLERİ', y, hasUni, FONT);
+        y += 10;
+
+        const lcw = (W - 2 * M - 9) / 4;
+        _kart(doc, M,               y, lcw, 20, { label: 'Ölçülen KM',    value: l.totalKm.toLocaleString('tr-TR') + ' km',                       accent: [37,99,235] }, hasUni, FONT);
+        _kart(doc, M + lcw + 3,     y, lcw, 20, { label: 'Ort. L/100km',  value: l.avgL100 > 0 ? l.avgL100.toFixed(2) : '—',                      accent: [217,119,6] }, hasUni, FONT);
+        _kart(doc, M + (lcw+3)*2,   y, lcw, 20, { label: 'Ort. TL/km',    value: l.avgTlPerKm > 0 ? l.avgTlPerKm.toFixed(3) : '—',                accent: [8,145,178] }, hasUni, FONT);
+        _kart(doc, M + (lcw+3)*3,   y, lcw, 20, { label: 'Ort. TL/L',     value: l.avgFiyat.toFixed(2),                                           accent: [146,64,14] }, hasUni, FONT);
+        y += 26;
+
+        if (l.stats.count > 0) {
+          if (y > H - 40) { doc.addPage(); y = 20; }
+          _baslik(doc, 'TÜKETİM DAĞILIMI · ' + l.stats.count + ' ÖLÇÜM (L/100km)', y, hasUni, FONT);
+          y += 10;
+
+          doc.setFillColor(248, 250, 252);
+          doc.rect(M, y - 4, W - 2 * M, 6, 'F');
+          doc.setFont(FONT, 'bold');
+          doc.setFontSize(7.5);
+          doc.setTextColor(100, 116, 139);
+          const colW = (W - 2 * M) / 6;
+          _txt(doc, 'MIN',    M + colW * 0 + 4, y, null, hasUni);
+          _txt(doc, 'P25',    M + colW * 1 + 4, y, null, hasUni);
+          _txt(doc, 'MEDYAN', M + colW * 2 + 4, y, null, hasUni);
+          _txt(doc, 'P75',    M + colW * 3 + 4, y, null, hasUni);
+          _txt(doc, 'P90',    M + colW * 4 + 4, y, null, hasUni);
+          _txt(doc, 'MAX',    M + colW * 5 + 4, y, null, hasUni);
+          y += 5;
+
+          doc.setFont(FONT, 'normal');
+          doc.setFontSize(10);
+          doc.setTextColor(15, 23, 42);
+          _txt(doc, l.stats.min.toFixed(2),    M + colW * 0 + 4, y + 2, null, hasUni);
+          _txt(doc, l.stats.p25.toFixed(2),    M + colW * 1 + 4, y + 2, null, hasUni);
+          _txt(doc, l.stats.median.toFixed(2), M + colW * 2 + 4, y + 2, null, hasUni);
+          _txt(doc, l.stats.p75.toFixed(2),    M + colW * 3 + 4, y + 2, null, hasUni);
+          _txt(doc, l.stats.p90.toFixed(2),    M + colW * 4 + 4, y + 2, null, hasUni);
+          _txt(doc, l.stats.max.toFixed(2),    M + colW * 5 + 4, y + 2, null, hasUni);
+          y += 7;
+
+          doc.setFont(FONT, 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(100, 116, 139);
+          _txt(doc, `Standart Sapma: ${l.stats.stdDev.toFixed(3)} L/100km`, M, y + 2, null, hasUni);
+          y += 10;
+        }
+
+        if (l.dolumAraligi) {
+          if (y > H - 25) { doc.addPage(); y = 20; }
+          doc.setFont(FONT, 'bold');
+          doc.setFontSize(9.5);
+          doc.setTextColor(15, 23, 42);
+          _txt(doc, `Dolum Aralığı:  Ort. ${l.dolumAraligi.ortalama.toFixed(0)} gün  ·  Min ${l.dolumAraligi.min}  ·  Max ${l.dolumAraligi.max}  ·  Medyan ${l.dolumAraligi.medyan.toFixed(0)} gün`, M + 2, y + 2, null, hasUni);
+          y += 8;
+        }
+
+        if (l.fiyatTrend) {
+          if (y > H - 25) { doc.addPage(); y = 20; }
+          const renkTrend = l.fiyatTrend.yuzde > 0 ? [220, 38, 38] : [5, 150, 105];
+          const ok = l.fiyatTrend.yuzde > 0 ? '↑' : '↓';
+          doc.setFont(FONT, 'bold');
+          doc.setFontSize(9.5);
+          doc.setTextColor(...renkTrend);
+          _txt(doc, `LPG Fiyat Trendi:  ${l.fiyatTrend.ilk.toFixed(2)} → ${l.fiyatTrend.son.toFixed(2)} TL/L  (${ok} %${Math.abs(l.fiyatTrend.yuzde).toFixed(1)})`, M + 2, y + 2, null, hasUni);
+          y += 8;
+        }
+
+        if (l.enEkonomik && l.enPahali) {
+          if (y > H - 25) { doc.addPage(); y = 20; }
+          doc.setFont(FONT, 'bold');
+          doc.setFontSize(9.5);
+          doc.setTextColor(5, 150, 105);
+          _txt(doc, `En Verimli:  ${(l.enEkonomik._lpgL100 || 0).toFixed(2)} L/100km  (${dayjs(l.enEkonomik.tarih).format('DD MMM YYYY')})`, M + 2, y + 2, null, hasUni);
+          y += 6;
+          doc.setTextColor(220, 38, 38);
+          _txt(doc, `En Yüksek:   ${(l.enPahali._lpgL100 || 0).toFixed(2)} L/100km  (${dayjs(l.enPahali.tarih).format('DD MMM YYYY')})`, M + 2, y + 2, null, hasUni);
+          y += 8;
+        }
+
+        if (l.trend) {
+          if (y > H - 25) { doc.addPage(); y = 20; }
+          const renkT = l.trend.yon === 'up' ? [220, 38, 38] : (l.trend.yon === 'down' ? [5, 150, 105] : [100, 116, 139]);
+          const okT = l.trend.yon === 'up' ? '↑' : (l.trend.yon === 'down' ? '↓' : '≈');
+          doc.setFont(FONT, 'bold');
+          doc.setFontSize(9.5);
+          doc.setTextColor(...renkT);
+          _txt(doc, `Son Tüketim Trendi:  ${l.trend.onceki.toFixed(2)} → ${l.trend.son.toFixed(2)} L/100km  (${okT} %${Math.abs(l.trend.yuzde).toFixed(1)})`, M + 2, y + 2, null, hasUni);
+          y += 8;
+        }
+
+        if (l.projeksiyon.aylikTL > 0) {
+          if (y > H - 30) { doc.addPage(); y = 20; }
+          doc.setFont(FONT, 'normal');
+          doc.setFontSize(9);
+          doc.setTextColor(100, 116, 139);
+          _txt(doc, 'Aylık Projeksiyon (son 6 ay ortalaması)', M + 2, y + 2, null, hasUni);
+          y += 5;
+          doc.setFont(FONT, 'bold');
+          doc.setFontSize(10);
+          doc.setTextColor(15, 23, 42);
+          _txt(doc, `${Calc.fmt(l.projeksiyon.aylikTL)}  ·  ${l.projeksiyon.aylikLitre.toFixed(1)} L  ·  ${l.projeksiyon.aylikKm.toLocaleString('tr-TR')} km`, M + 2, y + 2, null, hasUni);
+          y += 10;
+        }
+      }
+
+      /* BENZİN — Sadece toplamlar */
+      if (b.count > 0) {
+        if (y > H - 40) { doc.addPage(); y = 20; }
+        y += 4;
+        _baslik(doc, 'BENZİN — TOPLAM TUTARLAR (KM HESABI YOK)', y, hasUni, FONT);
+        y += 10;
+
         doc.setFont(FONT, 'normal');
         doc.setFontSize(10);
         doc.setTextColor(15, 23, 42);
-        const kmStrB = stats.totalKmBenzin > 0 ? `${Math.round(stats.totalKmBenzin).toLocaleString('tr-TR')} km` : '—';
-        const tuketimStrB = stats.totalKmBenzin > 0 ? `${stats.avgLPer100_benzin.toFixed(2)} L/100km` : '—';
-        _txt(doc, `Toplam: ${stats.totalBenzinLitre.toFixed(2)} L · ${Calc.fmt(stats.totalBenzinTL)} · ${kmStrB} · Ort. ${tuketimStrB}`, M + 4, y, null, hasUni);
+        _txt(doc, `${b.count} dolum  ·  Toplam ${b.totalLitre.toFixed(2)} L  ·  ${Calc.fmt(b.totalTL)}  ·  Ort. ${b.avgFiyat.toFixed(2)} TL/L`, M + 2, y + 2, null, hasUni);
+        y += 6;
+
+        if (b.fiyatTrend) {
+          const renkTrend = b.fiyatTrend.yuzde > 0 ? [220, 38, 38] : [5, 150, 105];
+          const ok = b.fiyatTrend.yuzde > 0 ? '↑' : '↓';
+          doc.setFont(FONT, 'bold');
+          doc.setFontSize(9);
+          doc.setTextColor(...renkTrend);
+          _txt(doc, `Fiyat Trendi:  ${b.fiyatTrend.ilk.toFixed(2)} → ${b.fiyatTrend.son.toFixed(2)} TL/L  (${ok} %${Math.abs(b.fiyatTrend.yuzde).toFixed(1)})`, M + 2, y + 2, null, hasUni);
+          y += 6;
+        }
+
+        doc.setFont(FONT, 'italic');
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184);
+        _txt(doc, 'Not: Benzin için KM/tüketim hesabı yapılmaz. Sadece litre ve TL toplamı tutulur.', M + 2, y + 2, null, hasUni);
         y += 10;
       }
 
-      /* LPG */
-      if (stats.totalLpgLitre > 0) {
-        _baslik(doc, '💧 LPG', y, hasUni, FONT);
-        y += 8;
-        doc.setFont(FONT, 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(15, 23, 42);
-        const kmStrL = stats.totalKmLpg > 0 ? `${Math.round(stats.totalKmLpg).toLocaleString('tr-TR')} km` : '—';
-        const tuketimStrL = stats.totalKmLpg > 0 ? `${stats.avgLPer100_lpg.toFixed(2)} L/100km` : '—';
-        _txt(doc, `Toplam: ${stats.totalLpgLitre.toFixed(2)} L · ${Calc.fmt(stats.totalLpgTL)} · ${kmStrL} · Ort. ${tuketimStrL}`, M + 4, y, null, hasUni);
-        y += 10;
-      }
-      /* Aylık özet */
-      if (stats.monthly.length > 0) {
+      /* AYLIK LPG ÖZET */
+      if (l.monthly.length > 0) {
         if (y > H - 60) { doc.addPage(); y = 20; }
-        _baslik(doc, 'AYLIK ÖZET', y, hasUni, FONT);
+        _baslik(doc, 'AYLIK LPG ÖZETİ', y, hasUni, FONT);
         y += 10;
 
         doc.setFillColor(248, 250, 252);
@@ -6021,14 +6088,15 @@ const App = {
         doc.setFont(FONT, 'bold');
         doc.setFontSize(7.5);
         doc.setTextColor(100, 116, 139);
-        _txt(doc, 'DÖNEM', M + 3, y, null, hasUni);
-        _txt(doc, 'DOLUM', M + 40, y, null, hasUni);
-        _txt(doc, 'TUTAR', M + 65, y, null, hasUni);
-        _txt(doc, 'LİTRE', M + 105, y, null, hasUni);
-        _txt(doc, 'KM', M + 140, y, null, hasUni);
+        _txt(doc, 'DÖNEM',   M + 3,   y, null, hasUni);
+        _txt(doc, 'DOLUM',   M + 50,  y, null, hasUni);
+        _txt(doc, 'LİTRE',   M + 70,  y, null, hasUni);
+        _txt(doc, 'TUTAR',   M + 105, y, null, hasUni);
+        _txt(doc, 'KM',      M + 140, y, null, hasUni);
+        _txt(doc, 'L/100',   M + 165, y, null, hasUni);
         y += 5;
 
-        stats.monthly.slice(-12).forEach((m, idx) => {
+        l.monthly.slice(-12).forEach((m, idx) => {
           if (y > H - 20) { doc.addPage(); y = 20; }
           if (idx % 2 === 0) {
             doc.setFillColor(252, 253, 255);
@@ -6038,22 +6106,35 @@ const App = {
           doc.setFontSize(8.5);
           doc.setTextColor(15, 23, 42);
           _txt(doc, m.label, M + 3, y, null, hasUni);
-          _txt(doc, String(m.count), M + 42, y, null, hasUni);
-          _txt(doc, Calc.fmt(m.tl), M + 65, y, null, hasUni);
-          _txt(doc, m.litre.toFixed(1) + ' L', M + 105, y, null, hasUni);
+          _txt(doc, String(m.lpgCount || 0), M + 52, y, null, hasUni);
+          _txt(doc, m.lpgLitre.toFixed(1) + ' L', M + 70, y, null, hasUni);
+          _txt(doc, Calc.fmt(m.lpgTL), M + 105, y, null, hasUni);
           _txt(doc, m.km.toLocaleString('tr-TR') + ' km', M + 140, y, null, hasUni);
+          _txt(doc, m.avgL100 > 0 ? m.avgL100.toFixed(2) : '—', M + 165, y, null, hasUni);
           y += 6.5;
         });
         y += 8;
       }
 
-      /* Son dolumlar */
+      /* SON DOLUMLAR */
       if (stats.items.length > 0) {
         if (y > H - 60) { doc.addPage(); y = 20; }
         _baslik(doc, 'SON DOLUMLAR', y, hasUni, FONT);
         y += 10;
 
-        stats.items.slice(-20).reverse().forEach((i, idx) => {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(M, y - 4, W - 2 * M, 6, 'F');
+        doc.setFont(FONT, 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        _txt(doc, 'TARİH',  M + 3,   y, null, hasUni);
+        _txt(doc, 'KM',     M + 30,  y, null, hasUni);
+        _txt(doc, 'YAKIT',  M + 70,  y, null, hasUni);
+        _txt(doc, 'L/100',  M + 130, y, null, hasUni);
+        _txt(doc, 'TUTAR',  W - M - 3, y, { align: 'right' }, hasUni);
+        y += 5;
+
+        stats.items.slice(-25).reverse().forEach((i, idx) => {
           if (y > H - 20) { doc.addPage(); y = 20; }
           if (idx % 2 === 0) {
             doc.setFillColor(252, 253, 255);
@@ -6067,13 +6148,16 @@ const App = {
 
           doc.setFont(FONT, 'normal');
           doc.setTextColor(71, 85, 105);
-          _txt(doc, i._km.toLocaleString('tr-TR') + ' km', M + 25, y, null, hasUni);
+          _txt(doc, i._km.toLocaleString('tr-TR') + ' km', M + 30, y, null, hasUni);
 
           const fuelParts = [];
-          if (i._benzin.litre > 0) fuelParts.push(`B:${i._benzin.litre.toFixed(1)}L`);
           if (i._lpg.litre > 0)    fuelParts.push(`L:${i._lpg.litre.toFixed(1)}L`);
+          if (i._benzin.litre > 0) fuelParts.push(`B:${i._benzin.litre.toFixed(1)}L`);
           doc.setTextColor(8, 145, 178);
-          _txt(doc, fuelParts.join(' · '), M + 55, y, null, hasUni);
+          _txt(doc, fuelParts.join(' · '), M + 70, y, null, hasUni);
+
+          doc.setTextColor(217, 119, 6);
+          _txt(doc, i._lpgL100 ? i._lpgL100.toFixed(2) : '—', M + 130, y, null, hasUni);
 
           doc.setFont(FONT, 'bold');
           doc.setTextColor(185, 28, 28);
@@ -6082,7 +6166,6 @@ const App = {
         });
       }
 
-      /* Footer */
       const total = doc.internal.getNumberOfPages();
       for (let i = 1; i <= total; i++) {
         doc.setPage(i);
