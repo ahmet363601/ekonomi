@@ -5067,7 +5067,7 @@ const App = {
     await this.renderBorcalacak();
   },
 
-  async araOdeme(id) {
+async araOdeme(id) {
     const item = state.borcalacaklar.find(b => b.id == id);
     if (!item) return;
     const birim = item.birim || 'tl';
@@ -5096,14 +5096,15 @@ const App = {
         aciklama: document.getElementById('oNot').value
       })
     });
-    if (value && value.miktar > 0) {
-      await CRUD.islemGuncelle(id, item.tip, value);  // item.tip kullan
-      showToast('✅ Güncellendi!');
-      await this.renderIslemList();
-      if (this.currentPage === 'dashboard') await this.renderRecentList();
-      if (this.currentPage === 'islemler') this._updateKategoriAylikOzet();   // 🆕
-    }
-  },
+
+    if (!value || !(value.miktar > 0)) return;
+
+    // ✅ DOĞRU ÇAĞRI: araOdemeEkle
+    await CRUD.araOdemeEkle(id, value.miktar, value.tarih, value.aciklama);
+    showToast('💸 Ara ödeme eklendi');
+    await this.renderBorcList();
+    if (this.currentPage === 'dashboard') await this.renderRecentList();
+},
 
   async tamOdendi(id) {
     const r = await Swal.fire({ icon:'question', title:'Tamamen ödendi mi?', showCancelButton:true, confirmButtonText:'Evet', cancelButtonText:'İptal' });
@@ -7825,40 +7826,48 @@ openKategoriModal() {
     return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
   },
 
-  async _getStorageInfo() {
-    if (!navigator.storage || !navigator.storage.estimate) {
-      return { available: false, message: 'Depolama bilgisi bu tarayıcıda desteklenmiyor' };
-    }
-    try {
-      const est = await navigator.storage.estimate();
-      const usage = est.usage || 0;
-      const quota = est.quota || 0;
-      const percent = quota > 0 ? (usage / quota) * 100 : 0;
-      let persisted = false;
-      try {
-        if (navigator.storage.persisted) persisted = await navigator.storage.persisted();
-      } catch (_) {}
+async _getStorageInfo() {
+  // ⏱️ 3 saniye timeout — asla sonsuza kadar bekleme
+  const withTimeout = (promise, ms = 3000) => Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error('Storage API timeout')), ms))
+  ]);
 
-      return {
-        available: true,
-        usage, quota, percent, persisted,
-        usageFormatted: this._formatBytes(usage),
-        quotaFormatted: this._formatBytes(quota),
-        freeFormatted: this._formatBytes(Math.max(0, quota - usage)),
-        // Veri sayıları
-        counts: {
-          gelirler: state.gelirler.length,
-          giderler: state.giderler.length,
-          borclar: state.borcalacaklar.length,
-          arsivler: Object.keys(state.archives).length,
-          loglar: state.logs.length,
-          yedekler: state.backups.length
-        }
-      };
-    } catch (e) {
-      return { available: false, message: 'Hata: ' + (e.message || 'Bilinmeyen') };
-    }
-  },
+  if (!navigator.storage || !navigator.storage.estimate) {
+    return { available: false, message: 'Depolama bilgisi bu tarayıcıda desteklenmiyor' };
+  }
+  try {
+    const est = await withTimeout(navigator.storage.estimate());
+    const usage = est.usage || 0;
+    const quota = est.quota || 0;
+    const percent = quota > 0 ? (usage / quota) * 100 : 0;
+
+    let persisted = false;
+    try {
+      if (navigator.storage.persisted) {
+        persisted = await withTimeout(navigator.storage.persisted(), 2000);
+      }
+    } catch (_) {}
+
+    return {
+      available: true,
+      usage, quota, percent, persisted,
+      usageFormatted: this._formatBytes(usage),
+      quotaFormatted: this._formatBytes(quota),
+      freeFormatted: this._formatBytes(Math.max(0, quota - usage)),
+      counts: {
+        gelirler: state.gelirler.length,
+        giderler: state.giderler.length,
+        borclar: state.borcalacaklar.length,
+        arsivler: Object.keys(state.archives).length,
+        loglar: state.logs.length,
+        yedekler: state.backups.length
+      }
+    };
+  } catch (e) {
+    return { available: false, message: 'Storage API yanıt vermiyor: ' + (e.message || 'timeout') };
+  }
+},
 
   async openStorageModal() {
     Swal.fire({
@@ -9476,103 +9485,93 @@ let persistRequested = false;
 async function requestPersistentStorage() {
   if (persistRequested) return;
   persistRequested = true;
+  if (!navigator.storage || !navigator.storage.persist) return;
 
-  if (!navigator.storage || !navigator.storage.persist) {
-    console.warn('[Storage] Kalıcı depolama API\'si desteklenmiyor.');
-    return;
-  }
+  // ⏱️ Timeout koruması
+  const withTimeout = (p, ms = 2000) => Promise.race([
+    p,
+    new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
+  ]);
+
   try {
-    const isPersisted = await navigator.storage.persisted();
-    if (isPersisted) {
-      console.log('[Storage] ✅ Zaten kalıcı depolama aktif.');
-      return;
-    }
-    const granted = await navigator.storage.persist();
-    console.log('[Storage] Kalıcı depolama izni:', granted ? '✅ VERİLDİ' : '❌ REDDEDİLDİ');
-    if (!granted) {
-      console.warn('[Storage] Tarayıcı kalıcı depolamaya izin vermedi. Düzenli yedek alın.');
-    }
+    const isPersisted = await withTimeout(navigator.storage.persisted());
+    if (isPersisted) return;
+    await withTimeout(navigator.storage.persist());
   } catch (e) {
-    console.error('[Storage] Kalıcı depolama isteği hatası:', e);
+    console.warn('[Storage] Persist isteği:', e.message);
   }
 }
-
 // İlk kullanıcı etkileşiminde çalıştır
 document.addEventListener('click', () => { requestPersistentStorage(); }, { once: true });
 /* ─────────────────────────────────────────────
    INIT
 ───────────────────────────────────────────── */
 (async function init() {
-  // CDN kontrolü — dayjs veya Swal yüklenmezse uygulama donar
   if (typeof dayjs === 'undefined' || typeof Swal === 'undefined') {
     document.getElementById('view').innerHTML = `
       <div class="empty-state" style="padding:60px 20px;">
         <i class="fas fa-wifi" style="color:var(--danger);font-size:40px;"></i>
-        <p style="margin-top:12px;"><strong>Gerekli kütüphaneler yüklenemedi</strong></p>
-        <p style="font-size:11px;opacity:.6;margin-top:6px;">İnternet bağlantınızı kontrol edip sayfayı yenileyin.</p>
+        <p style="margin-top:12px;"><strong>Kütüphaneler yüklenemedi</strong></p>
+        <p style="font-size:11px;opacity:.6;margin-top:6px;">İnternet bağlantınızı kontrol edin.</p>
         <button class="btn btn-primary" style="margin-top:16px;" onclick="location.reload()">Yenile</button>
       </div>`;
     return;
   }
+
   try {
     await openDB();
     await loadAllData();
-    await App.loadPage('dashboard');    // ← ÖNCE dashboard açılsın
-
-    /* ✅ SIRALI BAŞLATMA — modal çakışmasını önler
-       Her adım bitmeden diğeri başlamaz. Dashboard açıldıktan
-       1 saniye sonra başlar, adımlar arası 300ms bekleme var. */
-    setTimeout(async () => {
-      try {
-        // 1. Migration
-        // 1. Migration
-        try { await migrateOldData(); }
-        catch (e) { console.warn('[init] migrate:', e); }
-
-        // ✅ 300ms → 2000ms (2 saniye bekle, backup yazımı tamamlansın)
-        await new Promise(r => setTimeout(r, 2000));
-
-        // 2. Otomatik arşiv kontrolü
-        try { await autoArchiveCheck(); }
-        catch (e) { console.warn('[init] autoArchive:', e); }
-
-        await new Promise(r => setTimeout(r, 300));
-
-        // 3. iOS ITP uyarısı (sadece iOS'ta ve daha önce gösterilmediyse)
-        if (isIOS && !localStorage.getItem('ios_install_hint_shown')) {
-          await Swal.fire({
-            icon: 'info',
-            title: 'Verileriniz İçin Önemli',
-            html: `<p style="font-size:13px;">iOS Safari, <strong>7 gün</strong> boyunca ziyaret edilmeyen sitelerin verilerini silebilir.</p>
-                   <p style="font-size:13px;margin-top:10px;">Verilerinizi korumak için:</p>
-                   <p style="font-size:13px;margin-top:6px;">📲 Uygulamayı <strong>Ana Ekrana Ekleyin</strong><br>
-                   💾 Veya düzenli olarak <strong>JSON Yedeği</strong> alın.</p>`,
-            confirmButtonText: 'Anladım',
-            timer: 12000,
-            timerProgressBar: true
-          });
-          localStorage.setItem('ios_install_hint_shown', '1');
-          await new Promise(r => setTimeout(r, 300));
-        }
-
-        // 4. Yedek hatırlatıcısı
-        try { await checkBackupReminder(); }
-        catch (e) { console.warn('[init] reminder:', e); }
-
-      } catch (e) {
-        console.warn('[init] Sıralı başlatma hatası:', e);
-      }
-    }, 1000);
-
-  } catch(e) {
-    console.error('Başlatma hatası:', e);
+  } catch (dbErr) {
+    console.error('[init] DB/Kütüphane hatası:', dbErr);
     document.getElementById('view').innerHTML = `
       <div class="empty-state" style="padding:60px 20px;">
-        <i class="fas fa-exclamation-circle" style="color:var(--danger);"></i>
-        <p>Uygulama başlatılamadı.<br>Lütfen sayfayı yenileyin.</p>
+        <i class="fas fa-exclamation-circle" style="color:var(--danger);font-size:40px;"></i>
+        <p style="margin-top:12px;"><strong>Veritabanı açılamadı</strong></p>
+        <p style="font-size:11px;opacity:.7;margin-top:6px;">${dbErr.message || 'Bilinmeyen hata'}</p>
         <button class="btn btn-primary" style="margin-top:16px;" onclick="location.reload()">Yenile</button>
       </div>`;
+    return;
   }
+
+  // ✅ DASHBOARD'U MUTLAKA RENDER ET — başarısız olursa boş sayfa göster
+  try {
+    await App.loadPage('dashboard');
+  } catch (e) {
+    console.error('[init] Dashboard hatası:', e);
+    // Yine de bir şeyler göster
+    document.getElementById('view').innerHTML = `
+      <div class="page-in">
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle"></i>
+          <div><strong>Dashboard yüklenemedi</strong><br>
+          <span style="font-size:12px;">${(e.message || 'Bilinmeyen hata').substring(0, 100)}</span></div>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="location.reload()">
+          <i class="fas fa-redo"></i> Yenile
+        </button>
+      </div>`;
+  }
+
+  // ⚠️ Bu kısım artık asla yüklemeyi bloklamaz
+  setTimeout(async () => {
+    try {
+      await migrateOldData().catch(e => console.warn('[init] migrate:', e));
+      await new Promise(r => setTimeout(r, 1500));
+      await autoArchiveCheck().catch(e => console.warn('[init] autoArchive:', e));
+      await new Promise(r => setTimeout(r, 300));
+
+      if (isIOS && !localStorage.getItem('ios_install_hint_shown')) {
+        await Swal.fire({
+          icon: 'info', title: 'Verileriniz İçin Önemli',
+          html: `<p style="font-size:13px;">iOS Safari, <strong>7 gün</strong> ziyaret edilmeyen sitelerin verilerini silebilir.</p>
+                 <p style="font-size:13px;margin-top:10px;">📲 Ana Ekrana Ekleyin<br>💾 Düzenli JSON Yedeği alın</p>`,
+          confirmButtonText: 'Anladım', timer: 12000, timerProgressBar: true
+        });
+        localStorage.setItem('ios_install_hint_shown', '1');
+      }
+      await checkBackupReminder().catch(e => console.warn('[init] reminder:', e));
+    } catch (e) { console.warn('[init] Arka plan görevleri:', e); }
+  }, 1000);
 })();
 </script>
 </body>
