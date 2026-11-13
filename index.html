@@ -4971,18 +4971,26 @@ const App = {
   },
 
 
-
-  /* 🆕 AKARYAKIT ANALİZ PANELİ */
+  /* 🆕 AKARYAKIT ANALİZ PANELİ — Kalıcı (arşiv + aktif) */
   renderFuelAnalysis() {
     const el = document.getElementById('fuelAnalysisCard');
     if (!el) return;
 
-    const stats = Calc.fuelStats({ start: this._raporStart, end: this._raporEnd });
+    // ✅ Range YOK — tüm akaryakıt verisini göster (arşiv + aktif)
+    // Takip maksatlı: rapor tarih filtresinden bağımsız çalışır
+    const stats = Calc.fuelStats();
     if (stats.count === 0) { el.innerHTML = ''; return; }
 
     const trendItems = stats.items.filter(i => Number(i.fuel?.lPer100km) > 0);
 
-    /* Aylık özet — son 6 maaş dönemi */
+    /* Arşiv durumu — kaç kayıt arşivde, kaç aktif */
+    const archivedCount = Object.values(state.archives)
+      .flatMap(a => Array.isArray(a.giderler) ? a.giderler : [])
+      .filter(g => g.kategori === 'Akaryakıt' && g.fuel)
+      .length;
+    const activeCount = state.giderler.filter(g => g.kategori === 'Akaryakıt' && g.fuel).length;
+
+    /* Aylık özet — son 6 maaş dönemi (arşiv dahil) */
     const byMonth = {};
     stats.items.forEach(i => {
       const k = SalaryMonth.keyOf(i.tarih);
@@ -5004,6 +5012,14 @@ const App = {
         </span>
         <span class="badge badge-amber">${stats.count} dolum</span>
       </div>
+
+      ${archivedCount > 0 ? `
+        <div style="font-size:10.5px;color:var(--text3);text-align:center;padding:7px 10px;background:var(--surface2);border-radius:8px;margin-bottom:10px;display:flex;justify-content:center;gap:14px;flex-wrap:wrap;">
+          <span>📦 <strong style="color:var(--text2);">${archivedCount}</strong> arşiv</span>
+          <span>📝 <strong style="color:var(--text2);">${activeCount}</strong> aktif</span>
+          <span style="font-style:italic;opacity:.7;">takip için saklanır</span>
+        </div>
+      ` : ''}
 
       <div class="stat-grid" style="margin-bottom:12px;">
         <div class="stat-card"><div class="card-label">Toplam Harcama</div><div class="stat-amount red">${Calc.fmt(stats.totalTL)}</div></div>
