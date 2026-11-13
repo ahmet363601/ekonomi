@@ -4223,6 +4223,110 @@ const App = {
   },
 
   async submitIslem() {
+    const kategori = document.getElementById('islemKategori')?.value;
+    const tarih    = document.getElementById('islemTarih')?.value;
+    const aciklama = document.getElementById('islemAciklama')?.value || '';
+    const tip      = document.getElementById('islemTipHidden')?.value || this._islemTip;
+    const isFuel   = tip === 'gider' && kategori === 'Akaryakıt';
+
+    if (!tarih) { Swal.fire({ icon: 'warning', title: 'Tarih Gerekli!', timer: 1800, showConfirmButton: false }); return; }
+
+    let miktar, extra = {};
+
+    if (isFuel) {
+      const fuelTip   = this._fuelTipCurrent || 'benzin';
+      const kmVal     = parseFloat(document.getElementById('fuelKm')?.value);
+      const bLitre    = parseFloat(document.getElementById('fuelBenzinLitre')?.value) || 0;
+      const bFiyat    = parseFloat(document.getElementById('fuelBenzinFiyat')?.value) || 0;
+      const lLitre    = parseFloat(document.getElementById('fuelLpgLitre')?.value) || 0;
+      const lFiyat    = parseFloat(document.getElementById('fuelLpgFiyat')?.value) || 0;
+
+      if (!kmVal || kmVal <= 0) { Swal.fire({ icon: 'warning', title: 'KM zorunlu!', text: 'Akaryakıt kaydı için güncel KM girin.', timer: 2000, showConfirmButton: false }); return; }
+
+      const benzinTL = (fuelTip === 'benzin' || fuelTip === 'her-ikisi') ? bLitre * bFiyat : 0;
+      const lpgTL    = (fuelTip === 'lpg'    || fuelTip === 'her-ikisi') ? lLitre * lFiyat : 0;
+      miktar = benzinTL + lpgTL;
+
+      if (miktar <= 0) { Swal.fire({ icon: 'warning', title: 'Tutar 0!', text: 'En az bir yakıt için litre ve fiyat girin.', timer: 2000, showConfirmButton: false }); return; }
+
+      const prevAll = this._findPrevFuelRecord(null, tarih);
+      const prevKmAll = prevAll?.fuel?.km;
+      const mesafeAll = (prevKmAll && kmVal > prevKmAll) ? (kmVal - prevKmAll) : null;
+
+      const fuel = {
+        km: kmVal,
+        mesafe: mesafeAll,
+        oncekiKm: prevKmAll || null,
+        tip: fuelTip,
+        toplamTL: miktar,
+        toplamLitre: 0,
+        tlPerKm: null
+      };
+
+      /* ✅ Her yakıt için KENDİ tipinden önceki KM */
+      if (fuelTip === 'benzin' || fuelTip === 'her-ikisi') {
+        const prevB = this._findPrevFuelRecordSameType(null, tarih, 'benzin');
+        const prevBKm = prevB?.fuel?.km;
+        const bMesafe = (prevBKm && kmVal > prevBKm) ? (kmVal - prevBKm) : null;
+        fuel.benzin = {
+          litre: bLitre,
+          birimFiyat: bFiyat,
+          toplam: benzinTL,
+          oncekiKm: prevBKm || null,
+          mesafe: bMesafe,
+          l100km: (bMesafe && bLitre) ? ((bLitre * 100) / bMesafe) : null
+        };
+        fuel.toplamLitre += bLitre;
+      }
+      if (fuelTip === 'lpg' || fuelTip === 'her-ikisi') {
+        const prevL = this._findPrevFuelRecordSameType(null, tarih, 'lpg');
+        const prevLKm = prevL?.fuel?.km;
+        const lMesafe = (prevLKm && kmVal > prevLKm) ? (kmVal - prevLKm) : null;
+        fuel.lpg = {
+          litre: lLitre,
+          birimFiyat: lFiyat,
+          toplam: lpgTL,
+          oncekiKm: prevLKm || null,
+          mesafe: lMesafe,
+          l100km: (lMesafe && lLitre) ? ((lLitre * 100) / lMesafe) : null
+        };
+        fuel.toplamLitre += lLitre;
+      }
+
+      if (mesafeAll && miktar) fuel.tlPerKm = miktar / mesafeAll;
+      fuel.litre = fuel.toplamLitre;
+      fuel.birimFiyat = fuel.toplamLitre > 0 ? miktar / fuel.toplamLitre : 0;
+      fuel.lPer100km = mesafeAll && fuel.toplamLitre ? ((fuel.toplamLitre * 100) / mesafeAll) : null;
+
+      extra.fuel = fuel;
+    } else {
+      miktar = parseFloat(document.getElementById('islemMiktar')?.value);
+      if (!miktar || miktar <= 0) { Swal.fire({ icon: 'warning', title: 'Geçersiz Miktar!', text: 'Lütfen 0\'dan büyük bir miktar girin.', timer: 2000, showConfirmButton: false }); return; }
+    }
+
+    await CRUD.islemEkle(tip, miktar, kategori, tarih, aciklama, extra);
+
+    /* Formu temizle */
+    ['islemMiktar','islemAciklama','fuelKm','fuelBenzinLitre','fuelBenzinFiyat','fuelLpgLitre','fuelLpgFiyat'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    const tarihEl = document.getElementById('islemTarih');
+    if (tarihEl) tarihEl.value = dayjs().format('YYYY-MM-DD');
+    const fp = document.getElementById('fuelPreview');
+    if (fp) { fp.innerHTML = ''; fp.classList.remove('visible'); }
+    const btlEl = document.getElementById('fuelBenzinTL'); if (btlEl) btlEl.textContent = 'TL 0,00';
+    const ltlEl = document.getElementById('fuelLpgTL');    if (ltlEl) ltlEl.textContent = 'TL 0,00';
+    const gtEl  = document.getElementById('fuelGrandTotal'); if (gtEl) gtEl.textContent = 'TL 0,00';
+
+    const label = isFuel ? '⛽ Akaryakıt' : (tip === 'gelir' ? '✅ Gelir' : '💸 Gider');
+    showToast(`${label} kaydedildi: ${Calc.fmt(miktar)}`);
+    await this.renderIslemList();
+    if (this.currentPage === 'dashboard') await this.renderRecentList();
+    this._updateKategoriAylikOzet();
+    this._updateFuelKmPlaceholder();
+  },
+
 
   async editIslem(id, tip) {
     const item = (tip === 'gelir' ? state.gelirler : state.giderler).find(i => i.id == id);
