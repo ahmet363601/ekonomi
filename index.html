@@ -5933,10 +5933,10 @@ const App = {
 
       /* ÜST ÖZET — 4 kart */
       const cw = (W - 2 * M - 9) / 4;
-      _kart(doc, M,               y, cw, 22, { label: 'Toplam Dolum', value: String(stats.count),                         accent: [8,145,178] }, hasUni, FONT);
-      _kart(doc, M + cw + 3,      y, cw, 22, { label: 'LPG Litre',    value: l.totalLitre.toFixed(2) + ' L',              accent: [8,145,178] }, hasUni, FONT);
-      _kart(doc, M + (cw+3)*2,    y, cw, 22, { label: 'LPG Tutar',    value: Calc.fmt(l.totalTL),                         accent: [185,28,28] }, hasUni, FONT);
-      _kart(doc, M + (cw+3)*3,    y, cw, 22, { label: 'LPG L/100km',  value: l.avgL100 > 0 ? l.avgL100.toFixed(2) : '—',  accent: [217,119,6] }, hasUni, FONT);
+      _kart(doc, M,               y, cw, 22, { label: 'Toplam Dolum', value: String(stats.count),                        accent: [8,145,178] }, hasUni, FONT);
+      _kart(doc, M + cw + 3,      y, cw, 22, { label: 'LPG Litre',    value: l.totalLitre.toFixed(2) + ' L',             accent: [8,145,178] }, hasUni, FONT);
+      _kart(doc, M + (cw+3)*2,    y, cw, 22, { label: 'LPG Tutar',    value: Calc.fmt(l.totalTL),                        accent: [185,28,28] }, hasUni, FONT);
+      _kart(doc, M + (cw+3)*3,    y, cw, 22, { label: 'LPG L/100km',  value: l.avgL100 > 0 ? l.avgL100.toFixed(2) : '—', accent: [217,119,6] }, hasUni, FONT);
       y += 30;
 
       /* LPG DETAYLI */
@@ -5946,10 +5946,10 @@ const App = {
         y += 10;
 
         const lcw = (W - 2 * M - 9) / 4;
-        _kart(doc, M,               y, lcw, 20, { label: 'Ölçülen KM',    value: l.totalKm.toLocaleString('tr-TR') + ' km',                       accent: [37,99,235] }, hasUni, FONT);
-        _kart(doc, M + lcw + 3,     y, lcw, 20, { label: 'Ort. L/100km',  value: l.avgL100 > 0 ? l.avgL100.toFixed(2) : '—',                      accent: [217,119,6] }, hasUni, FONT);
-        _kart(doc, M + (lcw+3)*2,   y, lcw, 20, { label: 'Ort. TL/km',    value: l.avgTlPerKm > 0 ? l.avgTlPerKm.toFixed(3) : '—',                accent: [8,145,178] }, hasUni, FONT);
-        _kart(doc, M + (lcw+3)*3,   y, lcw, 20, { label: 'Ort. TL/L',     value: l.avgFiyat.toFixed(2),                                           accent: [146,64,14] }, hasUni, FONT);
+        _kart(doc, M,               y, lcw, 20, { label: 'Ölçülen KM',    value: l.totalKm.toLocaleString('tr-TR') + ' km',          accent: [37,99,235] }, hasUni, FONT);
+        _kart(doc, M + lcw + 3,     y, lcw, 20, { label: 'Ort. L/100km',  value: l.avgL100 > 0 ? l.avgL100.toFixed(2) : '—',         accent: [217,119,6] }, hasUni, FONT);
+        _kart(doc, M + (lcw+3)*2,   y, lcw, 20, { label: 'Ort. TL/km',    value: l.avgTlPerKm > 0 ? l.avgTlPerKm.toFixed(3) : '—',   accent: [8,145,178] }, hasUni, FONT);
+        _kart(doc, M + (lcw+3)*3,   y, lcw, 20, { label: 'Ort. TL/L',     value: l.avgFiyat.toFixed(2),                              accent: [146,64,14] }, hasUni, FONT);
         y += 26;
 
         if (l.stats.count > 0) {
