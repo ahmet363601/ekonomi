@@ -8644,8 +8644,7 @@ openKategoriModal() {
             localStorage.setItem('pre_import_backup', json);
             localStorage.setItem('pre_import_backup_date', new Date().toISOString());
           } else {
-            console.warn('[import] Ön yedek çok büyük (>2MB), localStorage\\'a kaydedilmedi');
-          }
+            console.warn("[import] Ön yedek çok büyük (>2MB), localStorage'a kaydedilmedi");          }
         } catch (_) {
           /* sessiz geç — ön yedek zorunlu değil */
         }
