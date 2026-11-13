@@ -1667,7 +1667,6 @@ input[type="month"].form-input,
   .fuel-record-row:hover { background: var(--surface2); }
 }
 </style>
-</style>
 
 </head>
 
@@ -5470,8 +5469,7 @@ const App = {
     }, 180);
   },
 
-  /* 🆕 AKARYAKIT ANALİZ PANELİ */
-  renderFuelAnalysis() {
+
 
   /* 🆕 AKARYAKIT ANALİZ PANELİ */
   renderFuelAnalysis() {
@@ -7819,6 +7817,8 @@ openKategoriModal() {
     const resultsEl = document.getElementById('simResults');
     if (resultsEl) resultsEl.innerHTML = html;
   },
+
+};  // ← App burada kapanmalı
 
     const setLbl = (id, val, prefix) => {
       const el = document.getElementById(id);
