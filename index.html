@@ -2628,12 +2628,13 @@ sonIslemler() {
     const itemsWithBenzin  = normalized.filter(i => i._benzin.litre > 0 && i._mesafe > 0);
     const itemsWithLpg     = normalized.filter(i => i._lpg.litre > 0 && i._mesafe > 0);
     const itemsWithL100    = normalized.filter(i => (i._benzin.litre > 0 || i._lpg.litre > 0) && i._mesafe > 0);
-    const avgTlPerKm        = totalKm > 0 ? totalTL / totalKm : 0;
-    // 🆕 DÜZELTME: Benzin kendi km'sine, LPG kendi km'sine bölünür
-    const avgLPer100_benzin = totalKmBenzin > 0 ? (totalBenzinLitre * 100) / totalKmBenzin : 0;
-    const avgLPer100_lpg    = totalKmLpg > 0 ? (totalLpgLitre * 100) / totalKmLpg : 0;
-    const avgLPer100_toplam = totalKm > 0 ? (totalLitre * 100) / totalKm : 0;
 
+    /* 🆕 KM hesapları — her yakıt için ayrı */
+    const totalKm          = itemsWithKm.reduce((s, i) => s + i._mesafe, 0);
+    const totalKmBenzin    = itemsWithBenzin.reduce((s, i) => s + i._mesafe, 0);
+    const totalKmLpg       = itemsWithLpg.reduce((s, i) => s + i._mesafe, 0);
+
+    /* Litre ve TL toplamları */
     const totalBenzinLitre = itemsWithBenzin.reduce((s, i) => s + i._benzin.litre, 0);
     const totalLpgLitre    = itemsWithLpg.reduce((s, i) => s + i._lpg.litre, 0);
     const totalBenzinTL    = normalized.reduce((s, i) => s + i._benzin.toplam, 0);
@@ -2641,8 +2642,8 @@ sonIslemler() {
     const totalTL          = totalBenzinTL + totalLpgTL;
     const totalLitre       = totalBenzinLitre + totalLpgLitre;
 
+    /* 🆕 Ortalamalar — benzin ve LPG kendi km'sine bölünür */
     const avgTlPerKm        = totalKm > 0 ? totalTL / totalKm : 0;
-    // 🆕 DÜZELTME: Benzin kendi km'sine, LPG kendi km'sine bölünür
     const avgLPer100_benzin = totalKmBenzin > 0 ? (totalBenzinLitre * 100) / totalKmBenzin : 0;
     const avgLPer100_lpg    = totalKmLpg > 0 ? (totalLpgLitre * 100) / totalKmLpg : 0;
     const avgLPer100_toplam = totalKm > 0 ? (totalLitre * 100) / totalKm : 0;
