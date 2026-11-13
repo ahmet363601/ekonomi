@@ -2629,23 +2629,48 @@ sonIslemler() {
     const itemsWithLpg     = normalized.filter(i => i._lpg.litre > 0 && i._mesafe > 0);
     const itemsWithL100    = normalized.filter(i => (i._benzin.litre > 0 || i._lpg.litre > 0) && i._mesafe > 0);
 
-    /* 🆕 KM hesapları — her yakıt için ayrı */
-    const totalKm          = itemsWithKm.reduce((s, i) => s + i._mesafe, 0);
-    const totalKmBenzin    = itemsWithBenzin.reduce((s, i) => s + i._mesafe, 0);
-    const totalKmLpg       = itemsWithLpg.reduce((s, i) => s + i._mesafe, 0);
+    /* 🆕 SIRALI SİSTEM DÜZELTMESİ — her yakıt KENDİ dolumları arasında */
+    /* Benzin ve LPG dolumlarını ayrı ayrı listele (km sırasına göre) */
+    const benzins = normalized.filter(i => i._benzin.litre > 0 && i._km > 0);
+    const lpgs    = normalized.filter(i => i._lpg.litre > 0 && i._km > 0);
 
-    /* Litre ve TL toplamları */
-    const totalBenzinLitre = itemsWithBenzin.reduce((s, i) => s + i._benzin.litre, 0);
-    const totalLpgLitre    = itemsWithLpg.reduce((s, i) => s + i._lpg.litre, 0);
+    /* totalKm — herhangi ardışık iki dolum arası (tüm harcama / toplam km) */
+    const totalKm = itemsWithKm.reduce((s, i) => s + i._mesafe, 0);
+
+    /* Benzin: ilk dolum hariç — ardışık benzin dolumları arası km */
+    let totalKmBenzin       = 0;
+    let totalBenzinLitreAvg = 0;
+    for (let i = 1; i < benzins.length; i++) {
+      const diff = benzins[i]._km - benzins[i-1]._km;
+      if (diff > 0) {
+        totalKmBenzin       += diff;
+        totalBenzinLitreAvg += benzins[i]._benzin.litre;
+      }
+    }
+
+    /* LPG: ilk dolum hariç — ardışık LPG dolumları arası km */
+    let totalKmLpg       = 0;
+    let totalLpgLitreAvg = 0;
+    for (let i = 1; i < lpgs.length; i++) {
+      const diff = lpgs[i]._km - lpgs[i-1]._km;
+      if (diff > 0) {
+        totalKmLpg       += diff;
+        totalLpgLitreAvg += lpgs[i]._lpg.litre;
+      }
+    }
+
+    /* Gösterim için toplam litreler (tüm dolumlar dahil) */
+    const totalBenzinLitre = benzins.reduce((s, i) => s + i._benzin.litre, 0);
+    const totalLpgLitre    = lpgs.reduce((s, i) => s + i._lpg.litre, 0);
     const totalBenzinTL    = normalized.reduce((s, i) => s + i._benzin.toplam, 0);
     const totalLpgTL       = normalized.reduce((s, i) => s + i._lpg.toplam, 0);
     const totalTL          = totalBenzinTL + totalLpgTL;
     const totalLitre       = totalBenzinLitre + totalLpgLitre;
 
-    /* 🆕 Ortalamalar — benzin ve LPG kendi km'sine bölünür */
+    /* 🆕 Ortalamalar — kendi dolumları arası km'ye bölünür */
     const avgTlPerKm        = totalKm > 0 ? totalTL / totalKm : 0;
-    const avgLPer100_benzin = totalKmBenzin > 0 ? (totalBenzinLitre * 100) / totalKmBenzin : 0;
-    const avgLPer100_lpg    = totalKmLpg > 0 ? (totalLpgLitre * 100) / totalKmLpg : 0;
+    const avgLPer100_benzin = totalKmBenzin > 0 ? (totalBenzinLitreAvg * 100) / totalKmBenzin : 0;
+    const avgLPer100_lpg    = totalKmLpg > 0 ? (totalLpgLitreAvg * 100) / totalKmLpg : 0;
     const avgLPer100_toplam = totalKm > 0 ? (totalLitre * 100) / totalKm : 0;
     const avgLPer100        = avgLPer100_toplam; // backward compat
     const avgLitreFiyat     = totalLitre > 0 ? totalTL / totalLitre : 0;
