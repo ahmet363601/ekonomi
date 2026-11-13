@@ -14,7 +14,8 @@
   <meta name="format-detection" content="telephone=no, email=no, address=no, date=no">
   <meta name="color-scheme" content="light dark">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-<title>EBHA Finans · Portföy Yönetimi</title>
+<title>EBHA Mani · Finansal Takip</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230F2A5C'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Inter,Arial' font-weight='800' font-size='16' fill='%23FFFFFF'%3EE%3C/text%3E%3C/svg%3E">
   
   <!-- ═══ TEMA RENGİ — iOS Status Bar + Android Tarayıcı ═══ -->
   <meta name="theme-color" content="#1E40AF" media="(prefers-color-scheme: light)">
@@ -3833,6 +3834,28 @@ const App = {
       Charts.donut('dashDonutChart', Calc.kategoriGiderler(ayF));
     });
     await this.renderRecentList();
+        // 🆕 Depolama doluluk uyarısı (sadece >%80 ise göster)
+    try {
+      const info = await this._getStorageInfo();
+      if (info.available && info.percent > 80) {
+        const view = document.getElementById('view');
+        if (view) {
+          const banner = document.createElement('div');
+          banner.className = 'alert';
+          banner.style.cssText = 'background:var(--danger-light);color:var(--danger);border:1px solid var(--danger);margin-top:8px;cursor:pointer;';
+          banner.onclick = () => this.openStorageModal();
+          banner.innerHTML = `
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>
+              <strong>Depolama %${info.percent.toFixed(1)} dolu!</strong>
+              Yedek alın veya eski arşivleri temizleyin.
+              <span style="text-decoration:underline;font-weight:700;">Detaylar →</span>
+            </div>
+          `;
+          view.appendChild(banner);
+        }
+      }
+    } catch (_) { /* sessiz geç */ }
   },               // ← Tek kapanış, doğru
 
   /* ── AKARYAKIT — Çift Yakıt ── */
@@ -5507,14 +5530,14 @@ const App = {
     }
     return items.map(i => {
       const tipBadges = [];
-      if (i._lpg.litre > 0)    tipBadges.push('<span style="background:#ECFEFF;color:#0891B2;padding:2px 8px;border-radius:6px;font-size:9px;font-weight:700;">💧 LPG</span>');
-      if (i._benzin.litre > 0) tipBadges.push('<span style="background:#EFF6FF;color:#2563EB;padding:2px 8px;border-radius:6px;font-size:9px;font-weight:700;">⛽ BENZİN</span>');
+      if (i._lpg.litre > 0)    tipBadges.push('<span style="background:var(--info-light);color:var(--info);padding:2px 8px;border-radius:6px;font-size:9px;font-weight:700;">💧 LPG</span>');
+      if (i._benzin.litre > 0) tipBadges.push('<span style="background:var(--primary-light);color:var(--primary);padding:2px 8px;border-radius:6px;font-size:9px;font-weight:700;">⛽ BENZİN</span>');
 
       const metrics = [];
       if (i._km > 0) metrics.push(`<span class="fuel-record-metric">🛣️ <strong>${i._km.toLocaleString('tr-TR')}</strong> km</span>`);
-      if (i._lpg.litre > 0) metrics.push(`<span class="fuel-record-metric" style="color:#0891B2;">💧 <strong>${i._lpg.litre.toFixed(1)}</strong> L</span>`);
+      if (i._lpg.litre > 0) metrics.push(`<span class="fuel-record-metric" style="color:var(--info);">💧 <strong>${i._lpg.litre.toFixed(1)}</strong> L</span>`);
       if (i._lpgL100) metrics.push(`<span class="fuel-record-metric" style="color:var(--warning);font-weight:700;">${i._lpgL100.toFixed(2)} L/100km</span>`);
-      if (i._benzin.litre > 0) metrics.push(`<span class="fuel-record-metric" style="color:#2563EB;">⛽ <strong>${i._benzin.litre.toFixed(1)}</strong> L</span>`);
+      if (i._benzin.litre > 0) metrics.push(`<span class="fuel-record-metric" style="color:var(--primary);">⛽ <strong>${i._benzin.litre.toFixed(1)}</strong> L</span>`);
 
       return `<div class="fuel-record-row" onclick="App._openFuelRecordDetail(${i.id})">
         <div>
@@ -5531,15 +5554,13 @@ const App = {
   },
 
 
-
-
   _buildFuelMonthlyHTML(s) {
     if (!s.lpg.monthly.length) return '';
     const rows = s.lpg.monthly.slice(-6).map(m => `
       <div style="display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:6px;padding:8px 10px;font-size:10.5px;border-bottom:1px dashed var(--border);align-items:center;">
         <span style="font-weight:700;color:var(--text);min-width:65px;">${m.label}</span>
         <span style="color:var(--text3);font-size:9.5px;">${m.lpgCount} dolum</span>
-        <span style="color:#0891B2;font-weight:800;text-align:right;">${m.lpgLitre.toFixed(1)} L</span>
+        <span style="color:var(--info);font-weight:800;text-align:right;">${m.lpgLitre.toFixed(1)} L</span>
         <span style="color:var(--danger);font-weight:700;text-align:right;">${Calc.fmt(m.lpgTL)}</span>
         <span style="color:var(--text2);text-align:right;font-size:9.5px;">${m.km.toLocaleString('tr-TR')} km</span>
         <span style="color:${m.avgL100 > 0 ? 'var(--warning)' : 'var(--text3)'};text-align:right;font-size:9.5px;font-weight:700;">${m.avgL100 > 0 ? m.avgL100.toFixed(2) : '—'}</span>
@@ -5568,19 +5589,19 @@ const App = {
 
     return `
       <div style="border-left:4px solid var(--info);background:var(--surface2);border-radius:12px;padding:14px;margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <div style="display:flex;align-items:center;gap:8px;">
             <div style="width:32px;height:32px;border-radius:8px;background:var(--info);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;">
-            <i class="fas fa-fire-flame-simple"></i>
+              <i class="fas fa-fire-flame-simple"></i>
             </div>
             <div>
-              <div style="font-size:14px;font-weight:800;color:#0E7490;letter-spacing:-.2px;">LPG · Ana Yakıt</div>
-              <div style="font-size:10px;color:#0891B2;">Detaylı Tüketim İstatistikleri</div>
+              <div style="font-size:14px;font-weight:800;color:var(--info);letter-spacing:-.2px;">LPG · Ana Yakıt</div>
+              <div style="font-size:10px;color:var(--info);opacity:.8;">Detaylı Tüketim İstatistikleri</div>
             </div>
           </div>
           <div style="text-align:right;">
-            <div style="font-size:9px;color:#7B8A9E;text-transform:uppercase;font-weight:700;">Dolum</div>
-            <div style="font-size:16px;font-weight:800;color:#0F2A5C;">${l.count}</div>
+            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;">Dolum</div>
+            <div style="font-size:16px;font-weight:800;color:var(--text);">${l.count}</div>
           </div>
         </div>
 
@@ -5619,8 +5640,8 @@ const App = {
         </div>
 
         ${l.dolumAraligi ? `
-          <div style="background:rgba(8,145,178,.08);border-radius:8px;padding:8px 10px;margin-bottom:8px;">
-            <div style="font-size:9px;color:#0E7490;text-transform:uppercase;font-weight:700;margin-bottom:4px;">⏱️ Dolum Aralığı</div>
+          <div style="background:var(--surface);border-radius:8px;padding:8px 10px;margin-bottom:8px;border:1px solid var(--border);">
+            <div style="font-size:9px;color:var(--info);text-transform:uppercase;font-weight:700;margin-bottom:4px;">⏱️ Dolum Aralığı</div>
             <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);">
               <span>Ort: <strong>${l.dolumAraligi.ortalama.toFixed(0)} gün</strong></span>
               <span>Min: <strong>${l.dolumAraligi.min} gün</strong></span>
@@ -5630,7 +5651,7 @@ const App = {
         ` : ''}
 
         ${l.stats.count > 0 ? `
-          <div style="background:var(--surface2);border-radius:8px;padding:10px;margin-bottom:8px;">
+          <div style="background:var(--surface);border-radius:8px;padding:10px;margin-bottom:8px;border:1px solid var(--border);">
             <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:6px;">📊 Tüketim Dağılımı (L/100km · ${l.stats.count} ölçüm)</div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px;">
               <div><span style="color:var(--text3);">Min:</span> <strong>${l.stats.min.toFixed(2)}</strong></div>
@@ -5645,12 +5666,12 @@ const App = {
 
         ${l.enEkonomik && l.enPahali ? `
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;font-size:11px;">
-            <div style="padding:7px 9px;background:#ECFDF5;border-radius:8px;border-left:3px solid var(--accent);">
+            <div style="padding:7px 9px;background:var(--accent-light);border-radius:8px;border-left:3px solid var(--accent);">
               <div style="font-size:9px;color:var(--accent);text-transform:uppercase;font-weight:700;">🏆 En Verimli</div>
               <div style="font-weight:800;color:var(--text);margin-top:2px;">${(l.enEkonomik._lpgL100 || 0).toFixed(2)} L/100km</div>
               <div style="font-size:9px;color:var(--text3);">${dayjs(l.enEkonomik.tarih).format('DD MMM YY')}</div>
             </div>
-            <div style="padding:7px 9px;background:#FEF2F2;border-radius:8px;border-left:3px solid var(--danger);">
+            <div style="padding:7px 9px;background:var(--danger-light);border-radius:8px;border-left:3px solid var(--danger);">
               <div style="font-size:9px;color:var(--danger);text-transform:uppercase;font-weight:700;">⚠️ En Yüksek</div>
               <div style="font-weight:800;color:var(--text);margin-top:2px;">${(l.enPahali._lpgL100 || 0).toFixed(2)} L/100km</div>
               <div style="font-size:9px;color:var(--text3);">${dayjs(l.enPahali.tarih).format('DD MMM YY')}</div>
@@ -5659,8 +5680,8 @@ const App = {
         ` : ''}
 
         ${l.projeksiyon.aylikTL > 0 ? `
-          <div style="background:rgba(8,145,178,.06);border-radius:8px;padding:8px 10px;margin-bottom:8px;">
-            <div style="font-size:9px;color:#0E7490;text-transform:uppercase;font-weight:700;margin-bottom:4px;">🔮 Aylık Projeksiyon (son 6 ay ort.)</div>
+          <div style="background:var(--surface);border-radius:8px;padding:8px 10px;margin-bottom:8px;border:1px solid var(--border);">
+            <div style="font-size:9px;color:var(--info);text-transform:uppercase;font-weight:700;margin-bottom:4px;">🔮 Aylık Projeksiyon (son 6 ay ort.)</div>
             <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);">
               <span>${Calc.fmt(l.projeksiyon.aylikTL)}</span>
               <span>${l.projeksiyon.aylikLitre.toFixed(1)} L</span>
@@ -5670,7 +5691,7 @@ const App = {
         ` : ''}
 
         ${l.fiyatTrend ? `
-          <div style="background:var(--surface2);border-radius:8px;padding:8px 10px;font-size:11px;">
+          <div style="background:var(--surface);border-radius:8px;padding:8px 10px;font-size:11px;border:1px solid var(--border);">
             <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:3px;">💵 LPG Birim Fiyat Trendi</div>
             <div style="display:flex;justify-content:space-between;color:var(--text2);">
               <span>${l.fiyatTrend.ilk.toFixed(2)} → ${l.fiyatTrend.son.toFixed(2)} TL/L</span>
@@ -5691,14 +5712,14 @@ const App = {
 
     return `
       <div style="border-left:4px solid var(--primary);background:var(--surface2);border-radius:12px;padding:12px;margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <div style="display:flex;align-items:center;gap:8px;">
-            <div style="width:26px;height:26px;border-radius:7px;background:#2563EB;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;">
+            <div style="width:26px;height:26px;border-radius:7px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;">
               <i class="fas fa-gas-pump"></i>
             </div>
             <div>
-              <div style="font-size:12px;font-weight:800;color:#1E40AF;">Benzin · Yardımcı Yakıt</div>
-              <div style="font-size:9px;color:#3B82F6;">Sadece toplam tutarlar</div>
+              <div style="font-size:12px;font-weight:800;color:var(--primary);">Benzin · Yardımcı Yakıt</div>
+              <div style="font-size:9px;color:var(--primary);opacity:.7;">Sadece toplam tutarlar</div>
             </div>
           </div>
           <div style="font-size:10px;color:var(--text3);">${b.count} dolum</div>
@@ -5707,7 +5728,7 @@ const App = {
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
           <div class="fuel-modal-stat">
             <div class="fuel-modal-stat-label">Litre</div>
-            <div class="fuel-modal-stat-value" style="font-size:13px;color:#2563EB;">${b.totalLitre.toFixed(2)} L</div>
+            <div class="fuel-modal-stat-value" style="font-size:13px;color:var(--primary);">${b.totalLitre.toFixed(2)} L</div>
           </div>
           <div class="fuel-modal-stat">
             <div class="fuel-modal-stat-label">Tutar</div>
@@ -7794,6 +7815,132 @@ openKategoriModal() {
     await this.loadPage(this.currentPage);
   }
 },
+    /* 🆕 DEPOLAMA — format + bilgi */
+  _formatBytes(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+    return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+  },
+
+  async _getStorageInfo() {
+    if (!navigator.storage || !navigator.storage.estimate) {
+      return { available: false, message: 'Depolama bilgisi bu tarayıcıda desteklenmiyor' };
+    }
+    try {
+      const est = await navigator.storage.estimate();
+      const usage = est.usage || 0;
+      const quota = est.quota || 0;
+      const percent = quota > 0 ? (usage / quota) * 100 : 0;
+      let persisted = false;
+      try {
+        if (navigator.storage.persisted) persisted = await navigator.storage.persisted();
+      } catch (_) {}
+
+      return {
+        available: true,
+        usage, quota, percent, persisted,
+        usageFormatted: this._formatBytes(usage),
+        quotaFormatted: this._formatBytes(quota),
+        freeFormatted: this._formatBytes(Math.max(0, quota - usage)),
+        // Veri sayıları
+        counts: {
+          gelirler: state.gelirler.length,
+          giderler: state.giderler.length,
+          borclar: state.borcalacaklar.length,
+          arsivler: Object.keys(state.archives).length,
+          loglar: state.logs.length,
+          yedekler: state.backups.length
+        }
+      };
+    } catch (e) {
+      return { available: false, message: 'Hata: ' + (e.message || 'Bilinmeyen') };
+    }
+  },
+
+  async openStorageModal() {
+    Swal.fire({
+      title: '💾 Depolama Durumu',
+      html: `<div id="storageDetailBody" style="text-align:left;min-height:120px;">
+        <div style="text-align:center;padding:20px;">
+          <div class="spinner" style="margin:0 auto;width:28px;height:28px;"></div>
+          <p style="font-size:11px;color:var(--text3);margin-top:10px;">Yükleniyor...</p>
+        </div>
+      </div>`,
+      width: Math.min(480, window.innerWidth - 24),
+      confirmButtonText: 'Kapat',
+      didOpen: async () => {
+        const info = await this._getStorageInfo();
+        const body = document.getElementById('storageDetailBody');
+        if (!body) return;
+
+        if (!info.available) {
+          body.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text3);">
+            <i class="fas fa-info-circle" style="font-size:32px;opacity:.4;margin-bottom:8px;"></i>
+            <p style="font-size:12px;">${UI.escHtml(info.message)}</p>
+          </div>`;
+          return;
+        }
+
+        const barColor = info.percent > 80 ? 'var(--danger)' : info.percent > 50 ? 'var(--warning)' : 'var(--accent)';
+        const warnMsg = info.percent > 80
+          ? '<div class="alert" style="background:var(--danger-light);color:var(--danger);border:1px solid var(--danger);margin-top:10px;font-size:11px;"><i class="fas fa-exclamation-triangle"></i><div><strong>Depolama doluyor!</strong> Yedek alıp eski arşivleri temizleyin.</div></div>'
+          : '';
+
+        body.innerHTML = `
+          <div style="padding:14px;background:var(--surface2);border-radius:10px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:700;">Kullanım</span>
+              <span style="font-size:13px;font-weight:800;color:${barColor};">%${info.percent.toFixed(1)}</span>
+            </div>
+            <div class="progress-track" style="margin:0;height:8px;">
+              <div class="progress-bar" style="width:${Math.min(100, info.percent)}%;background:${barColor};"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:var(--text2);">
+              <span><strong>${info.usageFormatted}</strong> kullanılıyor</span>
+              <span><strong>${info.quotaFormatted}</strong> toplam</span>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+            <div class="archive-stat-card">
+              <div class="archive-stat-label">Kullanılan</div>
+              <div class="archive-stat-value" style="font-size:13px;">${info.usageFormatted}</div>
+            </div>
+            <div class="archive-stat-card">
+              <div class="archive-stat-label">Boş Alan</div>
+              <div class="archive-stat-value green" style="font-size:13px;">${info.freeFormatted}</div>
+            </div>
+          </div>
+
+          <div style="padding:12px;background:var(--surface2);border-radius:10px;margin-bottom:12px;">
+            <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px;">📊 Veri Sayıları</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;">
+              <div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Gelir:</span><strong>${info.counts.gelirler}</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Gider:</span><strong>${info.counts.giderler}</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Borç/Alacak:</span><strong>${info.counts.borclar}</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Arşiv:</span><strong>${info.counts.arsivler}</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Log:</span><strong>${info.counts.loglar}</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Yedek:</span><strong>${info.counts.yedekler}</strong></div>
+            </div>
+          </div>
+
+          <div style="padding:10px 12px;background:${info.persisted ? 'var(--accent-light)' : 'var(--warning-light)'};border-radius:10px;border:1px solid ${info.persisted ? 'var(--accent)' : 'var(--warning)'};margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:8px;font-size:11px;">
+              <i class="fas ${info.persisted ? 'fa-check-circle' : 'fa-info-circle'}" style="color:${info.persisted ? 'var(--accent)' : 'var(--warning)'};font-size:14px;"></i>
+              <div>
+                <strong style="color:${info.persisted ? 'var(--accent)' : 'var(--warning)'};">Kalıcı Depolama ${info.persisted ? 'Aktif' : 'Pasif'}</strong>
+                <div style="color:var(--text2);margin-top:2px;">${info.persisted ? 'Tarayıcı verilerinizi otomatik silmez.' : 'İlk kullanıcı etkileşiminde otomatik istenir.'}</div>
+              </div>
+            </div>
+          </div>
+
+          ${warnMsg}
+        `;
+      }
+    });
+  },
   async openSettingsModal() {
     const { value } = await Swal.fire({
       title: '⚙️ Ayarlar',
@@ -7803,7 +7950,7 @@ openKategoriModal() {
           ${[['bugun','Bugün'],['hafta','Bu Hafta'],['ay','Bu Ay'],['3ay','Son 3 Ay']].map(([v,l])=>`<option value="${v}"${v===state.ayarlar.varsayilanRaporAraligi?' selected':''}>${l}</option>`).join('')}
         </select>
 
-        <div style="margin-top:20px;padding:14px;background:var(--warning-light);border-radius:12px;border:1px solid #FDE68A;">
+        <div style="margin-top:16px;padding:14px;background:var(--warning-light);border-radius:12px;border:1px solid #FDE68A;">
           <div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:10px;">🪙 Altın Fiyatları</div>
           <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Gram Altın (TL)</label>
           <input type="number" id="sGramAltin" class="swal2-input" step="0.01" min="0" value="${state.ayarlar.gramAltinFiyati||0}" style="margin:0 0 10px 0;width:100%;">
@@ -7814,20 +7961,55 @@ openKategoriModal() {
           </p>
         </div>
 
-        <div style="margin-top:20px;padding:14px;background:var(--primary-light);border-radius:12px;border:1px solid #BFDBFE;">
+        <!-- 🆕 DEPOLAMA -->
+        <div style="margin-top:16px;padding:12px 14px;background:var(--surface2);border-radius:12px;border:1px solid var(--border);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-size:12px;font-weight:700;color:var(--text2);">💾 Depolama</div>
+            <button type="button" onclick="App.openStorageModal()" style="background:var(--primary-light);color:var(--primary);border:1px solid var(--primary);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:10px;font-weight:700;">Detaylar</button>
+          </div>
+          <div id="storageMini" style="font-size:11px;color:var(--text3);">Yükleniyor...</div>
+        </div>
+
+        <div style="margin-top:16px;padding:14px;background:var(--primary-light);border-radius:12px;border:1px solid #BFDBFE;">
           <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;">📲 Uygulamayı Yükle</div>
           <p style="font-size:11px;color:var(--text2);margin-bottom:10px;">Ana ekrana ekleyip çevrimdışı kullanın.</p>
-          <button onclick="App.promptInstall()" style="padding:8px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;">Ana Ekrana Ekle</button>
+          <button type="button" onclick="App.promptInstall()" style="padding:8px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;">Ana Ekrana Ekle</button>
         </div>
-        <div style="margin-top:20px;padding:14px;background:var(--danger-light);border-radius:12px;border:1px solid #FCA5A5;">
+        <div style="margin-top:16px;padding:14px;background:var(--danger-light);border-radius:12px;border:1px solid #FCA5A5;">
           <div style="font-size:12px;font-weight:700;color:var(--danger);margin-bottom:8px;">⚠️ Tehlikeli Bölge</div>
           <p style="font-size:11px;color:var(--text2);margin-bottom:10px;">Tüm veriler kalıcı olarak silinir. Bu işlem geri alınamaz!</p>
-          <button onclick="App.resetAll()" style="padding:8px 14px;background:var(--danger);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;">Tüm Verileri Sıfırla</button>
+          <button type="button" onclick="App.resetAll()" style="padding:8px 14px;background:var(--danger);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;">Tüm Verileri Sıfırla</button>
         </div>
       </div>`,
       confirmButtonText: 'Kaydet',
       showCancelButton: true,
       cancelButtonText: 'İptal',
+      width: Math.min(520, window.innerWidth - 24),
+      didOpen: async () => {
+        try {
+          const info = await this._getStorageInfo();
+          const mini = document.getElementById('storageMini');
+          if (!mini) return;
+          if (!info.available) {
+            mini.textContent = info.message;
+            return;
+          }
+          const color = info.percent > 80 ? 'var(--danger)' : info.percent > 50 ? 'var(--warning)' : 'var(--accent)';
+          mini.innerHTML = `
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span>Kullanım</span>
+              <strong style="color:${color};">${info.usageFormatted} / ${info.quotaFormatted}</strong>
+            </div>
+            <div class="progress-track" style="margin:0;height:4px;">
+              <div class="progress-bar" style="width:${Math.min(100, info.percent)}%;background:${color};"></div>
+            </div>
+            <div style="margin-top:4px;text-align:right;font-size:10px;color:${color};font-weight:700;">%${info.percent.toFixed(1)}</div>
+          `;
+        } catch (e) {
+          const mini = document.getElementById('storageMini');
+          if (mini) mini.textContent = 'Bilgi alınamadı';
+        }
+      },
       preConfirm: () => ({
         varsayilanRaporAraligi: document.getElementById('sRa').value,
         gramAltinFiyati: parseFloat(document.getElementById('sGramAltin').value) || 0,
@@ -7837,8 +8019,7 @@ openKategoriModal() {
     if (value) {
       state.ayarlar = { ...state.ayarlar, ...value };
       await saveAllData();
-      showToast('✅ Ayarlar kaydedildi — TL karşılıkları güncellendi');
-      // Tüm sayfayı yenile ki tüm hesaplamalar yeni kurla çalışsın
+      showToast('✅ Ayarlar kaydedildi');
       await this.loadPage(this.currentPage);
     }
   },
@@ -7888,6 +8069,19 @@ openKategoriModal() {
 
     Swal.close();
     showToast('🗑️ Tüm veriler sıfırlandı');
+        // 🆕 App state sıfırla (UI'nin temiz başlaması için)
+    this._recentTab = 'tum';
+    this._recentPage = 1;
+    this._islemTip = 'gider';
+    this._islemListTab = 'tum';
+    this._islemListPage = 1;
+    this._borcFilter = 'tum';
+    this._fuelFilter = { q: '', range: 'tum', tip: 'tum' };
+    this._fuelPage = 1;
+    this._archivingLock = false;
+    this._archiveOpenYears = null;
+    _lastBackupTime = 0;
+    
     await this.loadPage('dashboard');
   } catch (e) {
     console.error('[resetAll] Hata:', e);
@@ -8323,6 +8517,7 @@ openKategoriModal() {
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       localStorage.setItem('last_backup_date', new Date().toISOString());
+      _lastBackupTime = Date.now();   // 🆕 auto backup timer'ı sıfırla
 
       const stats = {
         gelir: state.gelirler.length,
@@ -8429,6 +8624,30 @@ openKategoriModal() {
           width: Math.min(500, window.innerWidth - 24)
         });
         if (!onay.isConfirmed) return;
+                // 🆕 Ön yedek (yanlış import geri dönülemez, bu güvence sağlar)
+        try {
+          const preBackup = {
+            _type: 'pre_import_auto_backup',
+            _timestamp: new Date().toISOString(),
+            gelirler: state.gelirler,
+            giderler: state.giderler,
+            borcalacaklar: state.borcalacaklar,
+            kategoriler: state.kategoriler,
+            limitler: state.limitler,
+            archives: state.archives,
+            ayarlar: state.ayarlar
+          };
+          const json = JSON.stringify(preBackup);
+          // Boyut kontrolü: 2MB sınırı
+          if (json.length < 2 * 1024 * 1024) {
+            localStorage.setItem('pre_import_backup', json);
+            localStorage.setItem('pre_import_backup_date', new Date().toISOString());
+          } else {
+            console.warn('[import] Ön yedek çok büyük (>2MB), localStorage\\'a kaydedilmedi');
+          }
+        } catch (_) {
+          /* sessiz geç — ön yedek zorunlu değil */
+        }
 
         state.gelirler      = newGelirler;
         state.giderler      = newGiderler;
