@@ -3218,7 +3218,6 @@ const CRUD = {
     await addLog('limit_sil', kategori);
   },
   async manualArchive(monthKey) {
-    /* Default: bir önceki tamamlanmış maaş dönemi */
     if (!monthKey) monthKey = SalaryMonth.previousKey();
 
     if (state.archives[monthKey]) {
@@ -3226,7 +3225,7 @@ const CRUD = {
       return false;
     }
 
-    const range = SalaryMonth.range(monthKey);
+    const range  = SalaryMonth.range(monthKey);
     const aGelir = state.gelirler.filter(g => g.tarih >= range.start && g.tarih <= range.end);
     const aGider = state.giderler.filter(g => g.tarih >= range.start && g.tarih <= range.end);
 
@@ -3235,7 +3234,6 @@ const CRUD = {
       return false;
     }
 
-    /* O döneme ait loglar (yerel tarihe göre) */
     const aLoglar = state.logs.filter(l => {
       const d = dayjs(l.timestamp).format('YYYY-MM-DD');
       return d >= range.start && d <= range.end;
@@ -3251,8 +3249,6 @@ const CRUD = {
       schemaVersion: 3
     };
 
-    // 1) ÖNCE arşivi güvenceye al
-    // 1) ÖNCE arşivi güvenceye al — başarısızsa erken çık
     try {
       await saveArchives();
     } catch (saveErr) {
@@ -3267,7 +3263,6 @@ const CRUD = {
       return false;
     }
 
-    // 2) SONRA ana listeden kaldır
     state.gelirler = state.gelirler.filter(g => !(g.tarih >= range.start && g.tarih <= range.end));
     state.giderler = state.giderler.filter(g => !(g.tarih >= range.start && g.tarih <= range.end));
     state.logs     = state.logs.filter(l => {
@@ -3281,11 +3276,9 @@ const CRUD = {
       await saveLogs();
     } catch (listErr) {
       console.error('[manualArchive] Ana liste kaydı başarısız:', listErr);
-      // Arşiv zaten kaydedildi; ana listede kalıntı var ama zararsız
-      // Bir sonraki açılışta pendingMonths filtreleyecek çünkü archive mevcut
     }
 
-    /* 🆕 Arşiv PDF'i üret ve arşive kaydet */
+    /* 🆕 Arşiv PDF'i üret ve arşive kaydet — GLOBAL buildArchivePDF'i çağır */
     try {
       Swal.fire({
         title: '📄 Arşiv PDF oluşturuluyor...',
@@ -3293,12 +3286,14 @@ const CRUD = {
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading()
       });
-      async function buildArchivePDF(monthKey) {
-        const timeoutP = new Promise(resolve => setTimeout(() => resolve(null), 15000));
-        const buildP = (async () => { /* mevcut kod */ })();
-        return Promise.race([buildP, timeoutP]);
-      }
-      const pdfDataUrl = await buildArchivePDF(monthKey);
+
+      // ⬇️ TEK DEĞİŞİKLİK — nested fonksiyon SİLİNDİ, global olan Promise.race ile çağrılıyor
+      const timeoutP = new Promise(resolve => setTimeout(() => resolve(null), 15000));
+      const pdfDataUrl = await Promise.race([
+        buildArchivePDF(monthKey),
+        timeoutP
+      ]);
+
       Swal.close();
 
       if (pdfDataUrl) {
@@ -3311,7 +3306,6 @@ const CRUD = {
       console.warn('[manuel_archiv] PDF üretim hatası (devam ediliyor):', errPdf);
     }
 
-    // ✅ Arşiv log objesi — hem ana log'a hem arşive yazılacak
     const arsivLogObj = {
       id: Date.now() + Math.random(),
       timestamp: new Date().toISOString(),
@@ -3325,11 +3319,9 @@ const CRUD = {
       page: 'arsiv'
     };
 
-    // Ana log'a ekle (Dashboard ve Log modal'da görünsün)
     state.logs.unshift(arsivLogObj);
     if (state.logs.length > 500) state.logs = state.logs.slice(0, 500);
 
-    // ✅ Arşiv içine de ekle (bu satır eksikti — kritik!)
     if (!state.archives[monthKey].loglar) state.archives[monthKey].loglar = [];
     state.archives[monthKey].loglar.push(arsivLogObj);
 
@@ -3338,7 +3330,6 @@ const CRUD = {
 
     await createAutoBackup();
 
-    // Sadece tek arşivlemede success göster (batch'te `_batchMode` ile susturulur)
     if (!this._batchMode) {
       Swal.fire({
         icon: 'success',
@@ -4118,7 +4109,6 @@ const App = {
 
   /* ── AKARYAKIT — Çift Yakıt ── */
   _fuelTipCurrent: 'benzin',
-  _fuelPage: 1,
 
   onKategoriChange() {
     const sel = document.getElementById('islemKategori');
