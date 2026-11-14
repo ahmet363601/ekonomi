@@ -8868,8 +8868,29 @@ async araOdeme(id) {
     const el = document.getElementById('fuelAnalysisCard');
     if (!el) return;
 
-    const stats = Calc.fuelStats();
-    if (stats.count === 0) { el.innerHTML = ''; return; }
+const stats = Calc.fuelStats();
+
+/* Kayıt yoksa bile yükleme butonu görünsün */
+if (stats.count === 0) {
+  el.innerHTML = `<div class="card" style="border-left:4px solid var(--info);padding:14px;">
+    <div class="section-header" style="flex-wrap:wrap;margin-bottom:0;">
+      <span class="section-title" style="display:flex;align-items:center;gap:8px;">
+        <i class="fas fa-gas-pump" style="color:var(--info);"></i>
+        Akaryakıt Analizi
+      </span>
+      <label style="background:var(--warning-light);color:var(--warning);border:1px solid var(--warning);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;">
+        <i class="fas fa-file-import"></i> Yedek Yükle
+        <input type="file" accept=".json" style="display:none;"
+               onchange="App.importFuelStatsJSON(this.files[0]); this.value='';">
+      </label>
+    </div>
+    <div style="font-size:12px;color:var(--text3);margin-top:10px;text-align:center;padding:8px;">
+      <i class="fas fa-info-circle"></i>
+      Akaryakıt kaydı yok. Daha önce aldığınız bir JSON yedeğini buradan yükleyebilirsiniz.
+    </div>
+  </div>`;
+  return;
+}
 
     const l = stats.lpg;
     const b = stats.benzin;
@@ -8903,9 +8924,14 @@ async araOdeme(id) {
           <button onclick="App.exportFuelChartPNG()" style="background:var(--primary-light);color:var(--primary);border:1px solid var(--primary);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;">
             <i class="fas fa-image"></i> PNG
           </button>
-          <button onclick="App.exportFuelStatsJSON()" style="background:var(--accent-light);color:var(--accent);border:1px solid var(--accent);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;">
-            <i class="fas fa-file-code"></i> JSON
-          </button>
+        <button onclick="App.exportFuelStatsJSON()" style="background:var(--accent-light);color:var(--accent);border:1px solid var(--accent);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;">
+          <i class="fas fa-file-code"></i> Yedek
+        </button>
+        <label style="background:var(--warning-light);color:var(--warning);border:1px solid var(--warning);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;">
+          <i class="fas fa-file-import"></i> Yükle
+          <input type="file" accept=".json" style="display:none;"
+                 onchange="App.importFuelStatsJSON(this.files[0]); this.value='';">
+        </label>
         </div>
       </div>
 
@@ -9685,6 +9711,158 @@ async araOdeme(id) {
       Swal.fire({ icon: 'error', title: 'Yedek Hatası', text: e.message });
     }
   },
+  /* ⛽ AKARYAKIT JSON YEDEĞİNİ GERİ YÜKLE */
+async importFuelStatsJSON(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const raw = JSON.parse(e.target.result);
+
+      /* 1) Format doğrulama */
+      if (!raw || raw._type !== 'ebha_akaryakit_analiz') {
+        Swal.fire({
+          icon: 'error',
+          title: 'Geçersiz Dosya',
+          html: `<p>Bu dosya akaryakıt analizi yedeği değil.</p>
+                 <p style="font-size:12px;color:var(--text3);margin-top:6px;">
+                   Beklenen <code>"_type": "ebha_akaryakit_analiz"</code> alanı yok.
+                 </p>`,
+          confirmButtonText: 'Tamam'
+        });
+        return;
+      }
+
+      /* 2) Kayıt doğrulama */
+      const records = Array.isArray(raw.records) ? raw.records : [];
+      const valid = records.filter(r =>
+        r && typeof r === 'object' &&
+        r.id && r.tarih && r.miktar != null &&
+        r.fuel && typeof r.fuel === 'object'
+      );
+
+      if (!valid.length) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Geçersiz Kayıt',
+          text: 'Dosyada geçerli akaryakıt kaydı bulunamadı.'
+        });
+        return;
+      }
+
+      /* 3) Mevcut ID'ler — aktif + tüm arşivler */
+      const existingIds = new Set();
+      state.giderler.forEach(g => existingIds.add(String(g.id)));
+      Object.values(state.archives).forEach(a => {
+        if (Array.isArray(a.giderler)) {
+          a.giderler.forEach(g => existingIds.add(String(g.id)));
+        }
+      });
+
+      /* 4) Yeni kayıtları ayır */
+      const yeniKayitlar = valid.filter(r => !existingIds.has(String(r.id)));
+
+      if (!yeniKayitlar.length) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Yeni Kayıt Yok',
+          text: `${valid.length} kaydın tümü sistemde zaten mevcut.`
+        });
+        return;
+      }
+
+      /* 5) Onay */
+      const result = await Swal.fire({
+        icon: 'question',
+        title: '⛽ Akaryakıt Yedeği Yükle',
+        html: `<div style="text-align:left;">
+          <p>Dosyada <strong>${valid.length}</strong> kayıt bulundu.</p>
+          <div style="margin:12px 0;padding:10px;background:var(--surface2);border-radius:8px;font-size:12px;">
+            <div style="display:flex;justify-content:space-between;padding:3px 0;">
+              <span>Zaten mevcut:</span>
+              <strong style="color:var(--text3);">${valid.length - yeniKayitlar.length}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0;">
+              <span>Yeni eklenecek:</span>
+              <strong style="color:var(--accent);">${yeniKayitlar.length}</strong>
+            </div>
+          </div>
+          <div style="padding:10px;background:var(--primary-light);border-radius:8px;font-size:11.5px;line-height:1.6;color:var(--text2);">
+            ✅ Sadece <strong>yeni kayıtlar</strong> eklenecek. Mevcut verileriniz korunur. ID çakışması engellenir.
+          </div>
+        </div>`,
+        showCancelButton: true,
+        confirmButtonText: '✅ Yükle',
+        cancelButtonText: 'İptal',
+        width: Math.min(440, window.innerWidth - 24)
+      });
+      if (!result.isConfirmed) return;
+
+      /* 6) Dağıtım — aktif vs arşiv */
+      let activeAdded = 0;
+      let archiveAdded = 0;
+
+      yeniKayitlar.forEach(r => {
+        const item = {
+          id: r.id,
+          miktar: Number(r.miktar) || 0,
+          kategori: (r.kategori === 'Akaryakıt') ? 'Araç Yakıt' : (r.kategori || 'Araç Yakıt'),
+          tarih: r.tarih,
+          aciklama: r.aciklama || '',
+          fuel: r.fuel,
+          createdAt: r.createdAt || new Date().toISOString()
+        };
+
+        const monthKey = SalaryMonth.keyOf(r.tarih);
+
+        if (state.archives[monthKey]) {
+          if (!Array.isArray(state.archives[monthKey].giderler)) {
+            state.archives[monthKey].giderler = [];
+          }
+          state.archives[monthKey].giderler.push(item);
+          archiveAdded++;
+        } else {
+          state.giderler.push(item);
+          activeAdded++;
+        }
+      });
+
+      /* 7) Kaydet */
+      if (activeAdded > 0)  await saveGiderler();
+      if (archiveAdded > 0) await saveArchives();
+
+      await addLog('json_import',
+        `Akaryakıt yedeği: ${yeniKayitlar.length} kayıt (${activeAdded} aktif, ${archiveAdded} arşiv)`,
+        { kaynak: 'fuel_json_import' });
+
+      /* 8) Başarı mesajı */
+      Swal.fire({
+        icon: 'success',
+        title: '✅ Yükleme Tamamlandı',
+        html: `<p><strong>${yeniKayitlar.length}</strong> akaryakıt kaydı eklendi.</p>
+               ${archiveAdded > 0
+                 ? `<p style="font-size:12px;color:var(--text3);margin-top:6px;">
+                      ${activeAdded} aktif listeye · ${archiveAdded} arşive
+                    </p>`
+                 : ''}`,
+        confirmButtonText: 'Tamam'
+      });
+
+      /* 9) Rapor sayfasını yenile */
+      await this.renderRapor();
+
+    } catch (err) {
+      console.error('[importFuelStatsJSON]', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Yükleme Hatası',
+        text: err.message || 'JSON formatı hatalı veya bozuk.'
+      });
+    }
+  };
+  reader.onerror = () => Swal.fire({ icon: 'error', title: 'Dosya Okunamadı' });
+  reader.readAsText(file);
+},
   /* ⛽ Akaryakıt Trend PNG */
   async exportFuelChartPNG() {
     try {
