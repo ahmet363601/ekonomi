@@ -2066,16 +2066,18 @@ input[type="month"].form-input,
 </head>
 
 <body>
-
 <!-- ═══════════════ HEADER ═══════════════ -->
-<div class="header-actions">
-  <button class="header-btn" onclick="App.openGlobalSearch()" title="Global Arama"><i class="fas fa-search"></i></button>
-  <button class="header-btn" id="notifBtn" onclick="App.openNotifications()" title="Bildirimler">
-    <i class="fas fa-bell"></i>
-  </button>
-  <button class="header-btn" onclick="App.openLogModal()" title="Loglar"><i class="fas fa-history"></i></button>
-  <button class="header-btn" onclick="App.openSettingsModal()" title="Ayarlar"><i class="fas fa-sliders-h"></i></button>
-</div>
+<header id="app-header">
+  <div class="inner">
+    <h1 id="page-title">Dashboard</h1>
+    <div class="header-actions">
+      <button class="header-btn" onclick="App.openGlobalSearch()" title="Global Arama"><i class="fas fa-search"></i></button>
+      <button class="header-btn" id="notifBtn" onclick="App.openNotifications()" title="Bildirimler">
+        <i class="fas fa-bell"></i>
+      </button>
+      <button class="header-btn" onclick="App.openLogModal()" title="Loglar"><i class="fas fa-history"></i></button>
+      <button class="header-btn" onclick="App.openSettingsModal()" title="Ayarlar"><i class="fas fa-sliders-h"></i></button>
+    </div>
   </div>
 </header>
 
@@ -3058,7 +3060,10 @@ kategoriTrendBetween(startDate, endDate, maxMonths = 12, topN = 6) {
   },
   /* ⛽ AKARYAKIT İSTATİSTİKLERİ — LPG odaklı, Benzin basit toplam */
   fuelStats(range) {
-    let all = this._allGiderler().filter(g => g.kategori === 'Akaryakıt' && g.fuel);
+    let all = this._allGiderler().filter(g => {
+      const k = (g.kategori || '').toLowerCase();
+      return (k === 'araç yakıt' || k === 'akaryakıt') && g.fuel;
+    });
     if (range && range.start) all = all.filter(g => g.tarih >= range.start);
     if (range && range.end)   all = all.filter(g => g.tarih <= range.end);
     all.sort((a, b) => {
@@ -4267,16 +4272,26 @@ const Notifications = {
         n.dedupKey === notification.dedupKey
       );
       if (existing) {
-        existing.title = notification.title;
-        existing.description = notification.description;
-        existing.details = notification.details;
-        existing.priority = notification.priority;
-        existing.action = notification.action;
-        existing.updatedAt = new Date().toISOString();
-        existing.read = false;
-        existing.readAt = null;
-        await saveNotifications();
-        Notifications.updateBadge();
+        /* 🛡️ Sadece içerik değiştiyse güncelle + okunmamış yap.
+           Aksi halde kullanıcı her modal açtığında okundu bildirimleri
+           tekrar okunmamış olarak görürdü. */
+        const contentChanged =
+          existing.description !== notification.description ||
+          existing.details !== notification.details ||
+          existing.priority !== notification.priority;
+
+        if (contentChanged) {
+          existing.title = notification.title;
+          existing.description = notification.description;
+          existing.details = notification.details;
+          existing.priority = notification.priority;
+          existing.action = notification.action;
+          existing.updatedAt = new Date().toISOString();
+          existing.read = false;
+          existing.readAt = null;
+          await saveNotifications();
+          Notifications.updateBadge();
+        }
         return existing;
       }
     }
@@ -4540,6 +4555,11 @@ const App = {
         <button class="btn btn-primary" onclick="location.reload()" style="margin-top:16px;">Yenile</button>
       </div>`;
   }
+
+  /* 🔔 Sayfa değişiminde bildirimleri sessizce tazele (sayfa bloke olmasın) */
+  setTimeout(() => {
+    try { Notifications.generateAll().catch(() => {}); } catch (_) {}
+  }, 150);
 },
   /* ══════════════════════════════════════
      DASHBOARD
@@ -4985,7 +5005,10 @@ _updateKategoriAylikOzet() {
 
   _findPrevFuelRecord(excludeId, beforeDate) {
     const all = Calc._allGiderler()
-      .filter(g => g.kategori === 'Akaryakıt' && g.fuel && Number(g.fuel.km) > 0)
+      .filter(g => {
+        const k = (g.kategori || '').toLowerCase();
+        return (k === 'araç yakıt' || k === 'akaryakıt') && g.fuel && Number(g.fuel.km) > 0;
+      })
       .filter(g => !excludeId || g.id !== excludeId)
       .sort((a, b) => {
         if (a.tarih !== b.tarih) return a.tarih.localeCompare(b.tarih);
@@ -4999,7 +5022,10 @@ _updateKategoriAylikOzet() {
     /* ✅ Yeni: Belirli yakıt tipine göre önceki KM */
   _findPrevFuelRecordSameType(excludeId, beforeDate, fuelType) {
     const all = Calc._allGiderler()
-      .filter(g => g.kategori === 'Akaryakıt' && g.fuel && Number(g.fuel.km) > 0)
+      .filter(g => {
+        const k = (g.kategori || '').toLowerCase();
+        return (k === 'araç yakıt' || k === 'akaryakıt') && g.fuel && Number(g.fuel.km) > 0;
+      })
       .filter(g => {
         if (excludeId && g.id === excludeId) return false;
         const t = g.fuel.tip || 'benzin';
@@ -5482,7 +5508,7 @@ _updateKategoriAylikOzet() {
     const item = (tip === 'gelir' ? state.gelirler : state.giderler).find(i => i.id == id);
     if (!item) return;
 
-    const isFuel = item.kategori === 'Akaryakıt' && item.fuel;
+    const isFuel = (item.kategori === 'Araç Yakıt' || item.kategori === 'Akaryakıt') && item.fuel;
     const fuelTip = item.fuel?.tip || 'benzin';
     const fuelBenzinLitre = item.fuel?.benzin?.litre || (fuelTip === 'benzin' ? item.fuel?.litre : '') || '';
     const fuelBenzinFiyat = item.fuel?.benzin?.birimFiyat || (fuelTip === 'benzin' ? item.fuel?.birimFiyat : '') || '';
@@ -6891,8 +6917,14 @@ async araOdeme(id) {
 
     const archivedCount = Object.values(state.archives)
       .flatMap(a => Array.isArray(a.giderler) ? a.giderler : [])
-      .filter(g => g.kategori === 'Akaryakıt' && g.fuel).length;
-    const activeCount = state.giderler.filter(g => g.kategori === 'Akaryakıt' && g.fuel).length;
+      .filter(g => {
+        const k = (g.kategori || '').toLowerCase();
+        return (k === 'araç yakıt' || k === 'akaryakıt') && g.fuel;
+      }).length;
+    const activeCount = state.giderler.filter(g => {
+      const k = (g.kategori || '').toLowerCase();
+      return (k === 'araç yakıt' || k === 'akaryakıt') && g.fuel;
+    }).length;
 
     el.innerHTML = `<div class="card" style="border-left:4px solid var(--info);">
       <div class="section-header" style="flex-wrap:wrap;">
@@ -10394,7 +10426,7 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     showToast('🗑️ Bildirim silindi');
     /* Modal zaten kapatılıyor, listede güncelleme */
     setTimeout(() => Notifications.updateBadge(), 100);
-  }
+  },
   /* 🆕 FAZ 3 — Global Arama */
   async openGlobalSearch() {
     await Swal.fire({
