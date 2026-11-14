@@ -470,6 +470,10 @@ button, a, .chip, .nav-btn, .btn, .header-btn,
   border-radius: 50%;
   pointer-events: none;
 }
+/* BEFORE */
+.hero-card { padding: 22px 20px 18px; }
+/* AFTER */
+.hero-card { padding: 22px 20px 20px; }
 
 @media (prefers-color-scheme: dark) {
   .hero-card {
@@ -1264,7 +1268,7 @@ input[type="month"].form-input,
 @media (max-width: 380px) {
   #page-title    { font-size: 18px; }
   .hero-amount   { font-size: 28px; letter-spacing: -1px; }
-  .stat-amount   { font-size: 17px; }
+  .stat-amount   { font-size: 19px; }
   .archive-grid  { grid-template-columns: 1fr; }
   .nav-btn span  { font-size: 9px; }
   .nav-btn i     { font-size: 17px; }
@@ -1282,8 +1286,9 @@ input[type="month"].form-input,
     background: rgba(255, 255, 255, .99);
   }
   .swal2-container {
-    -webkit-backdrop-filter: blur(4px);
-    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(11,21,39,.7) !important;
   }
 }
 @media (prefers-color-scheme: dark) {
@@ -3198,11 +3203,16 @@ async function loadAllData() {
       birim: b.birim || 'tl'
     }));
 
-    /* 🔴 KRİTİK FIX: Arşivleri yakıt migrasyonundan ÖNCE yükle.
+
        Aksi halde migrasyon saveArchives() çağırıp boş {} yazar → tüm arşivler silinir. */
     /* state.archives yukarıda yüklendi (migrasyondan önce) */
 
-    const logs = await dbGetAll('logs');
+    /* 🔴 KRİTİK: Arşivleri yakıt migrasyonundan ÖNCE yükle.
+       Aksi halde migrasyon saveArchives() çağırıp boş {} yazar → tüm arşivler silinir. */
+    const archs = await dbGetAll('archives');
+    state.archives = archs.reduce((acc, a) => { acc[a.month] = a.data; return acc; }, {});
+
+    /* 🆕 Kategori versiyon kontrolü */
 
     /* 🆕 Kategori versiyon kontrolü */
     const storedKatVer = Number(localStorage.getItem('kat_version') || 0);
@@ -3266,9 +3276,6 @@ if (_fuelMigrationNeeded) {
       const { id, ...rest } = ayars[0];
       state.ayarlar = { ...state.ayarlar, ...rest };
     }
-
-    const archs = await dbGetAll('archives');
-    state.archives = archs.reduce((acc, a) => { acc[a.month] = a.data; return acc; }, {});
 
     const logs = await dbGetAll('logs');
     state.logs = logs.sort((a, b) => b.timestamp > a.timestamp ? 1 : -1);
@@ -10923,7 +10930,7 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     state.backups = [];
     state.limitler = {};
     state.araclar = [];
-    // YANLIŞ olan satırı sil, tek bir tane bırak:
+    state.notifications = [];      // ← 🆕 EKLE
     state.kategoriler = DEFAULT_KATEGORILER();
     localStorage.setItem('kat_version', String(KAT_VERSION));
     state.ayarlar = {
