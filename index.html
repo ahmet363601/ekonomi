@@ -5321,7 +5321,7 @@ async islemEkle(tip, miktar, kategori, tarih, aciklama, extra = {}) {
     { entityId: item.id, entityType: tip, amount: miktar, category: kategori, date: tarih });
   await createAutoBackup();
   return item;
-}
+},
 
   async islemGuncelle(id, tip, guncelleme) {
     const arr = tip === 'gelir' ? state.gelirler : state.giderler;
@@ -5373,7 +5373,7 @@ async borcEkle(tip, kisiAdi, miktar, birim, tarih, aciklama, vadeTarihi) {
     { entityId: item.id, entityType: tip, person: kisiAdi, amount: miktar, unit: birim, tlValue: Calc.tlKarsiligi(item) });
   await createAutoBackup();
   return item;
-}
+},
 
   async borcSil(id) {
     /* Silmeden ÖNCE yakala */
@@ -5429,7 +5429,7 @@ async araOdemeEkle(borcId, miktar, tarih, aciklama) {
     { entityId: borcId, person: item.kisiAdi, amount: m, date: tarih, totalPaid, totalAmount: item.miktar });
   await createAutoBackup();
   return true;
-}
+},
   async kategoriEkle(tip, ad) {
     if (!ad) return false;
     const norm = String(ad).trim();
@@ -5684,7 +5684,7 @@ async gorevEkle(data) {
   }
   await addLog('gorev_ekle', item.baslik, { entityId: item.id, oncelik: item.oncelik });
   return item;
-}
+},
   async gorevGuncelle(id, data) {
     const idx = state.gorevler.findIndex(g => g.id == id);
     if (idx === -1) return false;
@@ -8336,9 +8336,7 @@ async araOdeme(id) {
     else if (this.currentPage === 'borcalacak') await this.renderBorcList();
     else if (this.currentPage === 'arsiv')     await this.renderArsiv();
 },
-  async araOdemeEkle(borcId, miktar, tarih, aciklama) {
-  const item = state.borcalacaklar.find(b => b.id == borcId);
-  if (!item) return false;
+
 
   const paid = (item.payments || []).reduce((s, p) => s + (Number(p.miktar) || 0), 0);
   const kalan = Math.max(0, (Number(item.miktar) || 0) - paid);
@@ -11897,7 +11895,6 @@ async openBakimYapModal(vehicleId) {
   }
   showToast(`✅ ${value.tip} kaydedildi`);
   await this.renderDashboard();
-}
 },
 
 /* 🆕 Bakım Geçmişi Görüntüle */
