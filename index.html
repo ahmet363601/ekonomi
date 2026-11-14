@@ -2637,7 +2637,7 @@ aylikTrendBetween(startDate, endDate, maxMonths = 12) {
                           .reduce((s, g) => s + (Number(g.miktar) || 0), 0)
     };
   });
-}
+},
 
   kategoriTrendBetween(startDate, endDate, maxMonths = 12, topN = 6) {
     const tumGiderler = this._allGiderler();
