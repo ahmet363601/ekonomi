@@ -7677,18 +7677,17 @@ async renderDashboard() {
       else if (r.dismiss === Swal.DismissReason.cancel) App.deleteIslem(id, tip);
     });
   },
-    async _showBorcDetail(id) {
-    /* 🆕 Aktif listede yoksa arşivde ara */
-    let b = state.borcalacaklar.find(x => x.id == id);
-    let isArchived = false;
-    let archiveKey = null;
+async _showBorcDetail(id) {
+    let b = state.borcalacaklar.find(x => x.id == id);      // ← let b (const değil!)
+    let isArchived = false;                                  // ← YENİ
+    let archiveKey = null;                                   // ← YENİ
 
-    if (!b) {
-      for (const [k, a] of Object.entries(state.archives)) {
+    if (!b) {                                                 // ← YENİ
+      for (const [k, a] of Object.entries(state.archives)) {  // ← YENİ
         const found = (a.borcalacaklar || []).find(x => x.id == id);
         if (found) { b = found; isArchived = true; archiveKey = k; break; }
       }
-    }
+    }                                                         // ← YENİ
 
     if (!b) { showToast('⚠️ Kayıt bulunamadı'); return; }
 
@@ -7795,6 +7794,7 @@ async renderDashboard() {
       await this.silBorc(id);
     }
   },
+  
   async deleteArchive(key) {
     const archive = state.archives[key];
     if (!archive) { showToast('⚠️ Arşiv bulunamadı'); return; }
