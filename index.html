@@ -2548,30 +2548,35 @@ sonIslemler() {
   /* ═══════════════════════════════════════════════════════
      RAPORLAR — Belirli tarih aralığına göre trend (yeni)
      ═══════════════════════════════════════════════════════ */
-  aylikTrendBetween(startDate, endDate, maxMonths = 12) {
-    const tumGelirler = this._allGelirler();
-    const tumGiderler = this._allGiderler();
-    const start = dayjs(startDate).startOf('month');
-    const end = dayjs(endDate);
-    const months = [];
-    let cur = start;
-    while (cur.isBefore(end) || cur.isSame(end, 'month')) {
-      months.push(cur.format('YYYY-MM'));
-      cur = cur.add(1, 'month');
-    }
-    const limited = months.slice(-maxMonths);
-    return limited.map(key => {
-      const mStart = dayjs(key + '-01').startOf('month');
-      const mEnd = dayjs(key + '-01').endOf('month');
-      const sStart = mStart.format('YYYY-MM-DD');
-      const sEnd = mEnd.format('YYYY-MM-DD');
-      return {
-        label: mStart.format('MMM YY'),
-        gelir: tumGelirler.filter(g => g.tarih >= sStart && g.tarih <= sEnd).reduce((s, g) => s + (Number(g.miktar) || 0), 0),
-        gider: tumGiderler.filter(g => g.tarih >= sStart && g.tarih <= sEnd).reduce((s, g) => s + (Number(g.miktar) || 0), 0)
-      };
-    });
-  },
+aylikTrendBetween(startDate, endDate, maxMonths = 12) {
+  const tumGelirler = this._allGelirler();
+  const tumGiderler = this._allGiderler();
+
+  // Maaş dönemi anahtarları
+  const startKey = SalaryMonth.keyOf(startDate);
+  const endKey   = SalaryMonth.keyOf(endDate);
+  const months = [];
+  let cur = dayjs(startKey + '-15');
+  const end = dayjs(endKey + '-15');
+  while (cur.isBefore(end) || cur.isSame(end, 'month')) {
+    months.push(cur.format('YYYY-MM'));
+    cur = cur.add(1, 'month');
+  }
+
+  return months.slice(-maxMonths).map(key => {
+    const r = SalaryMonth.range(key);
+    // Seçilen aralığa kırp
+    const sStart = r.start < startDate ? startDate : r.start;
+    const sEnd   = r.end > endDate   ? endDate   : r.end;
+    return {
+      label: SalaryMonth.shortLabel(key),   // "Ekim 2026"
+      gelir: tumGelirler.filter(g => g.tarih >= sStart && g.tarih <= sEnd)
+                          .reduce((s, g) => s + (Number(g.miktar) || 0), 0),
+      gider: tumGiderler.filter(g => g.tarih >= sStart && g.tarih <= sEnd)
+                          .reduce((s, g) => s + (Number(g.miktar) || 0), 0)
+    };
+  });
+}
 
   kategoriTrendBetween(startDate, endDate, maxMonths = 12, topN = 6) {
     const tumGiderler = this._allGiderler();
@@ -3073,11 +3078,25 @@ const CRUD = {
     return true;
   },
 
-  async kategoriSil(tip, ad) {
-    state.kategoriler[tip] = state.kategoriler[tip].filter(k => k !== ad);
-    await saveKategoriler();
-    await addLog('kategori_sil', `${tip} · ${ad}`);
-  },
+async kategoriSil(tip, ad) {
+  const kullanim = (tip === 'gelir' ? state.gelirler : state.giderler)
+    .filter(i => i.kategori === ad).length;
+  if (kullanim > 0) {
+    const r = await Swal.fire({
+      icon: 'warning',
+      title: 'Kategori kullanımda!',
+      html: `<strong>${ad}</strong> kategorisinde <strong>${kullanim}</strong> işlem var.<br>
+             Silerseniz bu işlemler "kategorisiz" kalır.`,
+      showCancelButton: true, confirmButtonText: 'Yine de Sil', cancelButtonText: 'İptal',
+      confirmButtonColor: '#DC2626'
+    });
+    if (!r.isConfirmed) return;
+  } else {
+    const r = await Swal.fire({ /* basit onay */ });
+    if (!r.isConfirmed) return;
+  }
+  // ... sil
+}
 
   async limitEkle(kategori, limit) {
     if (!limit || isNaN(parseFloat(limit))) return;
@@ -5954,16 +5973,10 @@ async araOdeme(id) {
       '3ay': [now.subtract(3,'month').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')],
       '6ay': [now.subtract(6,'month').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')],
       yil:   [now.startOf('year').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')],
-      tum:   (() => {
-        const dates = [
-          ...state.gelirler.map(g => g.tarih).filter(Boolean),
-          ...state.giderler.map(g => g.tarih).filter(Boolean),
-          ...Object.values(state.archives).flatMap(a => [
-            ...(Array.isArray(a.gelirler) ? a.gelirler : []).map(x => x.tarih),
-            ...(Array.isArray(a.giderler) ? a.giderler : []).map(x => x.tarih)
-          ]).filter(Boolean)
-        ];
-        return dates.length ? dates.sort()[0] : '2000-01-01';
+      tum: (() => {
+        const dates = [...].filter(Boolean);
+        const earliest = dates.length ? dates.sort()[0] : '2000-01-01';
+        return [earliest, dayjs().format('YYYY-MM-DD')]; // ✅ start-end çifti
       })()
     };
     if (map[t]) {
@@ -6046,8 +6059,13 @@ async araOdeme(id) {
         tasarruf: data.gelir > 0 ? ((data.gelir - data.gider) / data.gelir) * 100 : 0
       }));
 
-    const enIyiAy = ayList.length ? ayList.reduce((a,b) => a.net > b.net ? a : b) : null;
-    const enKotuAy = ayList.length ? ayList.reduce((a,b) => a.net < b.net ? a : b) : null;
+const enIyiAy  = ayList.length >= 2 ? ayList.reduce((a,b) => a.net > b.net ? a : b) : null;
+const enKotuAy = ayList.length >= 2 && ayList.some(a => a.net < 0)
+  ? ayList.reduce((a,b) => a.net < b.net ? a : b) : null;
+
+// Render'da:
+${enIyiAy ? `... (green border)` : ''}
+${enKotuAy ? `... (red border)` : ''}
 
     const enBuyukGiderler = [...allGiderler].sort((a,b) => (Number(b.miktar)||0) - (Number(a.miktar)||0)).slice(0, 5);
     const enBuyukGelirler = [...allGelirler].sort((a,b) => (Number(b.miktar)||0) - (Number(a.miktar)||0)).slice(0, 5);
