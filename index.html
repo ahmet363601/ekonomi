@@ -2022,6 +2022,45 @@ input[type="month"].form-input,
   background: var(--surface2);
   border-left: 3px solid var(--accent);
 }
+/* ═══════════════════════════════════════════════════════════════
+   BİLDİRİM BADGE
+   ═══════════════════════════════════════════════════════════════ */
+.notif-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  background: #DC2626;
+  color: #fff;
+  font-size: 8.5px;
+  font-weight: 800;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--surface);
+  line-height: 1;
+  letter-spacing: -.2px;
+  box-shadow: 0 2px 4px rgba(220,38,38,.35);
+  pointer-events: none;
+}
+.header-btn.has-notif i { color: var(--danger); animation: bellShake 3s ease-in-out infinite; }
+
+@keyframes bellShake {
+  0%, 85%, 100% { transform: rotate(0deg); }
+  88% { transform: rotate(12deg); }
+  91% { transform: rotate(-12deg); }
+  94% { transform: rotate(8deg); }
+  97% { transform: rotate(-4deg); }
+}
+
+@media (max-width: 380px) {
+  .header-actions { gap: 4px; }
+  .header-actions .header-btn { width: 32px; height: 32px; font-size: 12px; }
+  .notif-badge { min-width: 14px; height: 14px; font-size: 8px; }
+}
 </style>
 
 </head>
@@ -2029,14 +2068,14 @@ input[type="month"].form-input,
 <body>
 
 <!-- ═══════════════ HEADER ═══════════════ -->
-<header id="app-header">
-  <div class="inner">
-    <h1 id="page-title">Dashboard</h1>
-    <div class="header-actions">
-      <button class="header-btn" onclick="App.openGlobalSearch()" title="Global Arama"><i class="fas fa-search"></i></button>
-      <button class="header-btn" onclick="App.openLogModal()" title="Loglar"><i class="fas fa-history"></i></button>
-      <button class="header-btn" onclick="App.openSettingsModal()" title="Ayarlar"><i class="fas fa-sliders-h"></i></button>
-    </div>
+<div class="header-actions">
+  <button class="header-btn" onclick="App.openGlobalSearch()" title="Global Arama"><i class="fas fa-search"></i></button>
+  <button class="header-btn" id="notifBtn" onclick="App.openNotifications()" title="Bildirimler">
+    <i class="fas fa-bell"></i>
+  </button>
+  <button class="header-btn" onclick="App.openLogModal()" title="Loglar"><i class="fas fa-history"></i></button>
+  <button class="header-btn" onclick="App.openSettingsModal()" title="Ayarlar"><i class="fas fa-sliders-h"></i></button>
+</div>
   </div>
 </header>
 
@@ -2276,9 +2315,41 @@ const state = {
   gelirler: [],
   giderler: [],
   borcalacaklar: [],
+  notifications: [],   // 🆕 BİLDİRİMLER
   kategoriler: {
-    gelir: ['Maaş','Serbest Çalışma','Yatırım','Hediye','Kira Geliri','Diğer'],
-    gider: ['Market','Fatura','Eğlence','Ulaşım','Sağlık','Eğitim','Yemek','Alışveriş','Akaryakıt','Diğer']
+    gelir: ['Ahmet Maaş', 'Fatma Maaş', 'Diğer'],
+    gider: [
+      'Market Alışverişi',
+      'Araç Yakıt',
+      'Harçlık / Çocuk İhtiyaçları',
+      'Dışarıda Yemek / Kafe',
+      'Fatura Elektrik',
+      'Fatura Su',
+      'Fatura Doğalgaz',
+      'Fatura Mobil',
+      'Fatura Tv Net',
+      'Kira Ödemesi',
+      'Fuzul Ev Ödemesi',
+      'Aidat / Ortak Gider',
+      'Kredi / Borç Ödemesi',
+      'Birikim / Yatırım',
+      'Otopark / HGS / Ceza',
+      'Araç Bakım Onarım',
+      'Oto Yıkama / Kozmetik',
+      'Sağlık / İlaç',
+      'Okul / Kreş / Kurs',
+      'Kıyafet / Giyim',
+      'Ev Bakım / Hırdavat',
+      'Kişisel Bakım / Kuaför',
+      'Teknoloji / Dijital Abonelikler',
+      'Sigorta / Güvence',
+      'Çocuk Eğlence / Aktivite',
+      'Eğlence / Hobi',
+      'Hediye / Ziyaret',
+      'Tatil / Seyahat',
+      'Bağış / Zekat / Hayır',
+      'Diğer'
+    ]
   },
   limitler: {},
   ayarlar: {
@@ -2305,11 +2376,46 @@ async function loadAllData() {
     kats.forEach(k => { if (k.tip === 'gelir' || k.tip === 'gider') state.kategoriler[k.tip] = k.kategoriler; });
 
     /* 🆕 Akaryakıt her zaman gider kategorilerinde bulunsun */
-    if (!state.kategoriler.gider.includes('Akaryakıt')) {
-      state.kategoriler.gider.push('Akaryakıt');
-      try { await saveKategoriler(); }
-      catch (e) { console.warn('[loadAllData] Akaryakıt kategori ekleme:', e); }
-    }
+/* 🔄 MİGRASYON: 'Akaryakıt' → 'Araç Yakıt' (tek seferlik) */
+const FUEL_OLD = 'Akaryakıt';
+const FUEL_NEW = 'Araç Yakıt';
+let _fuelMigrationNeeded = false;
+
+const _migrateFuelKat = (item) => {
+  if (item && item.kategori === FUEL_OLD) {
+    item.kategori = FUEL_NEW;
+    _fuelMigrationNeeded = true;
+  }
+};
+
+state.gelirler.forEach(_migrateFuelKat);
+state.giderler.forEach(_migrateFuelKat);
+state.borcalacaklar.forEach(_migrateFuelKat);
+Object.values(state.archives).forEach(a => {
+  (a.gelirler || []).forEach(_migrateFuelKat);
+  (a.giderler || []).forEach(_migrateFuelKat);
+});
+
+/* Kategori listesini düzenle */
+if (state.kategoriler.gider.includes(FUEL_OLD) && !state.kategoriler.gider.includes(FUEL_NEW)) {
+  state.kategoriler.gider = state.kategoriler.gider.map(k => k === FUEL_OLD ? FUEL_NEW : k);
+  _fuelMigrationNeeded = true;
+}
+if (!state.kategoriler.gider.includes(FUEL_NEW)) {
+  state.kategoriler.gider.push(FUEL_NEW);
+  _fuelMigrationNeeded = true;
+}
+
+if (_fuelMigrationNeeded) {
+  try {
+    await saveGelirler();
+    await saveGiderler();
+    await saveBorclar();
+    await saveArchives();
+    await saveKategoriler();
+    console.log('[Migration] Akaryakıt → Araç Yakıt tamamlandı');
+  } catch (e) { console.warn('[Migration]', e); }
+}
 
     const limits = await dbGetAll('limitler');
     state.limitler = limits.reduce((acc, l) => { acc[l.kategori] = l.limit; return acc; }, {});
@@ -2331,6 +2437,11 @@ async function loadAllData() {
 
     try {
       state.araclar = await dbGetAll('araclar');
+            try {
+        state.notifications = await dbGetAll('notifications');
+      } catch (_) {
+        state.notifications = [];
+      }
     } catch (_) {
       state.araclar = [];  // eski DB → yeni store henüz yok
     }
@@ -2422,7 +2533,7 @@ const saveKategoriler = () => queueSave(() => saveStore('kategoriler', [
   { tip: 'gider', kategoriler: state.kategoriler.gider }
 ]));
 const saveAraclar = () => queueSave(() => saveStore('araclar', state.araclar));
-
+const saveNotifications = () => queueSave(() => saveStore('notifications', state.notifications));
 /* Tüm store'ları yaz — sadece resetAll/import gibi nadir durumlarda */
 
 /* Tüm store'ları yaz — sadece resetAll/import gibi nadir durumlarda */
@@ -2431,7 +2542,7 @@ async function saveAllData() {
     await Promise.all([
       saveGelirler(), saveGiderler(), saveBorclar(),
       saveKategoriler(), saveLimitler(), saveAyarlar(),
-      saveArchives(), saveLogs(), saveBackups(), saveAraclar()
+      saveArchives(), saveLogs(), saveBackups(), saveAraclar(),saveNotifications()
     ]);
   } catch (e) {
     console.error('[saveAllData] Kayıt hatası:', e);
@@ -2690,21 +2801,28 @@ const Calc = {
       return map;
     }, {});
   },
-  aylikTrend(aySayisi = 6) {
-    const currentStart = dayjs(SalaryMonth.currentKey() + '-15');
-    const tumGelirler = this._allGelirler();
-    const tumGiderler = this._allGiderler();
-    return Array.from({ length: aySayisi }, (_, i) => {
-      const monthStart = currentStart.subtract(aySayisi - 1 - i, 'month');
-      const key = monthStart.format('YYYY-MM');
-      const r = SalaryMonth.range(key);
-      return {
-        label: monthStart.format('MMM YY'),
-        gelir: tumGelirler.filter(g => g.tarih >= r.start && g.tarih <= r.end).reduce((s, g) => s + (Number(g.miktar) || 0), 0),
-        gider: tumGiderler.filter(g => g.tarih >= r.start && g.tarih <= r.end).reduce((s, g) => s + (Number(g.miktar) || 0), 0)
-      };
-    });
-  },
+aylikTrend(aySayisi = 6) {
+  const currentKey = SalaryMonth.currentKey();
+  const currentStart = dayjs(currentKey + '-15');
+  const tumGelirler = this._allGelirler();
+  const tumGiderler = this._allGiderler();
+
+  return Array.from({ length: aySayisi }, (_, i) => {
+    const monthStart = currentStart.subtract(aySayisi - 1 - i, 'month');
+    const key = monthStart.format('YYYY-MM');
+    const r = SalaryMonth.range(key);
+
+    return {
+      label: monthStart.format('MMM YY'),
+      gelir: tumGelirler
+        .filter(g => g.tarih && g.tarih >= r.start && g.tarih <= r.end)
+        .reduce((s, g) => s + (Number(g.miktar) || 0), 0),
+      gider: tumGiderler
+        .filter(g => g.tarih && g.tarih >= r.start && g.tarih <= r.end)
+        .reduce((s, g) => s + (Number(g.miktar) || 0), 0)
+    };
+  });
+},
   aylikGiderKategori(kategori) {
     const f = this.ayFilter();
     return state.giderler
@@ -3200,16 +3318,30 @@ kategoriTrendBetween(startDate, endDate, maxMonths = 12, topN = 6) {
   /* ═══════════════════════════════════════════════════════
      TÜM VERİ (Aktif + Arşiv) — Rapor ve Analiz için
      ═══════════════════════════════════════════════════════ */
-  _allGelirler() {
-    const archived = Object.values(state.archives)
-      .flatMap(a => Array.isArray(a.gelirler) ? a.gelirler : []);
-    return [...state.gelirler, ...archived];
-  },
-  _allGiderler() {
-    const archived = Object.values(state.archives)
-      .flatMap(a => Array.isArray(a.giderler) ? a.giderler : []);
-    return [...state.giderler, ...archived];
-  },
+_allGelirler() {
+  const archived = Object.values(state.archives)
+    .flatMap(a => Array.isArray(a.gelirler) ? a.gelirler : []);
+  const all = [...state.gelirler, ...archived];
+  const seen = new Set();
+  return all.filter(g => {
+    if (!g || !g.id) return true;
+    if (seen.has(g.id)) return false;
+    seen.add(g.id);
+    return true;
+  });
+},
+_allGiderler() {
+  const archived = Object.values(state.archives)
+    .flatMap(a => Array.isArray(a.giderler) ? a.giderler : []);
+  const all = [...state.giderler, ...archived];
+  const seen = new Set();
+  return all.filter(g => {
+    if (!g || !g.id) return true;
+    if (seen.has(g.id)) return false;
+    seen.add(g.id);
+    return true;
+  });
+},
   _toplamGelirTum(f = {}) {
     let d = this._allGelirler();
     if (f.start) d = d.filter(g => g.tarih && g.tarih >= f.start);
@@ -3256,7 +3388,10 @@ kategoriTrendBetween(startDate, endDate, maxMonths = 12, topN = 6) {
    ═══════════════════════════════════════════════════════════════ */
 function _getLastFuelKm() {
   const fuelRecords = Calc._allGiderler()
-    .filter(g => g.kategori === 'Akaryakıt' && g.fuel && Number(g.fuel.km) > 0)
+    .filter(g => {
+      const k = (g.kategori || '').toLowerCase();
+      return (k === 'araç yakıt' || k === 'akaryakıt') && g.fuel && Number(g.fuel.km) > 0;
+    })
     .sort((a, b) => {
       if (a.tarih !== b.tarih) return b.tarih.localeCompare(a.tarih);
       return (b.createdAt || '').localeCompare(a.createdAt || '');
@@ -3502,7 +3637,7 @@ const CRUD = {
 
   async kategoriSil(tip, ad) {
     // Korumalı kategoriler — asla silinemez
-    const KORUMALI = ['Akaryakıt', 'Diğer'];
+    const KORUMALI = ['Araç Yakıt', 'Akaryakıt', 'Diğer'];
     if (KORUMALI.includes(ad)) {
       Swal.fire({ icon: 'info', title: 'Korumalı Kategori',
         text: `"${ad}" kategorisi silinemez (sistem kategorisi).`,
@@ -3965,7 +4100,7 @@ const KATEGORI_RENK = {
     'Eğitim':          { icon: 'fa-graduation-cap', color: '#7C3AED', bg: '#F3E8FF' },
     'Yemek':           { icon: 'fa-utensils',       color: '#D97706', bg: '#FFFBEB' },
     'Alışveriş':       { icon: 'fa-bag-shopping',   color: '#DB2777', bg: '#FCE7F3' },
-    'Akaryakıt':       { icon: 'fa-gas-pump',       color: '#B45309', bg: '#FEF3C7' },
+    'Araç Yakıt': { icon: 'fa-gas-pump', color: '#B45309', bg: '#FEF3C7' },
     'Diğer':           { icon: 'fa-ellipsis',       color: '#64748B', bg: '#F1F5F9' }
   }
 };
@@ -4094,7 +4229,276 @@ function showToast(msg) {
   document.body.appendChild(t);
   t.addEventListener('animationend', () => t.remove());
 }
+/* ═══════════════════════════════════════════════════════════════
+   🔔 BİLDİRİM SİSTEMİ — Kapsamlı, Modüler
+   ═══════════════════════════════════════════════════════════════ */
+const NotifTypes = {
+  vehicle_date: { icon: 'fa-calendar-check',     color: 'var(--warning)', label: 'Araç Evrakı' },
+  vehicle_km:   { icon: 'fa-oil-can',            color: 'var(--danger)',  label: 'Yağ Bakımı' },
+  budget:       { icon: 'fa-shield-alt',         color: 'var(--danger)',  label: 'Bütçe' },
+  archive:      { icon: 'fa-archive',            color: 'var(--info)',    label: 'Arşiv' },
+  backup:       { icon: 'fa-database',           color: 'var(--primary)', label: 'Yedek' },
+  anomaly:      { icon: 'fa-chart-line',         color: 'var(--warning)', label: 'Anomali' },
+  debt_due:     { icon: 'fa-handshake',          color: 'var(--warning)', label: 'Vade' },
+  info:         { icon: 'fa-info-circle',        color: 'var(--primary)', label: 'Bilgi' }
+};
 
+const Notifications = {
+  async add(data) {
+    const notification = {
+      id: Date.now() + Math.random(),
+      createdAt: new Date().toISOString(),
+      read: false,
+      readAt: null,
+      type: data.type || 'info',
+      title: data.title || 'Bildirim',
+      description: data.description || '',
+      details: data.details || '',
+      priority: data.priority || 'normal',
+      source: data.source || null,
+      sourceId: data.sourceId || null,
+      dedupKey: data.dedupKey || null,
+      action: data.action || null
+    };
+
+    /* 🔁 DEDUP: aynı dedupKey varsa güncelle */
+    if (notification.dedupKey) {
+      const existing = state.notifications.find(n =>
+        n.dedupKey === notification.dedupKey
+      );
+      if (existing) {
+        existing.title = notification.title;
+        existing.description = notification.description;
+        existing.details = notification.details;
+        existing.priority = notification.priority;
+        existing.action = notification.action;
+        existing.updatedAt = new Date().toISOString();
+        existing.read = false;
+        existing.readAt = null;
+        await saveNotifications();
+        Notifications.updateBadge();
+        return existing;
+      }
+    }
+
+    state.notifications.unshift(notification);
+    if (state.notifications.length > 200) {
+      state.notifications = state.notifications.slice(0, 200);
+    }
+    await saveNotifications();
+    Notifications.updateBadge();
+    return notification;
+  },
+
+  async markRead(id) {
+    const n = state.notifications.find(x => x.id == id);
+    if (n && !n.read) {
+      n.read = true;
+      n.readAt = new Date().toISOString();
+      await saveNotifications();
+      Notifications.updateBadge();
+    }
+  },
+
+  async markAllRead() {
+    let changed = false;
+    state.notifications.forEach(n => {
+      if (!n.read) { n.read = true; n.readAt = new Date().toISOString(); changed = true; }
+    });
+    if (changed) {
+      await saveNotifications();
+      Notifications.updateBadge();
+    }
+    return changed;
+  },
+
+  async remove(id) {
+    state.notifications = state.notifications.filter(n => n.id != id);
+    await saveNotifications();
+    Notifications.updateBadge();
+  },
+
+  async clearRead() {
+    state.notifications = state.notifications.filter(n => !n.read);
+    await saveNotifications();
+    Notifications.updateBadge();
+  },
+
+  getUnreadCount() {
+    return state.notifications.filter(n => !n.read).length;
+  },
+
+  updateBadge() {
+    const btn = document.getElementById('notifBtn');
+    if (!btn) return;
+    let badge = btn.querySelector('.notif-badge');
+    const count = Notifications.getUnreadCount();
+
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'notif-badge';
+      btn.appendChild(badge);
+    }
+
+    if (count > 0) {
+      badge.textContent = count > 99 ? '99+' : String(count);
+      badge.style.display = 'flex';
+      btn.classList.add('has-notif');
+    } else {
+      badge.style.display = 'none';
+      btn.classList.remove('has-notif');
+    }
+  },
+
+  /* ═════════════════════════════════════════════════════════════
+     OTOMATİK ÜRETİCİ — araç, bütçe, arşiv, vade uyarıları
+     ═════════════════════════════════════════════════════════════ */
+  async generateAll() {
+    /* 1️⃣ ARAÇ TARİH UYARILARI (muayene, sigorta, kasko) */
+    try {
+      const upcoming = Vehicle.getUpcoming(45);
+      for (const r of upcoming) {
+        if (r.seviye === 'gecti' || r.seviye === 'acil' || r.seviye === 'yaklasiyor') {
+          const priority = (r.seviye === 'gecti' || r.seviye === 'acil') ? 'high' : 'normal';
+          const durumText = r.gecti
+            ? `Tarihi ${Math.abs(r.days)} gün geçti!`
+            : r.bugun
+              ? 'Bugün son gün!'
+              : `${r.days} gün kaldı`;
+
+          await Notifications.add({
+            type: 'vehicle_date',
+            title: `${r.label} · ${r.plaka}`,
+            description: `${durumText} — Son tarih: ${dayjs(r.dateStr).format('DD MMM YYYY')}`,
+            details: `**${r.plaka}** aracınızın **${r.label}** işleminin son tarihi **${dayjs(r.dateStr).format('DD MMMM YYYY')}** (${durumText}).\n\n` +
+              `**Ne yapmalısınız?**\n` +
+              `• Vadesi geçtiyse: En kısa sürede ilgili kuruma (muayene istasyonu / sigorta şirketi) başvurun. Gecikme cezası riski var.\n` +
+              `• ${r.days <= 15 && r.days >= 0 ? 'Çok az kaldı! Hemen randevu alın.' : 'Vaktiniz var ama unutmayın, randevu alın.'}\n\n` +
+              `**Sonuç:** Bu uyarıyı okuduğunuzda "Okundu" olarak işaretleyebilirsiniz. Araç ayarlarından tarihi güncelleyebilirsiniz.`,
+            priority: priority,
+            source: 'vehicle',
+            sourceId: r.vid,
+            dedupKey: `vehicle_date_${r.vid}_${r.label}`,
+            action: { type: 'goto', target: 'vehicle', payload: r.vid }
+          });
+        }
+      }
+    } catch (e) { console.warn('[Notif] vehicle_date:', e); }
+
+    /* 2️⃣ ARAÇ KM / YAĞ BAKIM UYARILARI */
+    try {
+      const kmActive = Vehicle.getKmAktif();
+      for (const k of kmActive) {
+        if (k.seviye === 'gecti' || k.seviye === 'acil' || k.seviye === 'yaklasiyor') {
+          const priority = (k.seviye === 'gecti' || k.seviye === 'acil') ? 'high' : 'normal';
+          const durumText = k.kalanKm < 0
+            ? `${Math.abs(k.kalanKm).toLocaleString('tr-TR')} km gecikti!`
+            : `${k.kalanKm.toLocaleString('tr-TR')} km kaldı`;
+
+          await Notifications.add({
+            type: 'vehicle_km',
+            title: `Yağ Bakımı · ${k.plaka}`,
+            description: `${durumText} — Hedef: ${k.hedefKm.toLocaleString('tr-TR')} km`,
+            details: `**${k.plaka}** aracınız **${k.currentKm.toLocaleString('tr-TR')} km**'de.\n` +
+              `Hedef bakım noktası: **${k.hedefKm.toLocaleString('tr-TR')} km**.\n\n` +
+              `**Ne yapmalısınız?**\n` +
+              `• Son bakım: ${k.sonBakimKm.toLocaleString('tr-TR')} km\n` +
+              `• Aralık: ${k.aralik.toLocaleString('tr-TR')} km\n` +
+              `• Durum: ${durumText}\n\n` +
+              (k.kalanKm < 0
+                ? `⚠️ **Gecikmiş bakım motor ömrünü ciddi etkiler.** Hemen servise uğrayın. Bakım sonrası Dashboard'dan "Bakım Yapıldı" butonuyla sayaç sıfırlayın.`
+                : `Bakıma az kaldı. Yakın zamanda servise uğramanız önerilir.`),
+            priority: priority,
+            source: 'vehicle_km',
+            sourceId: k.vid,
+            dedupKey: `vehicle_km_${k.vid}`,
+            action: { type: 'goto', target: 'vehicle', payload: k.vid }
+          });
+        }
+      }
+    } catch (e) { console.warn('[Notif] vehicle_km:', e); }
+
+    /* 3️⃣ BÜTÇE LİMİT AŞIMI */
+    try {
+      const curKey = SalaryMonth.currentKey();
+      for (const [kategori, limit] of Object.entries(state.limitler)) {
+        const harcama = Calc.aylikGiderKategori(kategori);
+        if (harcama > limit) {
+          await Notifications.add({
+            type: 'budget',
+            title: `Bütçe Aşımı · ${kategori}`,
+            description: `${Calc.fmt(harcama - limit)} aşım — Harcama: ${Calc.fmt(harcama)} / Limit: ${Calc.fmt(limit)}`,
+            details: `**${kategori}** kategorisinde bu dönem **${Calc.fmt(harcama)}** harcadınız.\n` +
+              `Belirlediğiniz limit: **${Calc.fmt(limit)}**\n` +
+              `Aşım: **${Calc.fmt(harcama - limit)}**\n\n` +
+              `**Ne yapmalısınız?**\n` +
+              `• Bu kategoride harcamayı durdurun veya azaltın\n` +
+              `• Limit ayarlarından limiti gözden geçirin\n` +
+              `• Dönem sonuna kadar (${SalaryMonth.range(curKey).end}) tasarruf planı yapın`,
+            priority: 'high',
+            source: 'budget',
+            sourceId: kategori,
+            dedupKey: `budget_${kategori}_${curKey}`,
+            action: { type: 'goto', target: 'rapor' }
+          });
+        }
+      }
+    } catch (e) { console.warn('[Notif] budget:', e); }
+
+    /* 4️⃣ VADESİ YAKLAŞAN BORÇLAR */
+    try {
+      const vadeler = Calc.vadeleriGelenBorclar(7);
+      for (const b of vadeler) {
+        const priority = b.gecti ? 'high' : 'normal';
+        const durumText = b.gecti
+          ? `${Math.abs(b.kalanGun)} gün gecikti!`
+          : b.bugun ? 'Bugün vade!' : `${b.kalanGun} gün kaldı`;
+
+        await Notifications.add({
+          type: 'debt_due',
+          title: `Vade · ${b.kisiAdi}`,
+          description: `${durumText} — ${Calc.formatBirim(b)} (${b.tip === 'alacak' ? 'Alacak' : 'Borç'})`,
+          details: `**${b.kisiAdi}** ile olan ${b.tip === 'alacak' ? 'alacağınızın' : 'borcunuzun'} vadesi yaklaşıyor.\n\n` +
+            `**Vade tarihi:** ${dayjs(b.vadeTarihi).format('DD MMMM YYYY')}\n` +
+            `**Miktar:** ${Calc.formatBirim(b)}\n` +
+            `**Durum:** ${durumText}\n\n` +
+            `**Ne yapmalısınız?**\n` +
+            `• Karşı tarafla iletişime geçin\n` +
+            `• Ödeme yapıldıysa "Borç/Alacak" sayfasından "Ara Ödeme" ekleyin\n` +
+            `• Tamamen ödendiyse "Tam Ödendi" butonuyla kapatın`,
+            priority: priority,
+            source: 'debt',
+            sourceId: b.id,
+            dedupKey: `debt_${b.id}`,
+            action: { type: 'goto', target: 'borcalacak' }
+          });
+        }
+    } catch (e) { console.warn('[Notif] debt:', e); }
+
+    /* 5️⃣ ARŞİV GECİKMESİ */
+    try {
+      if (SalaryMonth.isOverdue()) {
+        const prevKey = SalaryMonth.previousKey();
+        await Notifications.add({
+          type: 'archive',
+          title: 'Arşiv Gecikmiş',
+          description: `${SalaryMonth.shortLabel(prevKey)} arşivlenmeyi bekliyor`,
+          details: `**${SalaryMonth.shortLabel(prevKey)}** dönemi henüz arşivlenmedi.\n\n` +
+            `Arşivleme, geçmiş dönemin kilitlenmesini ve verilerinizin güvende kalmasını sağlar.\n\n` +
+            `**Ne yapmalısınız?**\n` +
+            `• Arşiv sayfasına gidin\n` +
+            `• "${SalaryMonth.shortLabel(prevKey)} Dönemini Arşivle" butonuna tıklayın\n` +
+            `• PDF raporu otomatik oluşturulur`,
+          priority: 'normal',
+          source: 'archive',
+          sourceId: prevKey,
+          dedupKey: `archive_${prevKey}`,
+          action: { type: 'goto', target: 'arsiv' }
+        });
+      }
+    } catch (e) { console.warn('[Notif] archive:', e); }
+  }
+};
 /* ─────────────────────────────────────────────
    APP CONTROLLER
 ───────────────────────────────────────────── */
@@ -4189,11 +4593,13 @@ const App = {
   
   async renderDashboard() {
     const ayF    = Calc.ayFilter();
-    const bakiye = Calc.bakiye();
-    const gelirT = Calc.toplamGelir();
-    const giderT = Calc.toplamGider();
-    const ayGelir= Calc.toplamGelir(ayF);
-    const ayGider= Calc.toplamGider(ayF);
+    const curKey = SalaryMonth.currentKey();
+    const curRange = SalaryMonth.range(curKey);
+    const bakiye = Calc._toplamGelirTum() - Calc._toplamGiderTum();   // ✅ arşiv dahil
+    const gelirT = Calc._toplamGelirTum();                              // ✅ arşiv dahil
+    const giderT = Calc._toplamGiderTum();                              // ✅ arşiv dahil
+    const ayGelir= Calc._toplamGelirTum(ayF);                           // ✅ arşiv dahil
+    const ayGider= Calc._toplamGiderTum(ayF);                           // ✅ arşiv dahil
     const borcT  = Calc.aktifBorcAlacak();
     const baOzet = Calc.borcAlacakOzet();
     const anomaliler = Calc.anomaliTespit();
@@ -4242,8 +4648,8 @@ document.getElementById('view').innerHTML = `<div class="page-in">
         <div class="hero-label">Net Bakiye</div>
         <div class="hero-amount">${Calc.fmt(bakiye)}</div>
         <div class="hero-meta">
-          <span><i class="fas fa-arrow-up"></i> Toplam: ${Calc.fmt(gelirT)}</span>
-          <span><i class="fas fa-arrow-down"></i> Toplam: ${Calc.fmt(giderT)}</span>
+    <span><i class="fas fa-arrow-up"></i> Toplam: ${Calc.fmt(gelirT)}</span>
+    <span><i class="fas fa-arrow-down"></i> Toplam: ${Calc.fmt(giderT)}</span>
         </div>
         <div style="font-size:10px;opacity:.65;margin-top:8px;letter-spacing:.3px;font-style:italic;">
           Paranı gör, geleceğini planla
@@ -4251,8 +4657,16 @@ document.getElementById('view').innerHTML = `<div class="page-in">
       </div>
 
       <div class="stat-grid">
-        <div class="stat-card"><div class="card-label">Bu Ay Gelir</div><div class="stat-amount green">${Calc.fmt(ayGelir)}</div></div>
-        <div class="stat-card"><div class="card-label">Bu Ay Gider</div><div class="stat-amount red">${Calc.fmt(ayGider)}</div></div>
+<div class="stat-card">
+  <div class="card-label">Bu Dönem Gelir</div>
+  <div class="stat-amount green">${Calc.fmt(ayGelir)}</div>
+  <div style="font-size:9px;color:var(--text3);margin-top:3px;letter-spacing:.2px;">${curRange.start.substring(5)} → ${curRange.end.substring(5)}</div>
+</div>
+<div class="stat-card">
+  <div class="card-label">Bu Dönem Gider</div>
+  <div class="stat-amount red">${Calc.fmt(ayGider)}</div>
+  <div style="font-size:9px;color:var(--text3);margin-top:3px;letter-spacing:.2px;">${curRange.start.substring(5)} → ${curRange.end.substring(5)}</div>
+</div>
         <div class="stat-card full">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
             <div class="card-label" style="margin-bottom:0;">Aktif Borç & Alacak</div>
@@ -4480,7 +4894,7 @@ document.getElementById('view').innerHTML = `<div class="page-in">
     const miktarGroup = document.getElementById('islemMiktarGroup');
     if (!sel || !panel) return;
 
-    const isFuel = sel.value === 'Akaryakıt';
+    const isFuel = sel.value === 'Araç Yakıt' || sel.value === 'Akaryakıt';
     panel.classList.toggle('open', isFuel);
     if (miktarGroup) miktarGroup.style.display = isFuel ? 'none' : '';
 
@@ -4492,59 +4906,60 @@ document.getElementById('view').innerHTML = `<div class="page-in">
   },
 
   /* 🆕 KATEGORİ AYLIK ÖZET GÖSTER */
-  _updateKategoriAylikOzet() {
-    const el = document.getElementById('kategoriAylikOzet');
-    if (!el) return;
+_updateKategoriAylikOzet() {
+  const el = document.getElementById('kategoriAylikOzet');
+  if (!el) return;
 
-    const sel = document.getElementById('islemKategori');
-    const tip = document.getElementById('islemTipHidden')?.value || this._islemTip;
-    const kategori = sel?.value;
+  const sel = document.getElementById('islemKategori');
+  const tip = document.getElementById('islemTipHidden')?.value || this._islemTip;
+  const kategori = sel?.value;
 
-    /* Gelirde veya Akaryakıt'ta gösterme (Akaryakıt'ın kendi detay paneli var) */
-    if (!kategori || tip !== 'gider' || kategori === 'Akaryakıt') {
-      el.style.display = 'none';
-      el.innerHTML = '';
-      return;
-    }
+  /* Akaryakıt / Araç Yakıt için gösterme (kendi paneli var) */
+  const isFuelKat = kategori === 'Araç Yakıt' || kategori === 'Akaryakıt';
+  if (!kategori || tip !== 'gider' || isFuelKat) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
 
-    const toplam = Calc.aylikGiderKategori(kategori);
-    const limit = state.limitler[kategori];
-    const asim = limit && toplam > limit;
-    const yuzde = limit ? Math.min(100, (toplam / limit) * 100) : 0;
-    const kalan = limit && !asim ? (limit - toplam) : 0;
+  const toplam = Calc.aylikGiderKategori(kategori);
+  const limit  = state.limitler[kategori];
+  const asim   = limit && toplam > limit;
+  const yuzde  = limit ? Math.min(100, (toplam / limit) * 100) : 0;
+  const kalan  = limit && !asim ? (limit - toplam) : 0;
 
-    const limitHTML = limit ? `
-      <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:var(--text3);margin-top:6px;">
-        <span>Limit: <strong style="color:var(--text2);">${Calc.fmt(limit)}</strong></span>
-        <span style="color:${asim ? 'var(--danger)' : 'var(--accent)'};font-weight:700;">
-          ${asim ? `Aşım: ${Calc.fmt(toplam - limit)}` : `Kalan: ${Calc.fmt(kalan)}`}
+  const limitHTML = limit ? `
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:var(--text3);margin-top:6px;">
+      <span>Limit: <strong style="color:var(--text2);">${Calc.fmt(limit)}</strong></span>
+      <span style="color:${asim ? 'var(--danger)' : 'var(--accent)'};font-weight:700;">
+        ${asim ? `Aşım: ${Calc.fmt(toplam - limit)}` : `Kalan: ${Calc.fmt(kalan)}`}
+      </span>
+    </div>
+    <div class="progress-track" style="margin:4px 0 0;height:4px;">
+      <div class="progress-bar" style="width:${yuzde}%;background:${asim ? 'var(--danger)' : 'var(--warning)'};"></div>
+    </div>
+  ` : '';
+
+  el.innerHTML = `
+    <div style="padding:10px 12px;background:${asim ? 'var(--danger-light)' : 'var(--primary-light)'};
+                border-radius:9px;border:1px solid ${asim ? 'rgba(185,28,28,.35)' : 'var(--border)'};
+                margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:11px;color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;">
+          <i class="fas fa-receipt" style="color:${asim ? 'var(--danger)' : 'var(--primary)'};font-size:11px;"></i>
+          Bu Dönem · ${UI.escHtml(kategori)}
         </span>
+        <strong style="font-family:'Inter',sans-serif;font-size:14px;
+                       color:${asim ? 'var(--danger)' : 'var(--primary)'};
+                       font-variant-numeric:tabular-nums;">
+          ${Calc.fmt(toplam)}
+        </strong>
       </div>
-      <div class="progress-track" style="margin:4px 0 0;height:4px;">
-        <div class="progress-bar" style="width:${yuzde}%;background:${asim ? 'var(--danger)' : 'var(--warning)'};"></div>
-      </div>
-    ` : '';
-
-    el.innerHTML = `
-      <div style="padding:10px 12px;background:${asim ? 'var(--danger-light)' : 'var(--primary-light)'};
-                  border-radius:9px;border:1px solid ${asim ? 'rgba(185,28,28,.35)' : 'var(--border)'};
-                  margin-bottom:12px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:11px;color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;">
-            <i class="fas fa-receipt" style="color:${asim ? 'var(--danger)' : 'var(--primary)'};font-size:11px;"></i>
-            Bu ay ${UI.escHtml(kategori)}
-          </span>
-          <strong style="font-family:'Inter',sans-serif;font-size:14px;
-                         color:${asim ? 'var(--danger)' : 'var(--primary)'};
-                         font-variant-numeric:tabular-nums;">
-            ${Calc.fmt(toplam)}
-          </strong>
-        </div>
-        ${limitHTML}
-      </div>
-    `;
-    el.style.display = 'block';
-  },
+      ${limitHTML}
+    </div>
+  `;
+  el.style.display = 'block';
+},
 
   _setFuelTip(tip) {
     this._fuelTipCurrent = tip;
@@ -4565,7 +4980,7 @@ document.getElementById('view').innerHTML = `<div class="page-in">
   _editKategoriChange() {
     const kat = document.getElementById('eKat')?.value;
     const fields = document.getElementById('eFuelFields');
-    if (fields) fields.style.display = (kat === 'Akaryakıt') ? 'block' : 'none';
+    if (fields) fields.style.display = (kat === 'Araç Yakıt' || kat === 'Akaryakıt') ? 'block' : 'none';
   },
 
   _findPrevFuelRecord(excludeId, beforeDate) {
@@ -4928,8 +5343,8 @@ document.getElementById('view').innerHTML = `<div class="page-in">
     const tarih    = document.getElementById('islemTarih')?.value;
     const aciklama = document.getElementById('islemAciklama')?.value || '';
     const tip      = document.getElementById('islemTipHidden')?.value || this._islemTip;
-    const isFuel   = tip === 'gider' && kategori === 'Akaryakıt';
-
+    const isFuel = tip === 'gider' && (kategori === 'Araç Yakıt' || kategori === 'Akaryakıt');
+    
     if (!tarih) { Swal.fire({ icon: 'warning', title: 'Tarih Gerekli!', timer: 1800, showConfirmButton: false }); return; }
 
     let miktar, extra = {};
@@ -4943,6 +5358,26 @@ document.getElementById('view').innerHTML = `<div class="page-in">
       const lFiyat    = parseFloat(document.getElementById('fuelLpgFiyat')?.value) || 0;
 
       if (!kmVal || kmVal <= 0) { Swal.fire({ icon: 'warning', title: 'KM zorunlu!', text: 'Akaryakıt kaydı için güncel KM girin.', timer: 2000, showConfirmButton: false }); return; }
+            /* 🛡️ KM DOĞRULAMA: Yeni KM, aynı tarihten önceki en son kayıttan KÜÇÜK olamaz */
+      const prevFuelRecord = this._findPrevFuelRecord(null, tarih);
+      if (prevFuelRecord && Number(prevFuelRecord.fuel?.km) > 0) {
+        const prevKm = Number(prevFuelRecord.fuel.km);
+        if (kmVal <= prevKm) {
+          Swal.fire({
+            icon: 'error',
+            title: '⚠️ KM Mantık Hatası',
+            html: `<div style="text-align:left;font-size:13px;line-height:1.6;">
+              <p>Girdiğiniz KM: <strong style="color:var(--danger);font-size:15px;">${kmVal.toLocaleString('tr-TR')} km</strong></p>
+              <p>Önceki kayıt: <strong>${prevKm.toLocaleString('tr-TR')} km</strong> (${dayjs(prevFuelRecord.tarih).format('DD MMM YYYY')})</p>
+              <hr style="margin:10px 0;border:none;border-top:1px solid var(--border);">
+              <p style="color:var(--text3);">Araç KM sayacı sadece <strong>artabilir</strong>, azalamaz. Lütfen doğru KM girin.</p>
+            </div>`,
+            confirmButtonText: 'Anladım',
+            width: Math.min(420, window.innerWidth - 24)
+          });
+          return;
+        }
+      }
 
       const benzinTL = (fuelTip === 'benzin' || fuelTip === 'her-ikisi') ? bLitre * bFiyat : 0;
       const lpgTL    = (fuelTip === 'lpg'    || fuelTip === 'her-ikisi') ? lLitre * lFiyat : 0;
@@ -5117,9 +5552,19 @@ document.getElementById('view').innerHTML = `<div class="page-in">
           aciklama: document.getElementById('eAciklama').value
         };
 
-        if (data.kategori === 'Akaryakıt') {
+        if (data.kategori === 'Araç Yakıt' || data.kategori === 'Akaryakıt') {
           const fuelTip   = document.getElementById('eFuelTip')?.value || 'benzin';
           const kmVal     = parseFloat(document.getElementById('eFuelKm')?.value);
+                    /* 🛡️ KM DOĞRULAMA (düzenleme) — kendini hariç tut */
+          if (kmVal > 0) {
+            const prevRec = App._findPrevFuelRecord(id, data.tarih);
+            if (prevRec && Number(prevRec.fuel?.km) > 0 && kmVal <= Number(prevRec.fuel.km)) {
+              Swal.showValidationMessage(
+                `⚠️ KM ${kmVal.toLocaleString('tr-TR')} km, önceki kayıttan (${Number(prevRec.fuel.km).toLocaleString('tr-TR')} km) küçük olamaz`
+              );
+              return false;
+            }
+          }
           const bLitre    = parseFloat(document.getElementById('eFuelBenzinLitre')?.value) || 0;
           const bFiyat    = parseFloat(document.getElementById('eFuelBenzinFiyat')?.value) || 0;
           const lLitre    = parseFloat(document.getElementById('eFuelLpgLitre')?.value) || 0;
@@ -6882,12 +7327,13 @@ async araOdeme(id) {
     `;
 
     // ─── GRAFİKLER ───
-    requestAnimationFrame(() => {
-      const monthCount = Math.max(1, Math.min(12, dayjs(end).diff(dayjs(start), 'month') + 1));
-      Charts.line('raporLineChart', Calc.aylikTrendBetween(start, end, monthCount));
-      const kt = Calc.kategoriTrendBetween(start, end, monthCount);
-      Charts.kategoriTrend('raporKategoriTrendChart', kt.data, kt.kategoriler);
-    });
+requestAnimationFrame(() => {
+  /* ✅ MİNİMUM 6 AY göster — az veri olsa da trend görünsün */
+  const monthCount = Math.max(6, Math.min(12, dayjs(end).diff(dayjs(start), 'month') + 1));
+  Charts.line('raporLineChart', Calc.aylikTrendBetween(start, end, monthCount));
+  const kt = Calc.kategoriTrendBetween(start, end, monthCount, 6);
+  Charts.kategoriTrend('raporKategoriTrendChart', kt.data, kt.kategoriler);
+});
 
     this._fillKarsilastirmaSelects();
     this.renderFuelAnalysis();
@@ -8975,7 +9421,7 @@ async showBakimGecmisi(vehicleId) {
   });
   if (!r.isConfirmed) return;
 
-  const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','ayarlar','archives','logs','backups','araclar'];
+const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','ayarlar','archives','logs','backups','araclar','notifications'];
     try {
     // Her store'u atomik olarak temizle (queueSave sırasına uy)
     for (const s of stores) {
@@ -9772,7 +10218,183 @@ async showBakimGecmisi(vehicleId) {
       showToast('⚠️ Grafik indirilemedi');
     }
   },
+  /* 🔔 Bildirim modal */
+  async openNotifications() {
+    await Notifications.generateAll();
+    const unread = Notifications.getUnreadCount();
+    const total = state.notifications.length;
 
+    await Swal.fire({
+      title: '🔔 Bildirimler',
+      html: `<div style="text-align:left;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:8px 12px;background:var(--surface2);border-radius:10px;">
+          <div style="font-size:12px;color:var(--text2);">
+            <strong style="color:var(--danger);">${unread}</strong> okunmamış · ${total} toplam
+          </div>
+          <div style="display:flex;gap:6px;">
+            ${unread > 0 ? `<button onclick="App.markAllNotificationsRead()" style="background:var(--primary);color:#fff;border:none;padding:6px 10px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;">✓ Tümünü Okundu</button>` : ''}
+            ${total > 0 ? `<button onclick="App.clearReadNotifications()" style="background:var(--danger-light);color:var(--danger);border:1px solid var(--danger);padding:6px 10px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;">🗑️ Okunanları Sil</button>` : ''}
+          </div>
+        </div>
+        <div id="notifList" style="max-height:60vh;overflow-y:auto;">
+          ${this._buildNotifListHTML()}
+        </div>
+      </div>`,
+      width: Math.min(560, window.innerWidth - 24),
+      showConfirmButton: false,
+      showCloseButton: true
+    });
+  },
+
+  _buildNotifListHTML() {
+    if (!state.notifications.length) {
+      return `<div class="empty-state" style="padding:40px 20px;">
+        <i class="fas fa-bell-slash"></i>
+        <p>Bildirim yok</p>
+        <p style="font-size:11px;opacity:.6;margin-top:6px;">Araç, bütçe, vade uyarıları burada toplanır</p>
+      </div>`;
+    }
+
+    return state.notifications.slice(0, 100).map(n => {
+      const def = NotifTypes[n.type] || NotifTypes.info;
+      const unreadStyle = !n.read
+        ? `background:var(--primary-light);border-left:4px solid ${def.color};`
+        : `background:var(--surface);border-left:4px solid var(--border);`;
+      const unreadDot = !n.read
+        ? `<span style="width:8px;height:8px;background:var(--danger);border-radius:50%;display:inline-block;margin-right:6px;"></span>`
+        : '';
+
+      return `<div onclick="App.showNotificationDetail(${n.id})"
+                  style="padding:12px;border-radius:10px;margin-bottom:6px;cursor:pointer;transition:all .15s ease;${unreadStyle}border-top:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border);"
+                  onmouseover="this.style.transform='translateX(2px)';this.style.boxShadow='0 2px 8px rgba(15,42,92,.08)'"
+                  onmouseout="this.style.transform='translateX(0)';this.style.boxShadow='none'">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px;">
+          <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;">
+            ${unreadDot}
+            <i class="fas ${def.icon}" style="color:${def.color};font-size:14px;flex-shrink:0;"></i>
+            <span style="font-size:13px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${UI.escHtml(n.title)}</span>
+          </div>
+          <span style="font-size:9px;color:var(--text3);white-space:nowrap;flex-shrink:0;">${dayjs(n.createdAt).format('DD MMM HH:mm')}</span>
+        </div>
+        <div style="font-size:11.5px;color:var(--text2);padding-left:${!n.read ? '14px' : '0'};line-height:1.4;">
+          ${UI.escHtml(n.description)}
+        </div>
+      </div>`;
+    }).join('');
+  },
+
+  async showNotificationDetail(id) {
+    const n = state.notifications.find(x => x.id == id);
+    if (!n) return;
+
+    const def = NotifTypes[n.type] || NotifTypes.info;
+
+    /* Okundu işaretle */
+    if (!n.read) await Notifications.markRead(id);
+
+    const priorityMap = {
+      'critical': { bg: 'var(--danger)', label: 'KRİTİK' },
+      'high':     { bg: 'var(--warning)', label: 'ACİL' },
+      'normal':   { bg: 'var(--info)', label: 'BİLGİ' },
+      'low':      { bg: 'var(--text3)', label: 'DÜŞÜK' }
+    };
+    const pr = priorityMap[n.priority] || priorityMap.normal;
+
+    /* Detay metnini markdown benzeri biçimden HTML'e çevir */
+    const detailsHTML = (n.details || '').split('\n').map(line => {
+      if (line.trim() === '') return '<div style="height:8px;"></div>';
+      if (/^\*\*(.+?)\*\*/.test(line)) {
+        return `<div style="font-size:12.5px;color:var(--text);line-height:1.6;margin-bottom:4px;">${line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</div>`;
+      }
+      if (/^[•\-]\s/.test(line)) {
+        return `<div style="font-size:12px;color:var(--text2);line-height:1.6;padding-left:14px;margin-bottom:3px;">${line}</div>`;
+      }
+      return `<div style="font-size:12.5px;color:var(--text);line-height:1.6;margin-bottom:4px;">${line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</div>`;
+    }).join('');
+
+    const actionBtn = n.action && n.action.target
+      ? `<button onclick="App._notifAction('${n.action.type}', '${n.action.target}', ${JSON.stringify(n.action.payload || null)}); Swal.close();"
+                 style="background:var(--primary);color:#fff;border:none;padding:10px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;width:100%;margin-top:6px;">
+          <i class="fas fa-arrow-right"></i> İlgili Sayfaya Git
+        </button>`
+      : '';
+
+    const result = await Swal.fire({
+      title: '🔔 Bildirim Detayı',
+      html: `<div style="text-align:left;">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface2);border-radius:10px;margin-bottom:12px;">
+          <div style="width:36px;height:36px;border-radius:10px;background:${def.color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">
+            <i class="fas ${def.icon}"></i>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:2px;">${UI.escHtml(n.title)}</div>
+            <div style="font-size:10.5px;color:var(--text3);">${dayjs(n.createdAt).format('DD MMMM YYYY · HH:mm')}</div>
+          </div>
+          <span style="background:${pr.bg};color:#fff;padding:3px 8px;border-radius:6px;font-size:9px;font-weight:800;letter-spacing:.4px;">${pr.label}</span>
+        </div>
+
+        <div style="padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;">
+          ${detailsHTML}
+        </div>
+
+        <div style="display:flex;gap:6px;">
+          <button onclick="App.deleteNotification(${n.id}); Swal.close();"
+                  style="flex:1;background:var(--danger-light);color:var(--danger);border:1px solid var(--danger);padding:9px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">
+            <i class="fas fa-trash"></i> Sil
+          </button>
+          ${actionBtn}
+        </div>
+      </div>`,
+      width: Math.min(520, window.innerWidth - 24),
+      showConfirmButton: false,
+      showCloseButton: true
+    });
+  },
+
+  _notifAction(type, target, payload) {
+    Swal.close();
+    setTimeout(() => {
+      if (type === 'goto') {
+        if (target === 'vehicle') {
+          if (payload) { setTimeout(() => App.showBakimGecmisi(payload), 200); }
+          else App.openVehicleModal();
+        } else if (target === 'borcalacak') this.loadPage('borcalacak');
+        else if (target === 'arsiv') this.loadPage('arsiv');
+        else if (target === 'rapor') this.loadPage('rapor');
+        else if (target === 'dashboard') this.loadPage('dashboard');
+      }
+    }, 200);
+  },
+
+  async markAllNotificationsRead() {
+    const ok = await Notifications.markAllRead();
+    if (ok) showToast('✓ Tüm bildirimler okundu');
+    await this.openNotifications();
+  },
+
+  async clearReadNotifications() {
+    const r = await Swal.fire({
+      icon: 'question',
+      title: 'Okunanları Sil?',
+      text: 'Sadece "okundu" işaretli bildirimler silinecek.',
+      showCancelButton: true,
+      confirmButtonText: 'Sil',
+      cancelButtonText: 'İptal',
+      confirmButtonColor: '#DC2626'
+    });
+    if (r.isConfirmed) {
+      await Notifications.clearRead();
+      showToast('🗑️ Okunan bildirimler silindi');
+      await this.openNotifications();
+    }
+  },
+
+  async deleteNotification(id) {
+    await Notifications.remove(id);
+    showToast('🗑️ Bildirim silindi');
+    /* Modal zaten kapatılıyor, listede güncelleme */
+    setTimeout(() => Notifications.updateBadge(), 100);
+  }
   /* 🆕 FAZ 3 — Global Arama */
   async openGlobalSearch() {
     await Swal.fire({
@@ -10409,6 +11031,11 @@ async function _renderChartToBase64(type, data, options) {
     }
   });
 }
+
+/* İlk yüklemede badge güncelle */
+setTimeout(() => {
+  try { Notifications.updateBadge(); } catch (_) {}
+}, 500);
   
 window.App  = App;
 window.CRUD = CRUD;
@@ -10545,6 +11172,12 @@ document.addEventListener('click', () => { requestPersistentStorage(); }, { once
   setTimeout(async () => {
     try {
       // 1) Altın kurlarını sessizce güncelle (UI yok)
+            /* 🔔 Bildirimleri otomatik oluştur */
+      try { await Notifications.generateAll(); }
+      catch (e) { console.warn('[init] notif gen:', e); }
+
+      /* Badge'i güncelle */
+      Notifications.updateBadge();
       GoldRate.fetchAndUpdate(false).catch(e => console.warn('[init] gold:', e));
 
       // 2) Migrasyon — sadece bir kez, kısa aralıkla
