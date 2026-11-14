@@ -4305,62 +4305,7 @@ document.getElementById('view').innerHTML = `<div class="page-in">
           }).join('')}
         </div>
       ` : ''}     
-
-
-      <!-- 🆕 ANOMALİLER -->
-      ${anomaliler.length > 0 ? `
-        <div class="card" style="border-left:4px solid var(--warning);">
-          <div class="section-header">
-            <span class="section-title" style="display:flex;align-items:center;gap:8px;">
-              <i class="fas fa-chart-line" style="color:var(--warning);"></i>
-              Anormal Harcama Artışı
-            </span>
-            <span class="badge badge-amber">${anomaliler.length}</span>
-          </div>
-          ${anomaliler.slice(0, 3).map(a => `
-            <div style="padding:8px 10px;background:var(--warning-light);border-radius:8px;margin-bottom:6px;font-size:12px;">
-              <div style="display:flex;justify-content:space-between;">
-                <strong>${UI.escHtml(a.kategori)}</strong>
-                <span style="color:var(--danger);font-weight:700;">+%${a.artisYuzde}</span>
-              </div>
-              <div style="font-size:10.5px;color:var(--text3);margin-top:2px;">
-                ${Calc.fmt(a.bu)} · ortalama ${Calc.fmt(a.ortalama)}
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      ` : ''}
-
-      ${SalaryMonth.isOverdue() ? `
-        <div class="alert" style="background:#FEF3C7;border:1px solid #FCD34D;color:#92400E;cursor:pointer;" onclick="App.loadPage('arsiv')">
-          <i class="fas fa-exclamation-triangle"></i>
-          <div>
-            <strong>Arşiv gecikmiş!</strong> ${SalaryMonth.shortLabel(SalaryMonth.previousKey())} bekliyor.
-            <span style="text-decoration:underline;font-weight:700;">Arşive git →</span>
-          </div>
-        </div>
-      ` : ''}
-
-      <div class="card">
-        <div class="section-header">
-          <span class="section-title">Aylık Trend</span>
-          <button onclick="App.downloadChart('dashBarChart', 'Gelir_Gider_Trendi')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;" title="PNG İndir">
-            <i class="fas fa-download"></i>
-          </button>
-        </div>
-        <div class="chart-wrap"><canvas id="dashBarChart"></canvas></div>
-      </div>
-
-      <div class="card">
-        <div class="section-header">
-          <span class="section-title">Gider Dağılımı (Bu Ay)</span>
-          <button onclick="App.downloadChart('dashDonutChart', 'Gider_Dagilimi')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;" title="PNG İndir">
-            <i class="fas fa-download"></i>
-          </button>
-        </div>
-        <div class="chart-wrap"><canvas id="dashDonutChart"></canvas></div>
-      </div>
-      <!-- 🆕 ARAÇLAR & HATIRLATICILAR (KM bazlı yağ bakımı + tarih) -->
+<!-- 🆕 ARAÇLAR & HATIRLATICILAR (KM bazlı yağ bakımı + tarih) -->
       ${hasVehicles ? `
       <div class="card" style="border-left:4px solid ${
         kmAktif.some(k => k.seviye === 'gecti' || k.seviye === 'acil') || araclar.some(a => a.seviye === 'gecti' || a.seviye === 'acil')
@@ -4448,6 +4393,61 @@ document.getElementById('view').innerHTML = `<div class="page-in">
           }).join('')}
       </div>
       ` : ''}
+
+      <!-- 🆕 ANOMALİLER -->
+      ${anomaliler.length > 0 ? `
+        <div class="card" style="border-left:4px solid var(--warning);">
+          <div class="section-header">
+            <span class="section-title" style="display:flex;align-items:center;gap:8px;">
+              <i class="fas fa-chart-line" style="color:var(--warning);"></i>
+              Anormal Harcama Artışı
+            </span>
+            <span class="badge badge-amber">${anomaliler.length}</span>
+          </div>
+          ${anomaliler.slice(0, 3).map(a => `
+            <div style="padding:8px 10px;background:var(--warning-light);border-radius:8px;margin-bottom:6px;font-size:12px;">
+              <div style="display:flex;justify-content:space-between;">
+                <strong>${UI.escHtml(a.kategori)}</strong>
+                <span style="color:var(--danger);font-weight:700;">+%${a.artisYuzde}</span>
+              </div>
+              <div style="font-size:10.5px;color:var(--text3);margin-top:2px;">
+                ${Calc.fmt(a.bu)} · ortalama ${Calc.fmt(a.ortalama)}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      ${SalaryMonth.isOverdue() ? `
+        <div class="alert" style="background:#FEF3C7;border:1px solid #FCD34D;color:#92400E;cursor:pointer;" onclick="App.loadPage('arsiv')">
+          <i class="fas fa-exclamation-triangle"></i>
+          <div>
+            <strong>Arşiv gecikmiş!</strong> ${SalaryMonth.shortLabel(SalaryMonth.previousKey())} bekliyor.
+            <span style="text-decoration:underline;font-weight:700;">Arşive git →</span>
+          </div>
+        </div>
+      ` : ''}
+
+      <div class="card">
+        <div class="section-header">
+          <span class="section-title">Aylık Trend</span>
+          <button onclick="App.downloadChart('dashBarChart', 'Gelir_Gider_Trendi')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;" title="PNG İndir">
+            <i class="fas fa-download"></i>
+          </button>
+        </div>
+        <div class="chart-wrap"><canvas id="dashBarChart"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="section-header">
+          <span class="section-title">Gider Dağılımı (Bu Ay)</span>
+          <button onclick="App.downloadChart('dashDonutChart', 'Gider_Dagilimi')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;" title="PNG İndir">
+            <i class="fas fa-download"></i>
+          </button>
+        </div>
+        <div class="chart-wrap"><canvas id="dashDonutChart"></canvas></div>
+      </div>
+      
       <div class="card">
         <div class="section-header">
           <span class="section-title">Son İşlemler</span>
