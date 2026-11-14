@@ -3015,6 +3015,20 @@ kategoriTrendBetween(startDate, endDate, maxMonths = 12, topN = 6) {
       .sort((a, b) => a.kalanGun - b.kalanGun);
   }
 };                 // ← Artık doğru: `}` + `};`
+
+  /* ═══════════════════════════════════════════════════════════════
+   YARDIMCI: Son yakıt kaydından güncel KM (aktif + arşiv)
+   ═══════════════════════════════════════════════════════════════ */
+function _getLastFuelKm() {
+  const fuelRecords = Calc._allGiderler()
+    .filter(g => g.kategori === 'Akaryakıt' && g.fuel && Number(g.fuel.km) > 0)
+    .sort((a, b) => {
+      if (a.tarih !== b.tarih) return b.tarih.localeCompare(a.tarih);
+      return (b.createdAt || '').localeCompare(a.createdAt || '');
+    });
+  return fuelRecords.length > 0 ? Number(fuelRecords[0].fuel.km) : 0;
+}
+  
 /* ═══════════════════════════════════════════════════════════════
    ARAÇ HATIRLATICI — muayene / sigorta / kasko / bakım
    ═══════════════════════════════════════════════════════════════ */
@@ -3027,20 +3041,44 @@ const Vehicle = {
         if (!dateStr) return;
         const days = dayjs(dateStr).startOf('day').diff(today, 'day');
         if (days <= daysAhead && days >= -30) {
-          out.push({
-            vid: v.id, plaka: v.plaka || '', label, dateStr, color,
-            days, gecti: days < 0, bugun: days === 0
-          });
+          out.push({ vid: v.id, plaka: v.plaka || '', label, dateStr, color, days, gecti: days < 0, bugun: days === 0 });
         }
       };
       push('Muayene',          v.muayeneBitis, 'danger');
       push('Trafik Sigortası', v.sigorta,      'warning');
       push('Kasko',            v.kasko,        'info');
-      if (v.bakimTarih && v.bakimAyAralik) {
-        push('Bakım', dayjs(v.bakimTarih).add(v.bakimAyAralik, 'month').format('YYYY-MM-DD'), 'primary');
-      }
     });
     return out.sort((a, b) => a.days - b.days);
+  },
+
+  /* 🆕 KM bazlı yağ bakımı takibi */
+  getKmAktif() {
+    const currentKm = _getLastFuelKm();
+    if (currentKm === 0) return [];
+
+    const out = [];
+    (state.araclar || []).forEach(v => {
+      const sonKm = Number(v.yagBakimKm);
+      const aralik = Number(v.yagBakimAralikKm) || 10000;
+      if (!sonKm || sonKm <= 0) return;
+
+      const hedefKm = sonKm + aralik;
+      const kalanKm = hedefKm - currentKm;
+      const ilerleme = Math.max(0, Math.min(100, ((currentKm - sonKm) / aralik) * 100));
+
+      let seviye, renk, bg;
+      if (kalanKm < 0)          { seviye = 'gecti';       renk = 'var(--danger)';  bg = 'var(--danger-light)'; }
+      else if (kalanKm <= 500)  { seviye = 'acil';        renk = 'var(--danger)';  bg = 'var(--danger-light)'; }
+      else if (kalanKm <= 2000) { seviye = 'yaklasiyor';  renk = 'var(--warning)'; bg = 'var(--warning-light)'; }
+      else                      { seviye = 'iyi';         renk = 'var(--accent)';  bg = 'var(--accent-light)'; }
+
+      out.push({
+        vid: v.id, plaka: v.plaka || '', marka: v.marka || '', model: v.model || '',
+        sonBakimKm: sonKm, hedefKm, currentKm, kalanKm, ilerleme, aralik,
+        seviye, renk, bg
+      });
+    });
+    return out.sort((a, b) => a.kalanKm - b.kalanKm);
   }
 };
 const CRUD = {
@@ -3870,6 +3908,8 @@ const App = {
     const anomaliler = Calc.anomaliTespit();
     const vadeler = Calc.vadeleriGelenBorclar(7);
     const araclar = Vehicle.getUpcoming(45);
+    const kmAktif = Vehicle.getKmAktif();
+    const hasVehicles = state.araclar && state.araclar.length > 0; 
     const insight = this._calculateMonthlyInsight();
 
     const limitAlerts = Object.entries(state.limitler)
@@ -3951,33 +3991,89 @@ const App = {
           }).join('')}
         </div>
       ` : ''}     
-      <!-- 🆕 ARAÇ HATIRLATICI -->
-      ${araclar.length > 0 ? `
-        <div class="card" style="border-left:4px solid ${araclar.some(a => a.gecti) ? 'var(--danger)' : (araclar.some(a => a.days <= 7) ? 'var(--warning)' : 'var(--primary)')};">
+      <!-- 🆕 ARAÇLAR & HATIRLATICILAR (KM bazlı yağ bakımı + tarih) -->
+      ${hasVehicles ? `
+        <div class="card" style="border-left:4px solid ${
+          kmAktif.some(k => k.seviye === 'gecti' || k.seviye === 'acil') || araclar.some(a => a.gecti)
+            ? 'var(--danger)' 
+            : (kmAktif.some(k => k.seviye === 'yaklasiyor') || araclar.some(a => a.days <= 7)
+              ? 'var(--warning)' 
+              : 'var(--primary)')
+        };">
           <div class="section-header">
             <span class="section-title" style="display:flex;align-items:center;gap:8px;">
-              <i class="fas fa-car" style="color:${araclar.some(a => a.gecti) ? 'var(--danger)' : 'var(--warning)'};"></i>
-              Araç Hatırlatıcıları
+              <i class="fas fa-car" style="color:var(--primary);"></i>
+              Araçlar & Hatırlatıcılar
             </span>
-            <button onclick="App.openVehicleModal()" class="btn btn-sm btn-ghost" style="padding:0 8px;height:28px;">
+            <button onclick="App.openVehicleModal()" class="btn btn-sm btn-ghost" style="padding:0 10px;height:28px;">
               <i class="fas fa-cog"></i>
             </button>
           </div>
-          ${araclar.slice(0, 5).map(r => {
-            const bg = r.gecti ? 'var(--danger-light)' : (r.days <= 7 ? 'var(--warning-light)' : 'var(--surface2)');
-            const col = r.gecti ? 'var(--danger)' : (r.days <= 7 ? 'var(--warning)' : 'var(--text3)');
-            const txt = r.gecti ? `${Math.abs(r.days)} gün gecikti` : (r.bugun ? 'Bugün' : `${r.days} gün kaldı`);
-            return `<div onclick="App.openVehicleModal()"
-                    style="padding:10px;background:${bg};border-radius:8px;margin-bottom:6px;cursor:pointer;">
-              <div style="display:flex;justify-content:space-between;font-size:12px;">
-                <strong>${UI.escHtml(r.plaka)} · ${r.label}</strong>
-                <span style="color:${col};font-weight:800;">${txt}</span>
+
+          ${state.araclar.map(v => {
+            const km = kmAktif.find(k => k.vid === v.id);
+            const tarihler = araclar.filter(a => a.vid === v.id);
+            return `
+              <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2);">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                  <div>
+                    <strong style="font-size:14px;">${UI.escHtml(v.plaka || '—')}</strong>
+                    <span style="font-size:11px;color:var(--text3);margin-left:6px;">${UI.escHtml((v.marka||'') + ' ' + (v.model||'')).trim()}</span>
+                  </div>
+                </div>
+
+                ${km ? `
+                  <div style="margin-bottom:8px;padding:10px;background:${km.bg};border-radius:8px;border-left:3px solid ${km.renk};">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                      <span style="font-size:11px;font-weight:700;color:${km.renk};">
+                        🛢️ Yağ Bakımı
+                      </span>
+                      <span style="font-size:12px;font-weight:800;color:${km.renk};">
+                        ${km.kalanKm > 0
+                          ? `${km.kalanKm.toLocaleString('tr-TR')} km kaldı`
+                          : `${Math.abs(km.kalanKm).toLocaleString('tr-TR')} km geçti!`}
+                      </span>
+                    </div>
+                    <div class="progress-track" style="margin:0 0 4px;">
+                      <div class="progress-bar" style="width:${km.ilerleme}%;background:${km.renk};"></div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;font-size:9.5px;color:var(--text3);">
+                      <span>Son: ${km.sonBakimKm.toLocaleString('tr-TR')} km</span>
+                      <span>Şu an: ${km.currentKm.toLocaleString('tr-TR')} km</span>
+                      <span>Hedef: ${km.hedefKm.toLocaleString('tr-TR')} km</span>
+                    </div>
+                  </div>
+                ` : `
+                  <div style="margin-bottom:8px;padding:10px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;font-size:10.5px;color:var(--text3);text-align:center;">
+                    <i class="fas fa-info-circle"></i> Yağ bakımı takibi için 
+                    <a href="#" onclick="event.preventDefault();App._editVehicle(${v.id})" style="color:var(--primary);font-weight:600;">araç ayarlarına</a> 
+                    başlangıç KM girin
+                  </div>
+                `}
+
+                ${tarihler.length > 0 ? tarihler.map(r => {
+                  const bg = r.gecti ? 'var(--danger-light)' : (r.days <= 7 ? 'var(--warning-light)' : 'var(--surface)');
+                  const col = r.gecti ? 'var(--danger)' : (r.days <= 7 ? 'var(--warning)' : 'var(--text2)');
+                  const icon = r.label === 'Muayene' ? 'fa-clipboard-check' : r.label === 'Kasko' ? 'fa-shield-halved' : 'fa-file-shield';
+                  return `
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:${bg};border-radius:6px;margin-bottom:4px;font-size:11px;">
+                      <span><i class="fas ${icon}" style="color:${col};width:14px;"></i> ${r.label}</span>
+                      <span style="color:${col};font-weight:700;">
+                        ${r.gecti ? `${Math.abs(r.days)} gün geçti` : (r.bugun ? 'Bugün!' : `${r.days} gün`)}
+                      </span>
+                    </div>
+                  `;
+                }).join('') : ''}
               </div>
-              <div style="font-size:10px;color:var(--text3);margin-top:2px;">
-                ${dayjs(r.dateStr).format('DD MMM YYYY')}
-              </div>
-            </div>`;
+            `;
           }).join('')}
+
+          ${kmAktif.length === 0 && araclar.length === 0 ? `
+            <div style="text-align:center;padding:12px;color:var(--text3);font-size:11px;">
+              <i class="fas fa-info-circle"></i> Hatırlatıcı yok —
+              <a href="#" onclick="event.preventDefault();App.openVehicleModal()" style="color:var(--primary);font-weight:600;">araç ekle</a>
+            </div>
+          ` : ''}
         </div>
       ` : ''}
       <!-- 🆕 AYLIK INSIGHT -->
@@ -8042,14 +8138,25 @@ openKategoriModal() {
   /* ══════════════════════════════════════
      ARAÇLAR
   ══════════════════════════════════════ */
-  async openVehicleModal() {
-    const vehicles = state.araclar || [];
-    await Swal.fire({
-      title: '🚗 Araçlar & Hatırlatıcılar',
-      html: `<div style="text-align:left;max-height:70vh;overflow-y:auto;padding-right:4px;">
-        ${vehicles.length === 0
-          ? `<div class="empty-state" style="padding:20px;"><i class="fas fa-car"></i><p>Henüz araç eklenmemiş</p></div>`
-          : vehicles.map(v => `
+async openVehicleModal() {
+  const vehicles = state.araclar || [];
+  const kmAktif = Vehicle.getKmAktif();
+  const currentKm = _getLastFuelKm();
+
+  await Swal.fire({
+    title: '🚗 Araçlar & Hatırlatıcılar',
+    html: `<div style="text-align:left;max-height:70vh;overflow-y:auto;padding-right:4px;">
+      ${currentKm > 0 ? `
+        <div style="padding:8px 10px;background:var(--info-light);border-radius:8px;margin-bottom:10px;font-size:11px;color:var(--info);">
+          <i class="fas fa-tachometer-alt"></i> Güncel KM (yakıt kayıtlarından): <strong>${currentKm.toLocaleString('tr-TR')} km</strong>
+        </div>
+      ` : ''}
+
+      ${vehicles.length === 0
+        ? `<div class="empty-state" style="padding:20px;"><i class="fas fa-car"></i><p>Henüz araç eklenmemiş</p></div>`
+        : vehicles.map(v => {
+          const km = kmAktif.find(k => k.vid === v.id);
+          return `
             <div class="card-sm" style="margin-bottom:8px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
                 <strong style="font-size:14px;">${UI.escHtml(v.plaka || '—')}</strong>
@@ -8065,112 +8172,118 @@ openKategoriModal() {
               <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">
                 ${UI.escHtml(v.marka || '')} ${UI.escHtml(v.model || '')} ${v.yil ? '· ' + v.yil : ''}
               </div>
+
+              ${km ? `
+                <div style="padding:8px;background:${km.bg};border-radius:6px;margin-bottom:8px;">
+                  <div style="font-size:10.5px;font-weight:700;color:${km.renk};margin-bottom:4px;">
+                    🛢️ Yağ Bakımı: ${km.kalanKm > 0 ? `${km.kalanKm.toLocaleString('tr-TR')} km kaldı` : `${Math.abs(km.kalanKm).toLocaleString('tr-TR')} km geçti!`}
+                  </div>
+                  <div class="progress-track" style="margin:0;">
+                    <div class="progress-bar" style="width:${km.ilerleme}%;background:${km.renk};"></div>
+                  </div>
+                </div>
+              ` : ''}
+
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10.5px;">
                 <div>Muayene: <strong>${v.muayeneBitis ? dayjs(v.muayeneBitis).format('DD MMM YY') : '—'}</strong></div>
                 <div>Sigorta: <strong>${v.sigorta ? dayjs(v.sigorta).format('DD MMM YY') : '—'}</strong></div>
                 <div>Kasko: <strong>${v.kasko ? dayjs(v.kasko).format('DD MMM YY') : '—'}</strong></div>
-                <div>Bakım: <strong>${v.bakimTarih ? dayjs(v.bakimTarih).format('DD MMM YY') : '—'}</strong></div>
+                <div>Yıl: <strong>${v.yil || '—'}</strong></div>
               </div>
             </div>
-          `).join('')}
-        <button onclick="App._addVehicleForm()" class="btn btn-primary btn-full" style="margin-top:10px;">
-          <i class="fas fa-plus"></i> Yeni Araç Ekle
-        </button>
-      </div>`,
-      width: Math.min(500, window.innerWidth - 24),
-      showConfirmButton: false,
-      showCloseButton: true
-    });
-  },
+          `;
+        }).join('')}
+      <button onclick="App._addVehicleForm()" class="btn btn-primary btn-full" style="margin-top:10px;">
+        <i class="fas fa-plus"></i> Yeni Araç Ekle
+      </button>
+    </div>`,
+    width: Math.min(500, window.innerWidth - 24),
+    showConfirmButton: false,
+    showCloseButton: true
+  });
+},
 
   async _addVehicleForm() { return this._vehicleForm(null); },
   async _editVehicle(id) {
     const v = state.araclar.find(a => a.id === id);
     if (v) return this._vehicleForm(v);
   },
+async _vehicleForm(existing) {
+  const v = existing || {};
+  const currentKm = _getLastFuelKm();
 
-  async _vehicleForm(existing) {
-    const v = existing || {};
-    const { value } = await Swal.fire({
-      title: existing ? '✏️ Aracı Düzenle' : '🚗 Yeni Araç',
-      html: `<div style="text-align:left;">
-        <label style="font-size:12px;font-weight:600;">Plaka</label>
-        <input id="vPlaka" class="swal2-input" value="${UI.escHtml(v.plaka || '')}" placeholder="34 ABC 123">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-          <div><label style="font-size:12px;font-weight:600;">Marka</label>
-            <input id="vMarka" class="swal2-input" value="${UI.escHtml(v.marka || '')}"></div>
-          <div><label style="font-size:12px;font-weight:600;">Model</label>
-            <input id="vModel" class="swal2-input" value="${UI.escHtml(v.model || '')}"></div>
-        </div>
-        <label style="font-size:12px;font-weight:600;">Yıl</label>
-        <input id="vYil" type="number" class="swal2-input" value="${v.yil || ''}" min="1980" max="2100">
-        <label style="font-size:12px;font-weight:600;">Muayene Bitiş</label>
-        <input id="vMuayene" type="date" class="swal2-input" value="${v.muayeneBitis || ''}">
-        <label style="font-size:12px;font-weight:600;">Trafik Sigortası Bitiş</label>
-        <input id="vSigorta" type="date" class="swal2-input" value="${v.sigorta || ''}">
-        <label style="font-size:12px;font-weight:600;">Kasko Bitiş</label>
-        <input id="vKasko" type="date" class="swal2-input" value="${v.kasko || ''}">
-        <label style="font-size:12px;font-weight:600;">Son Bakım Tarihi</label>
-        <input id="vBakimTarih" type="date" class="swal2-input" value="${v.bakimTarih || ''}">
-        <label style="font-size:12px;font-weight:600;">Bakım Periyodu (ay)</label>
-        <input id="vBakimAy" type="number" class="swal2-input" value="${v.bakimAyAralik || 12}" min="1" max="60">
-      </div>`,
-      showCancelButton: true,
-      confirmButtonText: 'Kaydet',
-      cancelButtonText: 'İptal',
-      width: Math.min(500, window.innerWidth - 24),
-      preConfirm: () => {
-        const plaka = (document.getElementById('vPlaka').value || '').trim().toUpperCase();
-        if (!plaka) {
-          Swal.showValidationMessage('Plaka zorunlu');
-          return false;   // Swal açık kalır
-        }
-        return {
-          plaka,
-          marka:         (document.getElementById('vMarka').value || '').trim(),
-          model:         (document.getElementById('vModel').value || '').trim(),
-          yil:           parseInt(document.getElementById('vYil').value) || null,
-          muayeneBitis:  document.getElementById('vMuayene').value || null,
-          sigorta:       document.getElementById('vSigorta').value || null,
-          kasko:         document.getElementById('vKasko').value || null,
-          bakimTarih:    document.getElementById('vBakimTarih').value || null,
-          bakimAyAralik: parseInt(document.getElementById('vBakimAy').value) || 12
-        };
+  const { value } = await Swal.fire({
+    title: existing ? '✏️ Aracı Düzenle' : '🚗 Yeni Araç',
+    html: `<div style="text-align:left;max-height:70vh;overflow-y:auto;padding-right:4px;">
+      <label style="font-size:12px;font-weight:600;">Plaka</label>
+      <input id="vPlaka" class="swal2-input" value="${UI.escHtml(v.plaka || '')}" placeholder="34 ABC 123">
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <div><label style="font-size:12px;font-weight:600;">Marka</label>
+          <input id="vMarka" class="swal2-input" value="${UI.escHtml(v.marka || '')}"></div>
+        <div><label style="font-size:12px;font-weight:600;">Model</label>
+          <input id="vModel" class="swal2-input" value="${UI.escHtml(v.model || '')}"></div>
+      </div>
+
+      <label style="font-size:12px;font-weight:600;">Yıl</label>
+      <input id="vYil" type="number" class="swal2-input" value="${v.yil || ''}" min="1980" max="2100">
+
+      <div style="background:#FEF3C7;padding:12px;border-radius:10px;margin:10px 0;border:1px solid #FCD34D;">
+        <div style="font-size:12px;font-weight:800;color:#92400E;margin-bottom:8px;">🛢️ Yağ Bakım Takibi (KM)</div>
+        <label style="font-size:11px;color:#78350F;font-weight:600;">Son Yağ Bakım KM</label>
+        <input id="vYagBakimKm" type="number" class="swal2-input" value="${v.yagBakimKm || ''}" min="0" step="1"
+               placeholder="${currentKm > 0 ? `Son yakıt: ${currentKm.toLocaleString('tr-TR')} km` : 'örn. 50000'}">
+        <label style="font-size:11px;color:#78350F;font-weight:600;">Bakım Aralığı (km)</label>
+        <input id="vYagBakimAralikKm" type="number" class="swal2-input" value="${v.yagBakimAralikKm || 10000}" min="1000" step="1000">
+        ${currentKm > 0 ? `<div style="font-size:10px;color:#B45309;margin-top:6px;"><i class="fas fa-info-circle"></i> Şu anki KM (yakıt kayıtlarından): <strong>${currentKm.toLocaleString('tr-TR')} km</strong></div>` : `<div style="font-size:10px;color:#B45309;margin-top:6px;"><i class="fas fa-info-circle"></i> İlk yakıt kaydı eklenince otomatik takip başlar.</div>`}
+      </div>
+
+      <label style="font-size:12px;font-weight:600;">Muayene Bitiş</label>
+      <input id="vMuayene" type="date" class="swal2-input" value="${v.muayeneBitis || ''}">
+      <label style="font-size:12px;font-weight:600;">Trafik Sigortası Bitiş</label>
+      <input id="vSigorta" type="date" class="swal2-input" value="${v.sigorta || ''}">
+      <label style="font-size:12px;font-weight:600;">Kasko Bitiş</label>
+      <input id="vKasko" type="date" class="swal2-input" value="${v.kasko || ''}">
+    </div>`,
+    showCancelButton: true,
+    confirmButtonText: 'Kaydet',
+    cancelButtonText: 'İptal',
+    width: Math.min(500, window.innerWidth - 24),
+    preConfirm: () => {
+      const plaka = (document.getElementById('vPlaka').value || '').trim().toUpperCase();
+      if (!plaka) {
+        Swal.showValidationMessage('Plaka zorunlu');
+        return false;
       }
-    });
-    if (!value) { this.openVehicleModal(); return; }
-
-    if (existing) {
-      const idx = state.araclar.findIndex(a => a.id === existing.id);
-      if (idx >= 0) state.araclar[idx] = { ...state.araclar[idx], ...value };
-      await addLog('arac_ekle', `${value.plaka} güncellendi`);
-    } else {
-      state.araclar.push({ id: Date.now() + Math.random(), ...value, createdAt: new Date().toISOString() });
-      await addLog('arac_ekle', `${value.plaka} - ${value.marka} ${value.model}`);
+      return {
+        plaka,
+        marka:          (document.getElementById('vMarka').value || '').trim(),
+        model:          (document.getElementById('vModel').value || '').trim(),
+        yil:            parseInt(document.getElementById('vYil').value) || null,
+        yagBakimKm:     parseInt(document.getElementById('vYagBakimKm').value) || null,
+        yagBakimAralikKm: parseInt(document.getElementById('vYagBakimAralikKm').value) || 10000,
+        muayeneBitis:   document.getElementById('vMuayene').value || null,
+        sigorta:        document.getElementById('vSigorta').value || null,
+        kasko:          document.getElementById('vKasko').value || null
+      };
     }
-    await saveAraclar();
-    showToast('✅ Araç kaydedildi');
-    await this.openVehicleModal();
-    if (this.currentPage === 'dashboard') await this.renderDashboard();
-  },
+  });
 
-  async _deleteVehicle(id) {
-    const v = state.araclar.find(a => a.id === id);
-    if (!v) return;
-    const r = await Swal.fire({
-      icon: 'warning', title: 'Silinsin mi?',
-      html: `<strong>${UI.escHtml(v.plaka)}</strong> aracı silinecek.`,
-      showCancelButton: true, confirmButtonText: 'Sil', cancelButtonText: 'İptal',
-      confirmButtonColor: '#DC2626'
-    });
-    if (!r.isConfirmed) { this.openVehicleModal(); return; }
-    state.araclar = state.araclar.filter(a => a.id !== id);
-    await saveAraclar();
-    await addLog('arac_sil', v.plaka);
-    showToast('🗑️ Araç silindi');
-    await this.openVehicleModal();
-    if (this.currentPage === 'dashboard') await this.renderDashboard();
-  },
+  if (!value) { this.openVehicleModal(); return; }
+
+  if (existing) {
+    const idx = state.araclar.findIndex(a => a.id === existing.id);
+    if (idx >= 0) state.araclar[idx] = { ...state.araclar[idx], ...value };
+    await addLog('arac_ekle', `${value.plaka} güncellendi`);
+  } else {
+    state.araclar.push({ id: Date.now() + Math.random(), ...value, createdAt: new Date().toISOString() });
+    await addLog('arac_ekle', `${value.plaka} - ${value.marka} ${value.model}`);
+  }
+  await saveAraclar();
+  showToast('✅ Araç kaydedildi');
+  await this.openVehicleModal();
+  if (this.currentPage === 'dashboard') await this.renderDashboard();
+},
   /* ══════════════════════════════════════
      AYARLAR
   ══════════════════════════════════════ */
