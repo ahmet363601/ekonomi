@@ -10461,99 +10461,104 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     if (!results) return;
 
     if (q.length < 2) {
-      results.innerHTML = `<div class="empty-state" style="padding:30px;"><i class="fas fa-keyboard"></i><p>En az 2 karakter yazın</p></div>`;
+      results.innerHTML = '<div class="empty-state" style="padding:30px;"><i class="fas fa-keyboard"></i><p>En az 2 karakter yazın</p></div>';
       return;
     }
 
     const matches = [];
 
-    /* Gelirler */
     state.gelirler.forEach(g => {
-      const hay = `${g.kategori || ''} ${g.aciklama || ''} ${g.tarih || ''}`.toLowerCase();
-      if (hay.includes(q)) matches.push({
-        tip: 'gelir', item: g,
-        label: g.kategori, sub: `${Calc.fmt(g.miktar)} · ${g.tarih}`
-      });
-    });
-
-    /* Giderler */
-    state.giderler.forEach(g => {
-      const hay = `${g.kategori || ''} ${g.aciklama || ''} ${g.tarih || ''}`.toLowerCase();
-      if (hay.includes(q)) matches.push({
-        tip: 'gider', item: g,
-        label: g.kategori, sub: `${Calc.fmt(g.miktar)} · ${g.tarih}`
-      });
-    });
-
-    /* Borç/Alacak */
-    state.borcalacaklar.forEach(b => {
-      const hay = `${b.kisiAdi || ''} ${b.aciklama || ''}`.toLowerCase();
-      if (hay.includes(q)) matches.push({
-        tip: b.tip, item: b,
-        label: b.kisiAdi, sub: `${Calc.formatBirim(b)} · ${b.odendiMi ? 'Ödendi' : 'Aktif'}`
-      });
-    });
-
-    /* Kategoriler */
-    state.kategoriler.gelir.forEach(k => {
-      if (k.toLowerCase().includes(q)) matches.push({ tip: 'kategori', item: { k, t: 'gelir' }, label: k, sub: 'Gelir kategorisi' });
-    });
-    state.kategoriler.gider.forEach(k => {
-      if (k.toLowerCase().includes(q)) matches.push({ tip: 'kategori', item: { k, t: 'gider' }, label: k, sub: 'Gider kategorisi' });
-    });
-
-    /* Arşivler */
-    Object.entries(state.archives).forEach(([key, a]) => {
-      const hay = `${key} ${SalaryMonth.shortLabel(key)}`.toLowerCase();
+      const hay = ((g.kategori || '') + ' ' + (g.aciklama || '') + ' ' + (g.tarih || '')).toLowerCase();
       if (hay.includes(q)) {
-        const gCnt = Array.isArray(a.gelirler) ? a.gelirler.length : 0;
-        const gdCnt = Array.isArray(a.giderler) ? a.giderler.length : 0;
-        matches.push({ tip: 'arsiv', item: { key }, label: SalaryMonth.shortLabel(key), sub: `Arşiv · ${gCnt} gelir · ${gdCnt} gider` });
+        matches.push({ tip: 'gelir', item: g, label: g.kategori || '', sub: Calc.fmt(g.miktar) + ' - ' + (g.tarih || '') });
       }
     });
 
-    /* Loglar */
+    state.giderler.forEach(g => {
+      const hay = ((g.kategori || '') + ' ' + (g.aciklama || '') + ' ' + (g.tarih || '')).toLowerCase();
+      if (hay.includes(q)) {
+        matches.push({ tip: 'gider', item: g, label: g.kategori || '', sub: Calc.fmt(g.miktar) + ' - ' + (g.tarih || '') });
+      }
+    });
+
+    state.borcalacaklar.forEach(b => {
+      const hay = ((b.kisiAdi || '') + ' ' + (b.aciklama || '')).toLowerCase();
+      if (hay.includes(q)) {
+        matches.push({ tip: b.tip, item: b, label: b.kisiAdi || '', sub: Calc.formatBirim(b) + ' - ' + (b.odendiMi ? 'Odendi' : 'Aktif') });
+      }
+    });
+
+    state.kategoriler.gelir.forEach(k => {
+      if (k.toLowerCase().includes(q)) {
+        matches.push({ tip: 'kategori', item: { k: k, t: 'gelir' }, label: k, sub: 'Gelir kategorisi' });
+      }
+    });
+    state.kategoriler.gider.forEach(k => {
+      if (k.toLowerCase().includes(q)) {
+        matches.push({ tip: 'kategori', item: { k: k, t: 'gider' }, label: k, sub: 'Gider kategorisi' });
+      }
+    });
+
+    const archiveKeys = Object.keys(state.archives);
+    for (let i = 0; i < archiveKeys.length; i++) {
+      const key = archiveKeys[i];
+      const hay = (key + ' ' + SalaryMonth.shortLabel(key)).toLowerCase();
+      if (hay.includes(q)) {
+        const a = state.archives[key];
+        const gCnt = Array.isArray(a.gelirler) ? a.gelirler.length : 0;
+        const gdCnt = Array.isArray(a.giderler) ? a.giderler.length : 0;
+        matches.push({ tip: 'arsiv', item: { key: key }, label: SalaryMonth.shortLabel(key), sub: 'Arsiv - ' + gCnt + ' gelir / ' + gdCnt + ' gider' });
+      }
+    }
+
     state.logs.forEach(l => {
-      const hay = `${l.label || ''} ${l.details || ''} ${l.action || ''}`.toLowerCase();
-      if (hay.includes(q)) matches.push({
-        tip: 'log', item: l,
-        label: l.label || l.action, sub: l.details || ''
-      });
+      const hay = ((l.label || '') + ' ' + (l.details || '') + ' ' + (l.action || '')).toLowerCase();
+      if (hay.includes(q)) {
+        matches.push({ tip: 'log', item: l, label: l.label || l.action || '', sub: l.details || '' });
+      }
     });
 
     if (matches.length === 0) {
-      results.innerHTML = `<div class="empty-state" style="padding:30px;"><i class="fas fa-inbox"></i><p>"${UI.escHtml(q)}" için sonuç bulunamadı</p></div>`;
+      results.innerHTML = '<div class="empty-state" style="padding:30px;"><i class="fas fa-inbox"></i><p>Sonuc bulunamadi</p></div>';
       return;
     }
 
     const tipBadge = { gelir: 'success', gider: 'danger', alacak: 'success', borc: 'amber', kategori: 'blue', arsiv: 'cyan', log: 'blue' };
 
-results.innerHTML = `<div style="font-size:11px;color:var(--text3);padding:5px 0 8px;font-weight:600;">
-  ${matches.length} sonuç${matches.length > 50 ? ' (ilk 50 gösteriliyor)' : ''}
-</div>` +
-matches.slice(0, 50).map(m => {
-  let onclick = 'Swal.close()';
-  if (m.tip === 'gelir' || m.tip === 'gider' || m.tip === 'alacak' || m.tip === 'borc') {
-    onclick = `Swal.close(); setTimeout(() => App.showTransactionDetail(${m.item.id}, '${m.tip}'), 200)`;
-  } else if (m.tip === 'arsiv') {
-    onclick = `Swal.close(); setTimeout(() => App.showArchiveDetail('${m.item.key}'), 200)`;
-  } else if (m.tip === 'log') {
-    onclick = `Swal.close(); setTimeout(() => App.showLogDetail(${m.item.id}), 200)`;
-  } else if (m.tip === 'kategori') {
-    onclick = `Swal.close(); setTimeout(() => { App._islemTip='${m.item.t}'; App.loadPage('islemler'); }, 200)`;
+    const shown = matches.slice(0, 50);
+    let html = '<div style="font-size:11px;color:var(--text3);padding:5px 0 8px;font-weight:600;">';
+    html += shown.length + ' sonuc';
+    if (matches.length > 50) html += ' (ilk 50 gosteriliyor)';
+    html += '</div>';
+
+    for (let i = 0; i < shown.length; i++) {
+      const m = shown[i];
+      let onclick = 'Swal.close()';
+
+      if (m.tip === 'gelir' || m.tip === 'gider' || m.tip === 'alacak' || m.tip === 'borc') {
+        onclick = 'Swal.close(); setTimeout(function(){ App.showTransactionDetail(' + m.item.id + ', ' + JSON.stringify(m.tip) + '); }, 200)';
+      } else if (m.tip === 'arsiv') {
+        onclick = 'Swal.close(); setTimeout(function(){ App.showArchiveDetail(' + JSON.stringify(m.item.key) + '); }, 200)';
+      } else if (m.tip === 'log') {
+        onclick = 'Swal.close(); setTimeout(function(){ App.showLogDetail(' + m.item.id + '); }, 200)';
+      } else if (m.tip === 'kategori') {
+        onclick = 'Swal.close(); setTimeout(function(){ App._islemTip=' + JSON.stringify(m.item.t) + '; App.loadPage("islemler"); }, 200)';
+      }
+
+      const safeOnclick = onclick.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
+      html += '<div onclick="' + safeOnclick + '" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:5px;background:var(--surface2);cursor:pointer;">';
+      html += '<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:2px;">';
+      html += '<strong style="font-size:13px;color:var(--text);">' + UI.escHtml(m.label) + '</strong>';
+      html += '<span class="badge badge-' + (tipBadge[m.tip] || 'blue') + '" style="font-size:9px;padding:2px 6px;">' + UI.escHtml(m.tip) + '</span>';
+      html += '</div>';
+      html += '<div style="font-size:11px;color:var(--text3);">' + UI.escHtml(m.sub) + '</div>';
+      html += '</div>';
+    }
+
+    results.innerHTML = html;
   }
-  return `<div onclick="${onclick}" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:5px;background:var(--surface2);cursor:pointer;transition:var(--transition);" onmouseover="this.style.borderColor='var(--primary)';" onmouseout="this.style.borderColor='var(--border)';">
-    <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:2px;">
-      <strong style="font-size:13px;color:var(--text);">${UI.escHtml(m.label)}</strong>
-      <span class="badge badge-${tipBadge[m.tip] || 'blue'}" style="font-size:9px;padding:2px 6px;">${m.tip}</span>
-    </div>
-    <div style="font-size:11px;color:var(--text3);">${UI.escHtml(m.sub)}</div>
-  </div>`;
-    }).join('');  // ← DOĞRU: tek kapanış
-
- }
-
-};  // ← App burada kapanmalı
+};
 
 /* ═══════════════════════════════════════════════════════════════
    OTOMATİK ARŞİV KONTROLÜ
