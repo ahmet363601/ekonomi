@@ -13035,14 +13035,12 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     });
   },
 
-   /* 🆕 Global arama implementasyonu */
   _performGlobalSearch() {
     const inp = document.getElementById('globalSearchInput');
     const box = document.getElementById('globalSearchResults');
     if (!inp || !box) return;
 
     const q = inp.value.trim().toLowerCase();
-
     if (q.length < 2) {
       box.innerHTML = `<div class="empty-state" style="padding:30px;">
         <i class="fas fa-keyboard"></i>
@@ -13052,105 +13050,150 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     }
 
     const results = [];
+    const activeGelirIds = new Set(state.gelirler.map(g => g.id));
+    const activeGiderIds = new Set(state.giderler.map(g => g.id));
+    const activeBorcIds  = new Set(state.borcalacaklar.map(b => b.id));
 
-    /* Gelirler */
-    state.gelirler.forEach(g => {
+    /* ═══ 1️⃣ GELİRLER — aktif + arşiv (dedupe) ═══ */
+    const gelirGorulen = new Set();
+    Calc._allGelirler().forEach(g => {
+      if (!g || !g.id || gelirGorulen.has(g.id)) return;
+      gelirGorulen.add(g.id);
+
       const hay = `${g.kategori || ''} ${g.aciklama || ''} ${g.tarih || ''}`.toLowerCase();
-      if (hay.includes(q)) {
-        results.push({
-          type: 'gelir', icon: 'fa-arrow-up',
-          color: 'var(--accent)', bg: 'var(--accent-light)',
-          baslik: g.kategori || 'Gelir',
-          alt: `${dayjs(g.tarih).format('DD MMM YYYY')} · ${Calc.fmt(g.miktar)}${g.aciklama ? ' · ' + g.aciklama.substring(0, 30) : ''}`,
-          onclick: `App.loadPage('islemler');setTimeout(()=>App.showTransactionDetail(${g.id},'gelir'),300)`
-        });
+      if (!hay.includes(q)) return;
+
+      const isArchived = !activeGelirIds.has(g.id);
+      let archiveKey = null;
+      if (isArchived) {
+        for (const [k, a] of Object.entries(state.archives)) {
+          if ((a.gelirler || []).some(x => x.id === g.id)) { archiveKey = k; break; }
+        }
       }
+      results.push({
+        type: 'gelir', icon: 'fa-arrow-up',
+        color: 'var(--accent)', bg: 'var(--accent-light)',
+        baslik: g.kategori || 'Gelir',
+        alt: `${dayjs(g.tarih).format('DD MMM YYYY')} · ${Calc.fmt(g.miktar)}${g.aciklama ? ' · ' + g.aciklama.substring(0, 25) : ''}${isArchived ? ' · 📦 ' + SalaryMonth.shortLabel(archiveKey) : ''}`,
+        onclick: `App.loadPage('islemler');setTimeout(()=>App.showTransactionDetail(${g.id},'gelir'),300)`
+      });
     });
 
-    /* Giderler */
-    state.giderler.forEach(g => {
+    /* ═══ 2️⃣ GİDERLER — aktif + arşiv (dedupe) ═══ */
+    const giderGorulen = new Set();
+    Calc._allGiderler().forEach(g => {
+      if (!g || !g.id || giderGorulen.has(g.id)) return;
+      giderGorulen.add(g.id);
+
       const hay = `${g.kategori || ''} ${g.aciklama || ''} ${g.tarih || ''}`.toLowerCase();
-      if (hay.includes(q)) {
-        results.push({
-          type: 'gider', icon: 'fa-arrow-down',
-          color: 'var(--danger)', bg: 'var(--danger-light)',
-          baslik: g.kategori || 'Gider',
-          alt: `${dayjs(g.tarih).format('DD MMM YYYY')} · ${Calc.fmt(g.miktar)}${g.aciklama ? ' · ' + g.aciklama.substring(0, 30) : ''}`,
-          onclick: `App.loadPage('islemler');setTimeout(()=>App.showTransactionDetail(${g.id},'gider'),300)`
-        });
+      if (!hay.includes(q)) return;
+
+      const isArchived = !activeGiderIds.has(g.id);
+      let archiveKey = null;
+      if (isArchived) {
+        for (const [k, a] of Object.entries(state.archives)) {
+          if ((a.giderler || []).some(x => x.id === g.id)) { archiveKey = k; break; }
+        }
       }
+      results.push({
+        type: 'gider', icon: 'fa-arrow-down',
+        color: 'var(--danger)', bg: 'var(--danger-light)',
+        baslik: g.kategori || 'Gider',
+        alt: `${dayjs(g.tarih).format('DD MMM YYYY')} · ${Calc.fmt(g.miktar)}${g.aciklama ? ' · ' + g.aciklama.substring(0, 25) : ''}${isArchived ? ' · 📦 ' + SalaryMonth.shortLabel(archiveKey) : ''}`,
+        onclick: `App.loadPage('islemler');setTimeout(()=>App.showTransactionDetail(${g.id},'gider'),300)`
+      });
     });
 
-    /* Borç/Alacak */
-    state.borcalacaklar.forEach(b => {
+    /* ═══ 3️⃣ BORÇ / ALACAK — aktif + arşiv (dedupe) ═══ */
+    const tumBorclar = [
+      ...state.borcalacaklar,
+      ...Object.values(state.archives).flatMap(a =>
+        Array.isArray(a.borcalacaklar) ? a.borcalacaklar : []
+      )
+    ];
+    const borcGorulen = new Set();
+    tumBorclar.forEach(b => {
+      if (!b || !b.id || borcGorulen.has(b.id)) return;
+      borcGorulen.add(b.id);
+
       const hay = `${b.kisiAdi || ''} ${b.aciklama || ''}`.toLowerCase();
-      if (hay.includes(q)) {
-        results.push({
-          type: 'borc',
-          icon: b.tip === 'alacak' ? 'fa-hand-holding-dollar' : 'fa-hand-holding-usd',
-          color: b.tip === 'alacak' ? 'var(--primary)' : 'var(--warning)',
-          bg: b.tip === 'alacak' ? 'var(--primary-light)' : 'var(--warning-light)',
-          baslik: b.kisiAdi || 'Borç/Alacak',
-          alt: `${dayjs(b.tarih).format('DD MMM YYYY')} · ${Calc.formatBirim(b)}${b.odendiMi ? ' (Ödendi)' : ''}`,
-          onclick: `App.loadPage('borcalacak');setTimeout(()=>App._showBorcDetail(${b.id}),300)`
-        });
-      }
+      if (!hay.includes(q)) return;
+
+      const isAl = b.tip === 'alacak';
+      const aktifte = activeBorcIds.has(b.id);
+      results.push({
+        type: 'borc',
+        icon: isAl ? 'fa-hand-holding-dollar' : 'fa-hand-holding-usd',
+        color: isAl ? 'var(--primary)' : 'var(--warning)',
+        bg: isAl ? 'var(--primary-light)' : 'var(--warning-light)',
+        baslik: b.kisiAdi || 'Borç/Alacak',
+        alt: `${dayjs(b.tarih).format('DD MMM YYYY')} · ${Calc.formatBirim(b)}${b.odendiMi ? ' · ✅ Ödendi' : ''}${!aktifte ? ' · 📦 Arşiv' : ''}`,
+        onclick: `App.loadPage('borcalacak');setTimeout(()=>App._showBorcDetail(${b.id}),300)`
+      });
     });
 
-    /* Arşivler */
+    /* ═══ 4️⃣ ARŞİV DÖNEMLERİ — dönem anahtarı/label ═══ */
     Object.entries(state.archives).forEach(([key, arc]) => {
       const hay = `${key} ${SalaryMonth.shortLabel(key)}`.toLowerCase();
-      if (hay.includes(q)) {
-        const cnt = (arc.gelirler || []).length + (arc.giderler || []).length;
-        results.push({
-          type: 'arsiv', icon: 'fa-archive',
-          color: 'var(--info)', bg: 'var(--info-light)',
-          baslik: SalaryMonth.shortLabel(key),
-          alt: `${arc.salaryMonthRange?.start || ''} → ${arc.salaryMonthRange?.end || ''} · ${cnt} işlem`,
-          onclick: `App.loadPage('arsiv');setTimeout(()=>App.showArchiveDetail('${key}'),300)`
-        });
-      }
+      if (!hay.includes(q)) return;
+      const cnt = (arc.gelirler || []).length + (arc.giderler || []).length;
+      results.push({
+        type: 'arsiv', icon: 'fa-archive',
+        color: 'var(--info)', bg: 'var(--info-light)',
+        baslik: SalaryMonth.shortLabel(key),
+        alt: `${arc.salaryMonthRange?.start || ''} → ${arc.salaryMonthRange?.end || ''} · ${cnt} işlem`,
+        onclick: `App.loadPage('arsiv');setTimeout(()=>App.showArchiveDetail('${key}'),300)`
+      });
     });
 
-    /* Görevler */
+    /* ═══ 5️⃣ GÖREVLER ═══ */
     state.gorevler.forEach(g => {
       const hay = `${g.baslik || ''} ${g.aciklama || ''}`.toLowerCase();
-      if (hay.includes(q)) {
-        results.push({
-          type: 'gorev', icon: 'fa-list-check',
-          color: '#7C3AED', bg: '#F3E8FF',
-          baslik: g.baslik || 'Görev',
-          alt: `${g.tarih ? dayjs(g.tarih).format('DD MMM YYYY') : 'Tarih yok'}${g.tamamlandi ? ' · ✅' : ''}`,
-          onclick: `App.loadPage('gorevler');setTimeout(()=>App.openGorevDetay(${g.id}),300)`
-        });
-      }
+      if (!hay.includes(q)) return;
+      results.push({
+        type: 'gorev', icon: 'fa-list-check',
+        color: '#7C3AED', bg: '#F3E8FF',
+        baslik: g.baslik || 'Görev',
+        alt: `${g.tarih ? dayjs(g.tarih).format('DD MMM YYYY') : 'Tarih yok'}${g.tamamlandi ? ' · ✅' : ''}${g.arsivlendi ? ' · 📦' : ''}`,
+        onclick: `App.loadPage('gorevler');setTimeout(()=>App.openGorevDetay(${g.id}),300)`
+      });
     });
 
-    /* Araçlar */
+    /* ═══ 6️⃣ ARAÇLAR ═══ */
     state.araclar.forEach(a => {
       const hay = `${a.plaka || ''} ${a.marka || ''} ${a.model || ''}`.toLowerCase();
-      if (hay.includes(q)) {
-        results.push({
-          type: 'arac', icon: 'fa-car',
-          color: '#0891B2', bg: '#ECFEFF',
-          baslik: a.plaka || 'Araç',
-          alt: `${a.marka || ''} ${a.model || ''} ${a.yil || ''}`.trim(),
-          onclick: `Swal.close();setTimeout(()=>App._editVehicle(${a.id}),200)`
-        });
-      }
+      if (!hay.includes(q)) return;
+      results.push({
+        type: 'arac', icon: 'fa-car',
+        color: '#0891B2', bg: '#ECFEFF',
+        baslik: a.plaka || 'Araç',
+        alt: `${a.marka || ''} ${a.model || ''} ${a.yil || ''}`.trim(),
+        onclick: `Swal.close();setTimeout(()=>App._editVehicle(${a.id}),200)`
+      });
     });
 
+    /* ═══ SONUÇ RENDER ═══ */
     if (!results.length) {
       box.innerHTML = `<div class="empty-state" style="padding:30px;">
         <i class="fas fa-search"></i>
         <p>"${UI.escHtml(q)}" için sonuç bulunamadı</p>
+        <p style="font-size:11px;opacity:.6;margin-top:6px;">Arşivlenmiş dönemler dahil tüm kayıtlar tarandı</p>
       </div>`;
       return;
     }
 
-    const typeLabels = { gelir: 'Gelir', gider: 'Gider', borc: 'Borç', arsiv: 'Arşiv', gorev: 'Görev', arac: 'Araç' };
+    const typeLabels = {
+      gelir: 'Gelir', gider: 'Gider', borc: 'Borç',
+      arsiv: 'Arşiv', gorev: 'Görev', arac: 'Araç'
+    };
 
-    box.innerHTML = results.slice(0, 50).map(r => `
+    /* 🆕 Sonuç sayısı başlığı */
+    const headerCount = `<div style="font-size:11px;color:var(--text3);padding:6px 4px 10px;border-bottom:1px solid var(--border);margin-bottom:8px;">
+      <strong style="color:var(--text);">${results.length}</strong> sonuç bulundu
+      <span style="opacity:.6;">· Arşivlenen dönemler dahil</span>
+    </div>`;
+
+    box.innerHTML = headerCount + results.slice(0, 60).map(r => `
       <div onclick="${r.onclick};Swal.close();"
            style="padding:10px 12px;border-radius:10px;margin-bottom:6px;cursor:pointer;background:var(--surface);border:1px solid var(--border);display:flex;gap:10px;align-items:center;transition:all .15s ease;"
            onmouseover="this.style.borderColor='var(--primary)';this.style.background='var(--primary-light)'"
@@ -13170,11 +13213,10 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
       </div>
     `).join('');
 
-    if (results.length > 50) {
-      box.innerHTML += `<p style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0;">+${results.length - 50} sonuç daha</p>`;
+    if (results.length > 60) {
+      box.innerHTML += `<p style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0;">+${results.length - 60} sonuç daha</p>`;
     }
   },
-
 
 
   /* ═══════════════════════════════════════════════════════════════
