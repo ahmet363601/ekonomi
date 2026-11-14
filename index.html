@@ -2170,14 +2170,14 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
    API: finans.truncgil.com (ücretsiz, CORS destekli)
    ═══════════════════════════════════════════════════════════════ */
 const GoldRate = {
-  API_URL: 'https://finans.truncgil.com/v3/today.json',
+  /* ✅ Yeni kaynak: Darphane Altın & Emtia JSON (CORS açık, anahtarsız, ücretsiz) */
+  API_URL: 'https://raw.githubusercontent.com/kessinc/darphane/main/altin.json',
   CACHE_KEY: 'ebha_gold_rates_cache',
   CACHE_TTL_MS: 30 * 60 * 1000, // 30 dk
 
   parseTL(v) {
     if (typeof v === 'number') return v;
     if (!v) return 0;
-    // "6.123,45" → 6123.45
     return parseFloat(String(v).replace(/\./g, '').replace(',', '.')) || 0;
   },
 
@@ -2199,11 +2199,14 @@ const GoldRate = {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
-      const gramRaw   = data['Gram Altın']   || data['gram-altin']   || {};
-      const ceyrekRaw = data['Çeyrek Altın'] || data['ceyrek-altin'] || {};
+      const altinlar = data.altin_ve_emtia || {};
 
-      const gram   = this.parseTL(gramRaw['Satış']   || gramRaw['Satis']   || gramRaw['satis']   || gramRaw['Alış'] || 0);
-      const ceyrek = this.parseTL(ceyrekRaw['Satış'] || ceyrekRaw['Satis'] || ceyrekRaw['satis'] || ceyrekRaw['Alış'] || 0);
+      const gramRaw   = altinlar['GRAM_ALTIN']   || {};
+      const ceyrekRaw = altinlar['CEYREK_ALTIN'] || {};
+
+      /* API bazen "satis" bazen "alis" dönebilir; önce satışı tercih et */
+      const gram   = this.parseTL(gramRaw['satis']   || gramRaw['alis']   || 0);
+      const ceyrek = this.parseTL(ceyrekRaw['satis'] || ceyrekRaw['alis'] || 0);
 
       if (gram <= 0 && ceyrek <= 0) throw new Error('Fiyat okunamadı');
 
