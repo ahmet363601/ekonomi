@@ -2472,7 +2472,8 @@ const LOG_ACTIONS = {
   arac_ekle:        { cat:'arac',     sev:'info',    icon:'fa-car',                  label:'Araç Eklendi' },
   arac_sil:         { cat:'arac',     sev:'warning', icon:'fa-car',                  label:'Araç Silindi' },
   init:             { cat:'sistem',   sev:'info',    icon:'fa-power-off',            label:'Uygulama Başlatıldı' },
-  sayfa:            { cat:'sistem',   sev:'info',    icon:'fa-eye',                  label:'Sayfa Görüntülendi' }
+  sayfa:            { cat:'sistem',   sev:'info',    icon:'fa-eye',                  label:'Sayfa Görüntülendi' },
+  arac_bakim: { cat:'arac', sev:'info', icon:'fa-tools', label:'Bakım Yapıldı' },
 };
 
 const LOG_META = {
@@ -8609,11 +8610,7 @@ const swalResult = await Swal.fire({
       };
     }
   });
-  if (value === false) {
-  // denyButton tıklandı → geçmişi göster
-  await this.showBakimGecmisi(existing.id);
-  return;
-}
+
   if (swalResult.isDenied) {
   await this.showBakimGecmisi(existing.id);
   return;
