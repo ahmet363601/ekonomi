@@ -14275,6 +14275,10 @@ async saveFile(blob, filename) {
     // share başarısız → fallback dene
   }
 
+    const e = new Error('cancel');
+    // share başarısız → fallback dene
+  }
+
   // 2) Fallback: <a download>
   try {
     const url = URL.createObjectURL(blob);
