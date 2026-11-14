@@ -2158,7 +2158,7 @@ dayjs.extend(window.dayjs_plugin_advancedFormat);
    CONSTANTS
 ───────────────────────────────────────────── */
 const DB_NAME    = 'ButcemProDB';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
   const PARA       = 'TL';
 
 /* iOS tespiti — PWA kurulum yönlendirmesi ve ITP uyarısı için */
@@ -2283,7 +2283,7 @@ function openDB() {
 
     req.onupgradeneeded = (e) => {
       const d = e.target.result;
-      const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','ayarlar','archives','logs','backups','araclar'];
+      const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','ayarlar','archives','logs','backups','araclar','notifications'];
       stores.forEach(s => {
         if (!d.objectStoreNames.contains(s)) {
           const keyPath = s === 'kategoriler' ? 'tip' : s === 'limitler' ? 'kategori' : s === 'archives' ? 'month' : 'id';
@@ -2535,7 +2535,22 @@ const saveKategoriler = () => queueSave(() => saveStore('kategoriler', [
   { tip: 'gider', kategoriler: state.kategoriler.gider }
 ]));
 const saveAraclar = () => queueSave(() => saveStore('araclar', state.araclar));
-const saveNotifications = () => queueSave(() => saveStore('notifications', state.notifications));
+
+/* 🛡️ Bildirimler kritik olmayan veri — hata verirse uygulamayı kilitlemesin.
+   Ana queueSave yerine sessiz fallback kullanıyoruz. */
+const saveNotifications = () => {
+  const result = _saveChain.then(() => saveStore('notifications', state.notifications));
+  _saveChain = result.catch(e => {
+    const nm = e?.name || '';
+    // Store yoksa veya DataError ise sessizce geç — dedup çalışır, kullanıcı görmez
+    if (nm === 'NotFoundError' || nm === 'DataError') {
+      console.warn('[Notifications] Kayıt atlandı (sessiz):', nm);
+    } else {
+      console.warn('[Notifications] Kayıt hatası:', e);
+    }
+  });
+  return result;
+};
 /* Tüm store'ları yaz — sadece resetAll/import gibi nadir durumlarda */
 
 /* Tüm store'ları yaz — sadece resetAll/import gibi nadir durumlarda */
@@ -4557,9 +4572,19 @@ const App = {
   }
 
   /* 🔔 Sayfa değişiminde bildirimleri sessizce tazele (sayfa bloke olmasın) */
-  setTimeout(() => {
-    try { Notifications.generateAll().catch(() => {}); } catch (_) {}
-  }, 150);
+  /* 🔔 Bildirimleri sadece ilgili sayfalarda ve 5 dakikada bir tazele */
+  if (['dashboard', 'borcalacak', 'arsiv'].includes(name)) {
+    const now = Date.now();
+    const lastRefresh = parseInt(localStorage.getItem('last_notif_refresh') || '0', 10);
+    if (now - lastRefresh > 5 * 60 * 1000) {   // 5 dakika
+      setTimeout(() => {
+        try {
+          Notifications.generateAll().catch(() => {});
+          localStorage.setItem('last_notif_refresh', String(now));
+        } catch (_) {}
+      }, 150);
+    }
+  }
 },
   /* ══════════════════════════════════════
      DASHBOARD
