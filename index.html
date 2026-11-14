@@ -3639,11 +3639,6 @@ window.addEventListener('unhandledrejection', (e) => {
 /* ─────────────────────────────────────────────
    🛡️ CDN GUARD — kütüphaneler yüklenmeden koda geçme
 ───────────────────────────────────────────── */
-'use strict';
-
-/* ─────────────────────────────────────────────
-   🛡️ CDN GUARD — kütüphaneler yüklenmeden koda geçme
-───────────────────────────────────────────── */
 const _missing = [];
 if (typeof dayjs === 'undefined') _missing.push('dayjs');
 if (typeof Swal === 'undefined') _missing.push('Swal');
@@ -4171,20 +4166,8 @@ const saveGorevler = () => queueSave(() => saveStore('gorevler', state.gorevler)
 
 /* 🛡️ Bildirimler kritik olmayan veri — hata verirse uygulamayı kilitlemesin.
    Ana queueSave yerine sessiz fallback kullanıyoruz. */
-const saveNotifications = () => {
-  const result = _saveChain.then(() => saveStore('notifications', state.notifications));
-  _saveChain = result.catch(e => {
-    const nm = e?.name || '';
-    // Store yoksa veya DataError ise sessizce geç — dedup çalışır, kullanıcı görmez
-    if (nm === 'NotFoundError' || nm === 'DataError') {
-      console.warn('[Notifications] Kayıt atlandı (sessiz):', nm);
-    } else {
-      console.warn('[Notifications] Kayıt hatası:', e);
-    }
-  });
-  return result;
-};
-/* Tüm store'ları yaz — sadece resetAll/import gibi nadir durumlarda */
+/* 🛡️ Bildirimler kritik olmayan veri — hata verirse uygulamayı kilitlemesin.
+   Ana queueSave yerine sessiz fallback kullanıyoruz. */
 const saveNotifications = () => {
   const result = _saveChain
     .then(() => saveStore('notifications', state.notifications))
@@ -4878,8 +4861,12 @@ kategoriTrendBetween(startDate, endDate, maxMonths = 12, topN = 6) {
     const lpgTotalTL    = lpgItems.reduce((s, i) => s + i._lpg.toplam, 0);
     const lpgAvgFiyat   = lpgTotalLitre > 0 ? lpgTotalTL / lpgTotalLitre : 0;
 
-const lpgWithKm = lpgItems.filter(i => i._km > 0)
-  .sort((a, b) => {...});
+const lpgWithKm = lpgItems
+  .filter(i => i._km > 0)
+  .sort((a, b) => {
+    if (a.tarih !== b.tarih) return a.tarih.localeCompare(b.tarih);
+    return (a.createdAt || '').localeCompare(b.createdAt || '');
+  });
 
 const consumptionRecords = [];
 for (let i = 1; i < lpgWithKm.length; i++) {
@@ -5698,7 +5685,24 @@ async gorevEkle(data) {
   await addLog('gorev_ekle', item.baslik, { entityId: item.id, oncelik: item.oncelik });
   return item;
 }
-
+  async gorevGuncelle(id, data) {
+    const idx = state.gorevler.findIndex(g => g.id == id);
+    if (idx === -1) return false;
+    const eski = { ...state.gorevler[idx] };
+    state.gorevler[idx] = {
+      ...state.gorevler[idx],
+      ...data,
+      guncellenme: new Date().toISOString()
+    };
+    try {
+      await saveGorevler();
+    } catch (e) {
+      state.gorevler[idx] = eski;
+      throw e;
+    }
+    await addLog('gorev_guncelle', state.gorevler[idx].baslik, { entityId: id });
+    return true;
+  },
   async gorevTamamla(id, tamam = true) {
     const item = state.gorevler.find(g => g.id == id);
     if (!item) return false;
@@ -7614,52 +7618,45 @@ async renderDashboard() {
       showCancelButton: true,
       cancelButtonText: 'İptal',
       width: Math.min(520, window.innerWidth - 24),
-preConfirm: () => {
-  const miktar = parseFloat(document.getElementById('oPay').value);
-  if (!(miktar > 0)) { Swal.showValidationMessage('Miktar 0\'dan büyük olmalı'); return false; }
+      preConfirm: () => {
+        const data = {
+          miktar:   parseFloat(document.getElementById('eMiktar').value),
+          kategori: document.getElementById('eKat').value,
+          tarih:    document.getElementById('eTarih').value,
+          aciklama: document.getElementById('eAciklama').value
+        };
 
-  const item = state.borcalacaklar.find(b => b.id == id);
-  if (item) {
-    const paid = (item.payments || []).reduce((s, p) => s + (Number(p.miktar) || 0), 0);
-    const kalan = Math.max(0, (Number(item.miktar) || 0) - paid);
-    if (miktar > kalan + 0.001) {
-      Swal.showValidationMessage(`Kalan: ${kalan.toLocaleString('tr-TR')} — daha fazla ödeme yapılamaz`);
-      return false;
-    }
-  }
-  return {
-    miktar,
-    tarih: document.getElementById('oTarih').value,
-    aciklama: document.getElementById('oNot').value
-  };
-}
-          }
-          const bLitre    = parseFloat(document.getElementById('eFuelBenzinLitre')?.value) || 0;
-          const bFiyat    = parseFloat(document.getElementById('eFuelBenzinFiyat')?.value) || 0;
-          const lLitre    = parseFloat(document.getElementById('eFuelLpgLitre')?.value) || 0;
-          const lFiyat    = parseFloat(document.getElementById('eFuelLpgFiyat')?.value) || 0;
+        const isFuelItem = (data.kategori === 'Araç Yakıt' || data.kategori === 'Akaryakıt');
 
-          const benzinTL = (fuelTip === 'benzin' || fuelTip === 'her-ikisi') ? bLitre * bFiyat : 0;
-          const lpgTL    = (fuelTip === 'lpg'    || fuelTip === 'her-ikisi') ? lLitre * lFiyat : 0;
+        if (isFuelItem) {
+          const editFuelTip = document.getElementById('eFuelTip')?.value || 'benzin';
+          const kmVal  = parseFloat(document.getElementById('eFuelKm')?.value) || 0;
+          const bLitre = parseFloat(document.getElementById('eFuelBenzinLitre')?.value) || 0;
+          const bFiyat = parseFloat(document.getElementById('eFuelBenzinFiyat')?.value) || 0;
+          const lLitre = parseFloat(document.getElementById('eFuelLpgLitre')?.value) || 0;
+          const lFiyat = parseFloat(document.getElementById('eFuelLpgFiyat')?.value) || 0;
+
+          const benzinTL = (editFuelTip === 'benzin' || editFuelTip === 'her-ikisi') ? bLitre * bFiyat : 0;
+          const lpgTL    = (editFuelTip === 'lpg'    || editFuelTip === 'her-ikisi') ? lLitre * lFiyat : 0;
           data.miktar = benzinTL + lpgTL;
 
-          if (kmVal && kmVal > 0) {
-            const prevAll = App._findPrevFuelRecord(id, data.tarih);
+          if (kmVal > 0) {
+            const prevAll   = App._findPrevFuelRecord(id, data.tarih);
             const prevKmAll = prevAll?.fuel?.km;
             const mesafeAll = (prevKmAll && kmVal > prevKmAll) ? (kmVal - prevKmAll) : null;
 
             const fuel = {
               km: kmVal, mesafe: mesafeAll, oncekiKm: prevKmAll || null,
-              tip: fuelTip,
+              tip: editFuelTip,
               toplamTL: data.miktar,
               toplamLitre: 0,
-              tlPerKm: null  // aşağıda hesaplanacak
+              tlPerKm: null
             };
-            /* ✅ Her yakıt için KENDİ tipinden önceki KM */
-            if (fuelTip === 'benzin' || fuelTip === 'her-ikisi') {
-              const prevB = App._findPrevFuelRecordSameType(id, data.tarih, 'benzin');
-              const prevBKm = prevB?.fuel?.km;
-              const bMesafe = (prevBKm && kmVal > prevBKm) ? (kmVal - prevBKm) : null;
+
+            if (editFuelTip === 'benzin' || editFuelTip === 'her-ikisi') {
+              const prevB    = App._findPrevFuelRecordSameType(id, data.tarih, 'benzin');
+              const prevBKm  = prevB?.fuel?.km;
+              const bMesafe  = (prevBKm && kmVal > prevBKm) ? (kmVal - prevBKm) : null;
               fuel.benzin = {
                 litre: bLitre, birimFiyat: bFiyat, toplam: benzinTL,
                 oncekiKm: prevBKm || null, mesafe: bMesafe,
@@ -7667,10 +7664,10 @@ preConfirm: () => {
               };
               fuel.toplamLitre += bLitre;
             }
-            if (fuelTip === 'lpg' || fuelTip === 'her-ikisi') {
-              const prevL = App._findPrevFuelRecordSameType(id, data.tarih, 'lpg');
-              const prevLKm = prevL?.fuel?.km;
-              const lMesafe = (prevLKm && kmVal > prevLKm) ? (kmVal - prevLKm) : null;
+            if (editFuelTip === 'lpg' || editFuelTip === 'her-ikisi') {
+              const prevL    = App._findPrevFuelRecordSameType(id, data.tarih, 'lpg');
+              const prevLKm  = prevL?.fuel?.km;
+              const lMesafe  = (prevLKm && kmVal > prevLKm) ? (kmVal - prevLKm) : null;
               fuel.lpg = {
                 litre: lLitre, birimFiyat: lFiyat, toplam: lpgTL,
                 oncekiKm: prevLKm || null, mesafe: lMesafe,
@@ -7678,21 +7675,22 @@ preConfirm: () => {
               };
               fuel.toplamLitre += lLitre;
             }
-            fuel.litre = fuel.toplamLitre;
+            fuel.litre      = fuel.toplamLitre;
             fuel.birimFiyat = fuel.toplamLitre > 0 ? data.miktar / fuel.toplamLitre : 0;
-            fuel.lPer100km = mesafeAll && fuel.toplamLitre ? ((fuel.toplamLitre * 100) / mesafeAll) : null;
-                        // tlPerKm: sadece tek yakıt tipinde anlamlı
-            if (fuelTip === 'lpg' && fuel.lpg?.mesafe && lpgTL > 0) {
+            fuel.lPer100km  = mesafeAll && fuel.toplamLitre ? ((fuel.toplamLitre * 100) / mesafeAll) : null;
+
+            if (editFuelTip === 'lpg' && fuel.lpg?.mesafe && lpgTL > 0) {
               fuel.tlPerKm = lpgTL / fuel.lpg.mesafe;
-            } else if (fuelTip === 'benzin' && fuel.benzin?.mesafe && benzinTL > 0) {
+            } else if (editFuelTip === 'benzin' && fuel.benzin?.mesafe && benzinTL > 0) {
               fuel.tlPerKm = benzinTL / fuel.benzin.mesafe;
             }
+
             data.fuel = fuel;
           }
         } else {
-          data.miktar = parseFloat(document.getElementById('eMiktar').value);
           data.fuel = null;
         }
+
         return data;
       }
     });
@@ -14614,24 +14612,6 @@ async function saveFile(blob, filename) {
         showToast('✅ Görev güncellendi');
       } else {
         await CRUD.gorevEkle(value);
-        async gorevGuncelle(id, data) {
-          const idx = state.gorevler.findIndex(g => g.id == id);
-          if (idx === -1) return false;
-          const eski = { ...state.gorevler[idx] };
-          state.gorevler[idx] = {
-            ...state.gorevler[idx],
-            ...data,
-            guncellenme: new Date().toISOString()
-          };
-          try {
-            await saveGorevler();
-          } catch (e) {
-            state.gorevler[idx] = eski;  // rollback
-            throw e;
-          }
-          await addLog('gorev_guncelle', state.gorevler[idx].baslik, { entityId: id });
-          return true;
-        },
         showToast('✨ Görev oluşturuldu');
       }
     } catch (err) {
