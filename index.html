@@ -2198,7 +2198,7 @@ async function saveAllData() {
     await Promise.all([
       saveGelirler(), saveGiderler(), saveBorclar(),
       saveKategoriler(), saveLimitler(), saveAyarlar(),
-      saveArchives(), saveLogs(), saveBackups()
+      saveArchives(), saveLogs(), saveBackups(), saveAraclar()
     ]);
   } catch (e) {
     console.error('[saveAllData] Kayıt hatası:', e);
@@ -5150,11 +5150,7 @@ const App = {
           <label class="form-label">Kişi Adı</label>
           <input type="text" id="borcKisi" class="form-input" placeholder="Ad Soyad">
         </div>
-                <div style="margin-top:16px;padding:14px;background:var(--info-light);border-radius:12px;border:1px solid #BAE6FD;">
-          <div style="font-size:12px;font-weight:700;color:var(--info);margin-bottom:8px;">🚗 Araç Hatırlatıcıları</div>
-          <p style="font-size:11px;color:var(--text2);margin-bottom:10px;">Muayene, sigorta, kasko ve bakım tarihlerini takip edin.</p>
-          <button type="button" onclick="Swal.close(); App.openVehicleModal()" style="padding:8px 14px;background:var(--info);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;">Araçları Yönet</button>
-        </div>
+               
         <div class="form-group">
           <label class="form-label">Birim</label>
           <select id="borcBirim" class="form-select" onchange="App._borcBirimChanged()">
@@ -8126,9 +8122,10 @@ openKategoriModal() {
         bakimAyAralik: parseInt(document.getElementById('vBakimAy').value) || 12
       })
     });
-    if (!value) return;
+    if (!value) { this.openVehicleModal(); return; }
     if (!value.plaka) {
       showToast('⚠️ Plaka zorunlu');
+      this.openVehicleModal();
       return;
     }
     if (existing) {
@@ -8154,7 +8151,7 @@ openKategoriModal() {
       showCancelButton: true, confirmButtonText: 'Sil', cancelButtonText: 'İptal',
       confirmButtonColor: '#DC2626'
     });
-    if (!r.isConfirmed) return;
+    if (!r.isConfirmed) { this.openVehicleModal(); return; }
     state.araclar = state.araclar.filter(a => a.id !== id);
     await saveAraclar();
     await addLog('arac_sil', v.plaka);
@@ -8259,8 +8256,13 @@ openKategoriModal() {
           </p>
         </div>
 
+        <div style="margin-top:16px;padding:14px;background:var(--info-light);border-radius:12px;border:1px solid #BAE6FD;">
+          <div style="font-size:12px;font-weight:700;color:var(--info);margin-bottom:8px;">🚗 Araç Hatırlatıcıları</div>
+          <p style="font-size:11px;color:var(--text2);margin-bottom:10px;">Muayene, sigorta, kasko ve bakım tarihlerini takip edin.</p>
+          <button type="button" onclick="Swal.close(); setTimeout(() => App.openVehicleModal(), 150)" style="padding:8px 14px;background:var(--info);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;">Araçları Yönet</button>
+        </div>
+
         <div style="margin-top:16px;padding:14px;background:var(--primary-light);border-radius:12px;border:1px solid #BFDBFE;">
-        
           <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;">📲 Uygulamayı Yükle</div>
           <p style="font-size:11px;color:var(--text2);margin-bottom:10px;">Ana ekrana ekleyip çevrimdışı kullanın.</p>
           <button type="button" onclick="App.promptInstall()" style="padding:8px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;">Ana Ekrana Ekle</button>
@@ -8301,8 +8303,8 @@ openKategoriModal() {
   });
   if (!r.isConfirmed) return;
 
-  const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','ayarlar','archives','logs','backups'];
-  try {
+  const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','ayarlar','archives','logs','backups','araclar'];
+    try {
     // Her store'u atomik olarak temizle (queueSave sırasına uy)
     for (const s of stores) {
       await queueSave(() => new Promise((res, rej) => {
@@ -8320,6 +8322,7 @@ openKategoriModal() {
     state.logs = [];
     state.backups = [];
     state.limitler = {};
+    state.araclar = [];
     // YANLIŞ olan satırı sil, tek bir tane bırak:
     state.kategoriler = {
       gelir: ['Maaş','Serbest Çalışma','Yatırım','Hediye','Kira Geliri','Diğer'],
@@ -8776,6 +8779,7 @@ openKategoriModal() {
           ceyrekAltinFiyati:      state.ayarlar.ceyrekAltinFiyati
         },
         archives:      state.archives,
+        araclar:       state.araclar,
         logs:          state.logs.slice(0, 100)
       };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
@@ -8854,6 +8858,13 @@ openKategoriModal() {
           });
         }
 
+        let newAraclar = [];
+        if (Array.isArray(data.araclar)) {
+          newAraclar = data.araclar.filter(a =>
+            a && typeof a === 'object' && a.plaka
+          ).map(a => ({ ...a, id: a.id || Date.now() + Math.random() }));
+        }
+
         let newAyarlar = { ...state.ayarlar };
         if (data.ayarlar && typeof data.ayarlar === 'object') {
           newAyarlar = {
@@ -8881,6 +8892,10 @@ openKategoriModal() {
               </div>
               <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
                 <span>Arşivler:</span><strong>${Object.keys(newArchives).length}</strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
+                <span>Araçlar:</span><strong>${newAraclar.length}</strong>
+              </div>
               </div>
             </div>
             <p style="font-size:12px;color:#DC2626;font-weight:600;">⚠️ Mevcut verileriniz TAMAMEN DEĞİŞTİRİLECEK!</p>
@@ -8924,6 +8939,7 @@ openKategoriModal() {
         state.limitler      = newLimitler;
         state.archives      = newArchives;
         state.ayarlar       = newAyarlar;
+        state.araclar       = newAraclar;
         state.logs          = [];
 
         await saveAllData();
