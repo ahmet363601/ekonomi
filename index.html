@@ -3515,7 +3515,8 @@ const SalaryMonth = {
   _archiveWindow() {
     const now = dayjs();
     const day = this.DAY_START;
-    const startDay = day === 1 ? now.date(1) : now.date(day - 1);
+    /* maasGun=1 ise pencere önceki ayın son günü 22:00 → 1. gün 12:00 */
+    const startDay = day === 1 ? now.date(1).subtract(1, 'day') : now.date(day - 1);
     const start = startDay.hour(22).minute(0).second(0);
     const end = now.date(day).hour(12).minute(0).second(0);
     /* Pencere geçmişse gelecek aya kaydır */
@@ -3629,16 +3630,6 @@ daysUntilArchive() {
     if (!this.hasDataInRange(this.range(prev))) return false;
     const prevEnd = this.range(prev).end;
     return dayjs().diff(dayjs(prevEnd), 'day') >= 3;
-  },
-
-  /** Arşiv gecikmiş mi */
-  isOverdue() {
-    const prev = this.previousKey();
-    if (state.archives[prev]) return false;
-    if (!this.hasDataInRange(this.range(prev))) return false;
-    /* Önceki dönemin bitiş tarihi geçtiyse ve arşivlenmediyse gecikmiş */
-    const prevEnd = this.range(prev).end;
-    return dayjs().format('YYYY-MM-DD') > prevEnd;
   },
 };
 
@@ -4639,29 +4630,49 @@ const CRUD = {
       /kredi|borç/i.test(g.kategori || '')
     ).reduce((s, g) => s + (Number(g.miktar) || 0), 0);
     /* 🆕 Birleştirme — ID bazlı dedupe */
+    /* 🆕 Birleştirme — ID bazlı dedupe */
     const _birlestir = (a, b) => {
       const seen = new Set((a || []).map(x => x.id));
       return [...(a || []), ...(b || []).filter(x => !seen.has(x.id))];
     };
+    const mergedGelirler = _birlestir(mevcutArsiv?.gelirler, aGelir);
+    const mergedGiderler = _birlestir(mevcutArsiv?.giderler, aGider);
+    const mergedBorclar  = _birlestir(mevcutArsiv?.borcalacaklar, aBorcalacaklar);
+    const mergedLoglar   = _birlestir(mevcutArsiv?.loglar, aLoglar);
+
+    /* 🆕 Özet — BİRLEŞTİRİLMİŞ veriden hesapla (sadece yeni kayıtlardan değil) */
+    const totalGelir = mergedGelirler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+    const totalGider = mergedGiderler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+    const fullKategoriDagilim = mergedGiderler.reduce((m, g) => {
+      const k = g.kategori || 'Diğer';
+      m[k] = (m[k] || 0) + (Number(g.miktar) || 0);
+      return m;
+    }, {});
+    const fullBirikim = mergedGiderler.filter(g =>
+      /birikim|yatırım|tasarruf/i.test(g.kategori || '')
+    ).reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+    const fullBorcOdeme = mergedGiderler.filter(g =>
+      /kredi|borç/i.test(g.kategori || '')
+    ).reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+
     state.archives[monthKey] = {
       ...(mevcutArsiv || {}),
-      gelirler: _birlestir(mevcutArsiv?.gelirler, aGelir),
-      giderler: _birlestir(mevcutArsiv?.giderler, aGider),
-      borcalacaklar: _birlestir(mevcutArsiv?.borcalacaklar, aBorcalacaklar),
-      loglar:   _birlestir(mevcutArsiv?.loglar, aLoglar),
+      gelirler: mergedGelirler,
+      giderler: mergedGiderler,
+      borcalacaklar: mergedBorclar,
+      loglar: mergedLoglar,
       salaryMonthRange: range,
       year: SalaryMonth.yearOf(monthKey),
       archivedAt: mevcutArsiv?.archivedAt || new Date().toISOString(),
-      /* 🆕 Zengin özet */
       ozet: {
-        toplamGelir: aGelir.reduce((s, g) => s + (Number(g.miktar) || 0), 0),
-        toplamGider: aGider.reduce((s, g) => s + (Number(g.miktar) || 0), 0),
-        net: aGelir.reduce((s, g) => s + (Number(g.miktar) || 0), 0) - aGider.reduce((s, g) => s + (Number(g.miktar) || 0), 0),
-        birikim: birikimKategori,
-        borcOdeme: borcOdemeKategori,
-        kategoriDagilim,
-        borcSayisi: aBorcalacaklar.length,
-        not: state.archives[monthKey]?.ozet?.not || ''
+        toplamGelir: totalGelir,
+        toplamGider: totalGider,
+        net: totalGelir - totalGider,
+        birikim: fullBirikim,
+        borcOdeme: fullBorcOdeme,
+        kategoriDagilim: fullKategoriDagilim,
+        borcSayisi: mergedBorclar.length,
+        not: mevcutArsiv?.ozet?.not || ''
       },
       schemaVersion: 3
     };
@@ -4751,8 +4762,8 @@ const CRUD = {
       Swal.fire({
         icon: 'success',
         title: '✅ Arşivlendi',
-        html: `...`,
-        timer: 3600,
+        html: `<p><strong>${SalaryMonth.shortLabel(monthKey)}</strong> · ${aGelir.length} gelir, ${aGider.length} gider arşive taşındı.</p>`,
+        timer: 1800,
         showConfirmButton: false
       });
     }
@@ -9154,12 +9165,7 @@ requestAnimationFrame(() => {
             const gd = aGd.reduce((ss, x) => ss + (Number(x.miktar) || 0), 0);
             return { key: k, net: g - gd };
           }).reduce((a, b) => (!a || b.net > a.net) ? b : a, null);
-            const totalCount = yearKeys.reduce((s, k) => {
-              const a = state.archives[k] || {};
-              const aG = Array.isArray(a.gelirler) ? a.gelirler : [];
-              const aGd = Array.isArray(a.giderler) ? a.giderler : [];
-              return s + aG.length + aGd.length;
-            }, 0);
+
 
             return `<div class="card" style="margin-bottom:12px;">
               <!-- Yıl başlığı (tıklanabilir) -->
@@ -9980,10 +9986,6 @@ async openVehicleModal() {
 },
 
   async _addVehicleForm() { return this._vehicleForm(null); },
-  async _editVehicle(id) {
-    const v = state.araclar.find(a => a.id === id);
-    if (v) return this._vehicleForm(v);
-  },
 async _vehicleForm(existing) {
   const v = existing || {};
   const currentKm = _getLastFuelKm();
@@ -11603,8 +11605,8 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
         state.logs          = [];
 
         await saveAllData();
-        /* 🆕 Kategori versiyonunu güncelle — import edilen eski kategoriler bir sonraki açılışta DEFAULT'a dönsün */
-        localStorage.setItem('kat_version', String(KAT_VERSION));
+        /* 🆕 Import edilen eski kategoriler bir sonraki açılışta DEFAULT'a dönsün — kat_version'ı SİL */
+        localStorage.removeItem('kat_version');
         await addLog('json_import', `${file.name} (${newGelirler.length + newGiderler.length} işlem)`);
         showToast('✅ Yedek başarıyla yüklendi!');
         await this.loadPage(this.currentPage);
@@ -11695,16 +11697,16 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
       };
     };
 
-    const satir = (label, v1, v2, tersMi = false) => {
+    const satir = (label, v1, v2, tersMi = false, fm = (v) => Calc.fmt(v)) => {
       let f = fark(v1, v2);
       if (tersMi) f.renk = v1 > v2 ? 'var(--accent)' : (v1 < v2 ? 'var(--danger)' : 'var(--text3)');
       return `<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);align-items:center;">
-        <div style="text-align:right;font-size:12px;font-weight:700;color:var(--text);">${Calc.fmt(v1)}</div>
+        <div style="text-align:right;font-size:12px;font-weight:700;color:var(--text);">${fm(v1)}</div>
         <div style="text-align:center;min-width:60px;">
           <div style="font-size:9.5px;color:var(--text3);text-transform:uppercase;font-weight:600;">${label}</div>
           <div style="font-size:10.5px;font-weight:800;color:${f.renk};">${f.text}</div>
         </div>
-        <div style="text-align:left;font-size:12px;font-weight:700;color:var(--text);">${Calc.fmt(v2)}</div>
+        <div style="text-align:left;font-size:12px;font-weight:700;color:var(--text);">${fm(v2)}</div>
       </div>`;
     };
 
@@ -11728,7 +11730,7 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
       ${satir('Gelir', c.data1.gelir, c.data2.gelir, true)}
       ${satir('Gider', c.data1.gider, c.data2.gider)}
       ${satir('Net', c.data1.net, c.data2.net, true)}
-      ${satir('İşlem', c.data1.islem, c.data2.islem, true)}
+      ${satir('İşlem', c.data1.islem, c.data2.islem, true, v => String(v))}
 
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
         <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px;">Kategori Karşılaştırma (Top 5)</div>
