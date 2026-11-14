@@ -12898,7 +12898,7 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     this._refreshGorevList();
   },
 
-  async renderGorevler() {
+   async renderGorevler() {
     const tumu = state.gorevler;
     const aktif = tumu.filter(g => !g.tamamlandi && !g.arsivlendi);
     const bugun = aktif.filter(g => g.tarih && TaskDate.diffDays(g.tarih) === 0);
@@ -12910,42 +12910,33 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     const tamamlanan = tumu.filter(g => g.tamamlandi && !g.arsivlendi);
     const arsiv = tumu.filter(g => g.arsivlendi);
 
-    let gosterilecek;
-    switch (this._gorevFilter) {
-      case 'bugun':       gosterilecek = bugun; break;
-      case 'hafta':       gosterilecek = hafta; break;
-      case 'geciken':     gosterilecek = geciken; break;
-      case 'tamamlanan':  gosterilecek = tamamlanan.slice().sort((a,b) => (b.tamamlanmaTarihi || '').localeCompare(a.tamamlanmaTarihi || '')); break;
-      case 'arsiv':       gosterilecek = arsiv.slice().sort((a,b) => (b.arsivTarihi || '').localeCompare(a.arsivTarihi || '')); break;
-      case 'aktif':
-      default:            gosterilecek = aktif.slice().sort((a, b) => this._gorevSortFn(a, b)); break;
-    }
-
+    /* ═══ STAT KARTLARI ═══ */
     const statHTML = `
       <div class="task-stats">
         <div class="task-stat-card sc-aktif${this._gorevFilter === 'aktif' ? ' active' : ''}"
-             onclick="App.setGorevFilter('aktif')" role="button" tabindex="0" aria-label="Aktif görevleri göster">
+             onclick="App.setGorevFilter('aktif')" role="button" tabindex="0">
           <div class="task-stat-label">Aktif</div>
           <div class="task-stat-value">${aktif.length}</div>
         </div>
         <div class="task-stat-card sc-bugun${this._gorevFilter === 'bugun' ? ' active' : ''}"
-             onclick="App.setGorevFilter('bugun')" role="button" tabindex="0" aria-label="Bugünkü görevleri göster">
+             onclick="App.setGorevFilter('bugun')" role="button" tabindex="0">
           <div class="task-stat-label">Bugün</div>
           <div class="task-stat-value">${bugun.length}</div>
         </div>
         <div class="task-stat-card sc-geciken${this._gorevFilter === 'geciken' ? ' active' : ''}"
-             onclick="App.setGorevFilter('geciken')" role="button" tabindex="0" aria-label="Geciken görevleri göster">
+             onclick="App.setGorevFilter('geciken')" role="button" tabindex="0">
           <div class="task-stat-label">Geciken</div>
           <div class="task-stat-value" style="color:${geciken.length > 0 ? 'var(--danger)' : 'var(--text)'};">${geciken.length}</div>
         </div>
         <div class="task-stat-card sc-tamam${this._gorevFilter === 'tamamlanan' ? ' active' : ''}"
-             onclick="App.setGorevFilter('tamamlanan')" role="button" tabindex="0" aria-label="Tamamlanan görevleri göster">
+             onclick="App.setGorevFilter('tamamlanan')" role="button" tabindex="0">
           <div class="task-stat-label">Tamamlanan</div>
           <div class="task-stat-value">${tamamlanan.length}</div>
         </div>
       </div>
     `;
 
+    /* ═══ HIZLI EKLE ═══ */
     const quickAddHTML = `
       <div class="task-quick-add">
         <input type="text" id="quickTaskInput" class="task-quick-input"
@@ -12961,15 +12952,15 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
       </div>
     `;
 
+    /* ═══ FİLTRE SEKMELERİ ═══ */
     const tabs = [
-      { key: 'aktif', label: 'Aktif', icon: 'fa-list-check', count: aktif.length },
-      { key: 'bugun', label: 'Bugün', icon: 'fa-sun', count: bugun.length },
-      { key: 'hafta', label: 'Hafta', icon: 'fa-calendar-week', count: hafta.length },
-      { key: 'geciken', label: 'Geciken', icon: 'fa-exclamation-triangle', count: geciken.length },
-      { key: 'tamamlanan', label: 'Biten', icon: 'fa-check-circle', count: tamamlanan.length },
-      { key: 'arsiv', label: 'Arşiv', icon: 'fa-box-archive', count: arsiv.length }
+      { key: 'aktif',      label: 'Aktif',    icon: 'fa-list-check',         count: aktif.length },
+      { key: 'bugun',      label: 'Bugün',    icon: 'fa-sun',                count: bugun.length },
+      { key: 'hafta',      label: 'Hafta',    icon: 'fa-calendar-week',      count: hafta.length },
+      { key: 'geciken',    label: 'Geciken',  icon: 'fa-exclamation-triangle', count: geciken.length },
+      { key: 'tamamlanan', label: 'Biten',    icon: 'fa-check-circle',       count: tamamlanan.length },
+      { key: 'arsiv',      label: 'Arşiv',    icon: 'fa-box-archive',        count: arsiv.length }
     ];
-
     const tabsHTML = `
       <div class="task-filter-tabs">
         ${tabs.map(t => `
@@ -12983,6 +12974,39 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
       </div>
     `;
 
+    /* ═══ ARAMA + SIRALAMA ═══ */
+    const searchSortHTML = `
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px;">
+        <div class="search-box" style="margin-bottom:0;">
+          <i class="fas fa-search"></i>
+          <input type="text" id="gorevSearch" class="form-input"
+                 placeholder="Görev başlığı veya açıklamada ara…"
+                 value="${UI.escHtml(this._gorevSearch)}"
+                 oninput="App._setGorevSearch(this.value)">
+        </div>
+        <select id="gorevSort" class="form-select"
+                style="font-size:12px;padding:8px 26px 8px 10px;min-width:118px;width:auto;"
+                onchange="App._setGorevSort(this.value)">
+          <option value="smart"    ${this._gorevSortMode==='smart'    ? 'selected' : ''}>🧠 Akıllı</option>
+          <option value="date"     ${this._gorevSortMode==='date'     ? 'selected' : ''}>📅 Tarih</option>
+          <option value="priority" ${this._gorevSortMode==='priority' ? 'selected' : ''}>🚩 Öncelik</option>
+          <option value="created"  ${this._gorevSortMode==='created'  ? 'selected' : ''}>🆕 Oluşturma</option>
+        </select>
+      </div>
+    `;
+
+    /* ═══ ÖNCELİK FİLTRE ÇİPLERİ ═══ */
+    const priFilterHTML = `
+      <div class="tab-chips" id="gorevPriFilter" style="margin-bottom:10px;">
+        <span class="chip${this._gorevPriorityFilter==='all'?' active':''}"     data-pri="all"     onclick="App._setGorevPriority('all')">Tümü</span>
+        <span class="chip${this._gorevPriorityFilter==='kritik'?' active':''}"  data-pri="kritik"  onclick="App._setGorevPriority('kritik')">🔴 Kritik</span>
+        <span class="chip${this._gorevPriorityFilter==='yuksek'?' active':''}"  data-pri="yuksek"  onclick="App._setGorevPriority('yuksek')">🟠 Yüksek</span>
+        <span class="chip${this._gorevPriorityFilter==='normal'?' active':''}"  data-pri="normal"  onclick="App._setGorevPriority('normal')">🔵 Normal</span>
+        <span class="chip${this._gorevPriorityFilter==='dusuk'?' active':''}"   data-pri="dusuk"   onclick="App._setGorevPriority('dusuk')">⚪ Düşük</span>
+      </div>
+    `;
+
+    /* ═══ TOPLU İŞLEM BARI ═══ */
     let bulkBarHTML = '';
     if (this._gorevFilter === 'tamamlanan' && tamamlanan.length > 0) {
       bulkBarHTML = `
@@ -13009,32 +13033,24 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
       `;
     }
 
-    const emptyMessages = {
-      aktif:      { icon: 'fa-clipboard-check',   title: 'Aktif görev yok',     desc: 'Yukarıdan hızlıca yeni bir görev ekleyin.' },
-      bugun:      { icon: 'fa-sun',               title: 'Bugün görev yok',     desc: 'Bugüne ait bir görev bulunmuyor. Rahat bir gün!' },
-      hafta:      { icon: 'fa-calendar-week',     title: 'Bu hafta görev yok',  desc: 'Önümüzdeki 7 gün için planlanmış görev yok.' },
-      geciken:    { icon: 'fa-thumbs-up',         title: 'Geciken görev yok',   desc: 'Harika! Tüm görevler zamanında.' },
-      tamamlanan: { icon: 'fa-check-circle',      title: 'Tamamlanan yok',      desc: 'Görev tamamladıkça burada görünür.' },
-      arsiv:      { icon: 'fa-box-archive',       title: 'Arşiv boş',           desc: 'Tamamlanan görevleri arşivledikçe burada birikir.' }
-    };
-    const emp = emptyMessages[this._gorevFilter] || emptyMessages.aktif;
-
-    const listHTML = gosterilecek.length
-      ? gosterilecek.map(g => this._renderTaskCard(g)).join('')
-      : `<div class="task-empty">
-           <i class="fas ${emp.icon} task-empty-icon"></i>
-           <div class="task-empty-title">${emp.title}</div>
-           <div class="task-empty-desc">${emp.desc}</div>
-         </div>`;
-
+    /* ═══ HTML MONT ═══ */
     document.getElementById('view').innerHTML = `<div class="page-in">
       ${statHTML}
       ${quickAddHTML}
       ${tabsHTML}
+      ${searchSortHTML}
+      ${priFilterHTML}
       ${bulkBarHTML}
-      <div id="taskList">${listHTML}</div>
+      <div id="taskList"></div>
+      <div class="pagination" id="taskListPagination" style="display:none;"></div>
     </div>`;
+
+    /* 🆕 Liste + sayfalamayı tek yerden yönet */
+    this._refreshGorevList();
   },
+
+
+  
   /* 🆕 Sekmeye göre temel listeyi döndür */
   _getGorevBaseList() {
     const tumu = state.gorevler;
