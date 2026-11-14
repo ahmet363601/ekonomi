@@ -4369,7 +4369,7 @@ document.getElementById('view').innerHTML = `<div class="page-in">
                     <a href="#" onclick="event.preventDefault();App._editVehicle(${v.id})" style="color:var(--primary);font-weight:600;">araç ayarlarına</a> 
                     başlangıç KM girin
                   </div>
-                `}
+               
                 
                 ${tarihler.length > 0 ? tarihler.map(r => {
                   const pulse = (r.seviye === 'acil' || r.seviye === 'gecti')
@@ -4391,7 +4391,10 @@ document.getElementById('view').innerHTML = `<div class="page-in">
               <a href="#" onclick="event.preventDefault();App.openVehicleModal()" style="color:var(--primary);font-weight:600;">araç ekle</a>
             </div>
           ` : ''}
-        </div>
+              </div>
+            `;
+          }).join('')}
+      </div>
       ` : ''}
 
       <!-- 🆕 ANOMALİLER -->
