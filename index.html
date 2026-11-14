@@ -2170,10 +2170,18 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
    API: finans.truncgil.com (ücretsiz, CORS destekli)
    ═══════════════════════════════════════════════════════════════ */
 const GoldRate = {
-  /* ✅ Yeni kaynak: Darphane Altın & Emtia JSON (CORS açık, anahtarsız, ücretsiz) */
+  /* ✅ Kaynak: Darphane Altın & Emtia JSON (CORS açık, anahtarsız) */
   API_URL: 'https://raw.githubusercontent.com/kessinc/darphane/main/altin.json',
   CACHE_KEY: 'ebha_gold_rates_cache',
-  CACHE_TTL_MS: 30 * 60 * 1000, // 30 dk
+
+  /* 🕐 GÜNDE MAX 2-3 FETCH — Saat dilimleri
+     Bu saatler geçtiyse ve cache bu saatten eskiyse → fetch yap
+     Aksi halde cache kullan (ne kadar açarsa açsın tekrar fetch etmez) */
+  UPDATE_SLOTS: [10, 20],          // 10:00 ve 20:00 → günde 2 kez kesin
+
+  /* 🛡️ FALLBACK — Son fetch'in üzerinden 12 saat geçtiyse
+     slot bekleme, kesin fetch et (kullanıcı sadece sabah açıyorsa bu devreye girer) */
+  MAX_HOURS_WITHOUT_UPDATE: 12,
 
   parseTL(v) {
     if (typeof v === 'number') return v;
@@ -2181,13 +2189,44 @@ const GoldRate = {
     return parseFloat(String(v).replace(/\./g, '').replace(',', '.')) || 0;
   },
 
+  /* 🎯 KARAR VERİCİ: Fetch gerekli mi? */
+  shouldFetch(force = false) {
+    if (force) return true;
+
+    try {
+      const cached = JSON.parse(localStorage.getItem(this.CACHE_KEY) || 'null');
+      if (!cached || !cached.ts) return true;
+
+      const now = Date.now();
+      const hoursSince = (now - cached.ts) / 3600000;
+
+      /* 1️⃣ 12 saatten fazla geçtiyse kesin fetch */
+      if (hoursSince >= this.MAX_HOURS_WITHOUT_UPDATE) return true;
+
+      /* 2️⃣ Son fetch'ten SONRA bir saat dilimi geçti mi? */
+      const nowDate = new Date(now);
+      for (const hour of this.UPDATE_SLOTS) {
+        const slot = new Date(nowDate);
+        slot.setHours(hour, 0, 0, 0);
+        /* Slot bugün VE cache'ten sonra VE şu an slot geçmişse → fetch */
+        if (slot.getTime() > cached.ts && slot.getTime() <= now) {
+          return true;
+        }
+      }
+
+      /* 3️⃣ Hiçbir slot geçmedi → cache kullan */
+      return false;
+    } catch (_) {
+      return true;
+    }
+  },
+
   async fetchAndUpdate(force = false) {
-    if (!force) {
+    /* 🎯 Akıllı kontrol: slot veya fallback → fetch, aksi halde cache */
+    if (!force && !this.shouldFetch(false)) {
       try {
         const cached = JSON.parse(localStorage.getItem(this.CACHE_KEY) || 'null');
-        if (cached && (Date.now() - cached.ts) < this.CACHE_TTL_MS) {
-          return { ok: true, fromCache: true, ...cached };
-        }
+        if (cached) return { ok: true, fromCache: true, ...cached };
       } catch (_) {}
     }
 
@@ -2204,7 +2243,6 @@ const GoldRate = {
       const gramRaw   = altinlar['GRAM_ALTIN']   || {};
       const ceyrekRaw = altinlar['CEYREK_ALTIN'] || {};
 
-      /* API bazen "satis" bazen "alis" dönebilir; önce satışı tercih et */
       const gram   = this.parseTL(gramRaw['satis']   || gramRaw['alis']   || 0);
       const ceyrek = this.parseTL(ceyrekRaw['satis'] || ceyrekRaw['alis'] || 0);
 
@@ -2221,6 +2259,10 @@ const GoldRate = {
       if (gram   > 0) state.ayarlar.gramAltinFiyati   = gram;
       if (ceyrek > 0) state.ayarlar.ceyrekAltinFiyati = ceyrek;
       await saveAyarlar();
+
+      /* 🆕 Log — arka planda sessiz, sadece console'a bilgi */
+      const slotInfo = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+      console.log(`[GoldRate] ✅ Güncellendi (${slotInfo}) · Gram: ${gram.toFixed(2)} TL · Çeyrek: ${ceyrek.toFixed(2)} TL`);
 
       return { ok: true, fromCache: false, ...cache };
     } catch (e) {
