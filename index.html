@@ -2062,103 +2062,180 @@ input[type="month"].form-input,
   .notif-badge { min-width: 14px; height: 14px; font-size: 8px; }
 }
 /* ═══════════════════════════════════════════════════════════════
-   ⚙️ AYARLAR MODALI — iOS Settings Tarzı v2
+   ⚙️ AYARLAR MODALI — iOS 16 Pro Max Native Sheet v3
+   ─────────────────────────────────────────────────────────────
+   📱 iPhone 16 Pro Max: 440×956pt, dynamic island, home indicator
+   🎯 Mobile-first · Full-screen sheet · Sticky hero + footer
    ═══════════════════════════════════════════════════════════════ */
+
+/* ═══ CONTAINER ═══ */
+.swal2-container.settings-container {
+  padding: 0 !important;
+  align-items: stretch !important;
+  background: var(--surface3) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+@media (min-width: 521px) {
+  .swal2-container.settings-container {
+    padding: 24px !important;
+    align-items: center !important;
+    background: rgba(11,21,39,.55) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    backdrop-filter: blur(8px) !important;
+  }
+}
+
+/* ═══ POPUP ═══ */
 .swal2-popup.settings-popup {
   padding: 0 !important;
-  overflow: hidden !important;
-  max-width: min(500px, calc(100vw - 16px)) !important;
-  border-radius: 22px !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
   background: var(--surface3) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  box-shadow: none !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+  -webkit-font-smoothing: antialiased !important;
 }
+@media (min-width: 521px) {
+  .swal2-popup.settings-popup {
+    width: 420px !important;
+    max-width: 420px !important;
+    height: auto !important;
+    max-height: 90vh !important;
+    border-radius: 24px !important;
+    box-shadow: 0 30px 80px rgba(15,42,92,.35), 0 0 0 1px rgba(15,42,92,.06) !important;
+  }
+}
+
 .settings-popup .swal2-title { display: none !important; }
+
+/* ═══ HTML CONTAINER — kaydırılabilir gövde ═══ */
 .settings-popup .swal2-html-container {
   margin: 0 !important;
   padding: 0 !important;
-  max-height: 72vh !important;
+  flex: 1 1 auto !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
   -webkit-overflow-scrolling: touch !important;
   overscroll-behavior: contain !important;
   background: var(--surface3) !important;
+  min-height: 0 !important;
 }
+@media (min-width: 521px) {
+  .settings-popup .swal2-html-container {
+    flex: 0 1 auto !important;
+    max-height: calc(90vh - 100px) !important;
+  }
+}
+
+/* ═══ ACTIONS — sticky footer + safe-area bottom ═══ */
 .settings-popup .swal2-actions {
-  padding: 14px 16px !important;
+  flex: 0 0 auto !important;
+  padding: 12px 16px !important;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important;
   margin: 0 !important;
   border-top: 1px solid var(--border) !important;
   background: var(--surface) !important;
   gap: 10px !important;
   width: 100% !important;
   flex-wrap: nowrap !important;
-}
-.settings-popup .swal2-close {
-  top: 14px !important;
-  right: 14px !important;
-  color: #fff !important;
-  background: rgba(255,255,255,.18) !important;
-  border: 1px solid rgba(255,255,255,.25) !important;
-  border-radius: 50% !important;
-  width: 32px !important;
-  height: 32px !important;
-  z-index: 10 !important;
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  transition: all .15s ease !important;
-  font-size: 22px !important;
-  font-weight: 300 !important;
-  line-height: 1 !important;
-}
-.settings-popup .swal2-close:hover {
-  background: rgba(255,255,255,.35) !important;
-  color: #fff !important;
+  box-sizing: border-box !important;
 }
 
+/* ═══ CLOSE — dynamic island altı ═══ */
+.settings-popup .swal2-close {
+  position: absolute !important;
+  top: calc(env(safe-area-inset-top) + 16px) !important;
+  right: 16px !important;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  border-radius: 50% !important;
+  background: rgba(255,255,255,.20) !important;
+  border: 1px solid rgba(255,255,255,.25) !important;
+  color: #fff !important;
+  font-size: 18px !important;
+  font-weight: 300 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  z-index: 100 !important;
+  transition: background .15s ease, transform .15s ease !important;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.settings-popup .swal2-close:active { transform: scale(.9); }
+.settings-popup .swal2-close:hover  { background: rgba(255,255,255,.40) !important; }
+@media (min-width: 521px) {
+  .settings-popup .swal2-close {
+    top: 14px !important;
+    right: 14px !important;
+  }
+}
+
+/* ═══ BODY WRAPPER ═══ */
 .settings-body {
   display: flex;
   flex-direction: column;
   background: var(--surface3);
-  padding-bottom: 12px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  min-height: 100%;
 }
 
-/* ═══ HERO ═══ */
+/* ═══ HERO — sticky, safe-area top, büyük başlık ═══ */
 .settings-hero {
+  position: sticky;
+  top: 0;
+  z-index: 50;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 14px;
-  padding: 22px 20px 20px;
-  background: linear-gradient(135deg, #0F2A5C 0%, #1A3A6E 50%, #0A1F44 100%);
+  padding: calc(env(safe-area-inset-top) + 22px) 20px 20px;
+  background: linear-gradient(135deg, #0F2A5C 0%, #1E3A7A 55%, #0A1F44 100%);
   color: #fff;
-  position: relative;
   overflow: hidden;
-  margin-bottom: 10px;
+  margin-bottom: 22px;
+  min-height: calc(env(safe-area-inset-top) + 110px);
+  box-shadow: 0 4px 20px rgba(15,42,92,.20);
 }
 .settings-hero::before {
   content: '';
   position: absolute;
-  top: -50%; right: -20%;
-  width: 220px; height: 220px;
-  background: radial-gradient(circle, rgba(74,123,200,.40) 0%, transparent 70%);
+  top: -40%; right: -20%;
+  width: 240px; height: 240px;
+  background: radial-gradient(circle, rgba(74,123,200,.42) 0%, transparent 70%);
   border-radius: 50%;
   pointer-events: none;
 }
 .settings-hero::after {
   content: '';
   position: absolute;
-  bottom: -60%; left: 5%;
-  width: 160px; height: 160px;
-  background: radial-gradient(circle, rgba(4,120,87,.30) 0%, transparent 70%);
+  bottom: -70%; left: 8%;
+  width: 180px; height: 180px;
+  background: radial-gradient(circle, rgba(16,185,129,.30) 0%, transparent 70%);
   border-radius: 50%;
   pointer-events: none;
 }
 .settings-hero-icon {
-  width: 54px; height: 54px;
-  border-radius: 16px;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
   background: rgba(255,255,255,.18);
   border: 1px solid rgba(255,255,255,.25);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
   flex-shrink: 0;
-  box-shadow: 0 8px 20px rgba(0,0,0,.2);
+  box-shadow: 0 8px 20px rgba(0,0,0,.22);
   position: relative;
   z-index: 1;
 }
@@ -2167,87 +2244,84 @@ input[type="month"].form-input,
   min-width: 0;
   position: relative;
   z-index: 1;
+  padding-right: 44px;   /* close butonu için yer */
 }
 .settings-hero-title {
-  font-family: 'Inter', sans-serif;
-  font-size: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
+  font-size: 28px;
   font-weight: 800;
-  letter-spacing: -.4px;
-  line-height: 1.2;
+  letter-spacing: -.8px;
+  line-height: 1.1;
 }
 .settings-hero-sub {
-  font-size: 11.5px;
-  opacity: .78;
-  margin-top: 4px;
-  letter-spacing: .3px;
+  font-size: 13px;
+  opacity: .75;
+  margin-top: 5px;
+  letter-spacing: .1px;
+  font-weight: 500;
 }
 
 /* ═══ GROUPS — Kartlar ═══ */
 .settings-group {
-  padding: 0 12px;
-  margin-bottom: 18px;
+  padding: 0 16px;
+  margin-bottom: 24px;
 }
-.settings-group:first-of-type { margin-top: 4px; }
-.settings-group:last-of-type  { margin-bottom: 4px; }
+.settings-group:last-of-type { margin-bottom: 8px; }
 
 .settings-group-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 10px 8px;
-  font-size: 11px;
-  font-weight: 700;
+  padding: 0 4px 8px;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text3);
-  text-transform: uppercase;
-  letter-spacing: .8px;
-  min-height: 24px;
+  letter-spacing: -.1px;
+  min-height: 22px;
 }
 
 .settings-group-body {
   background: var(--surface);
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(15,42,92,.06);
-  border: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(15,42,92,.04);
 }
 
-/* ═══ ROWS ═══ */
-.settings-row {
+/* ═══ ROWS — 52px min touch target ═══ */
+.settings-row,
+.settings-row-button {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: 14px;
+  min-height: 52px;
+  padding: 12px 16px;
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  transition: background .15s ease;
-}
-.settings-row:last-child { border-bottom: none; }
-
-.settings-row-button {
-  width: 100%;
   border: none;
-  background: var(--surface);
-  cursor: pointer;
-  text-align: left;
+  border-bottom: 1px solid var(--border);
+  width: 100%;
   font-family: inherit;
   font-size: inherit;
   color: inherit;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  padding: 12px 14px;
+  text-align: left;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background .1s ease;
+}
+.settings-row-button { cursor: pointer; }
+.settings-row:last-child,
+.settings-row-button:last-child { border-bottom: none; }
+.settings-row-button:active { background: var(--surface2); }
+
+/* ═══ ROW ICON ═══ */
+.settings-row-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
-  gap: 12px;
-}
-.settings-row-button:last-child { border-bottom: none; }
-.settings-row-button:hover  { background: var(--surface2); }
-.settings-row-button:active { background: var(--surface3); transform: scale(.995); }
-
-.settings-row-icon {
-  width: 32px; height: 32px;
-  border-radius: 9px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px;
+  justify-content: center;
+  font-size: 15px;
   flex-shrink: 0;
 }
 .settings-icon-blue    { background: #EFF6FF; color: #2563EB; }
@@ -2257,56 +2331,60 @@ input[type="month"].form-input,
 .settings-icon-success { background: #ECFDF5; color: #047857; }
 .settings-icon-danger  { background: #FEF2F2; color: #B91C1C; }
 
+/* ═══ ROW BODY ═══ */
 .settings-row-body {
   flex: 1;
   min-width: 0;
 }
 .settings-row-label {
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 400;
   color: var(--text);
-  margin-bottom: 2px;
-  letter-spacing: -.1px;
+  letter-spacing: -.2px;
+  line-height: 1.25;
 }
 .settings-row-sub {
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 400;
   color: var(--text3);
-  line-height: 1.4;
+  line-height: 1.35;
   margin-top: 2px;
 }
 .settings-row-chevron {
   color: var(--text3);
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 600;
   flex-shrink: 0;
-  opacity: .6;
+  opacity: .45;
+  margin-left: auto;
 }
 
-/* ─── Select inline (rapor aralığı) ─── */
+/* ═══ SELECT INLINE ═══ */
 .settings-row-select {
-  padding: 7px 26px 7px 11px;
+  padding: 8px 28px 8px 12px !important;
   background: var(--surface2) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 9px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text);
-  cursor: pointer;
-  font-family: inherit;
-  -webkit-appearance: none;
-  appearance: none;
+  border: 1.5px solid var(--border) !important;
+  border-radius: 8px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: var(--text) !important;
+  cursor: pointer !important;
+  font-family: inherit !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237B8A9E' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") !important;
   background-repeat: no-repeat !important;
-  background-position: right 8px center !important;
-  max-width: 130px;
-  flex-shrink: 0;
+  background-position: right 10px center !important;
+  max-width: 140px !important;
+  flex-shrink: 0 !important;
 }
 .settings-row-select:focus {
   outline: none !important;
   border-color: var(--primary) !important;
-  box-shadow: 0 0 0 2px var(--primary-light) !important;
+  box-shadow: 0 0 0 3px var(--primary-light) !important;
 }
 
-/* ─── Input inline (altın fiyatları) ─── */
+/* ═══ INPUT INLINE (Altın) ═══ */
 .settings-input-inline {
   position: relative;
   display: flex;
@@ -2316,14 +2394,14 @@ input[type="month"].form-input,
 }
 .settings-input-sm {
   width: 100% !important;
-  padding: 8px 26px 8px 10px !important;
+  padding: 9px 26px 9px 12px !important;
   border: 1.5px solid var(--border) !important;
-  border-radius: 9px !important;
+  border-radius: 8px !important;
   background: var(--surface2) !important;
   color: var(--text) !important;
-  font-size: 16px !important;   /* iOS zoom engeli */
-  font-family: 'IBM Plex Sans', sans-serif !important;
-  font-weight: 700 !important;
+  font-size: 16px !important;
+  font-family: inherit !important;
+  font-weight: 600 !important;
   font-variant-numeric: tabular-nums;
   text-align: right !important;
   box-sizing: border-box !important;
@@ -2339,37 +2417,37 @@ input[type="month"].form-input,
 }
 .settings-input-suffix-sm {
   position: absolute;
-  right: 8px;
-  font-size: 12px;
+  right: 9px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text3);
   pointer-events: none;
 }
 
-/* ─── Footer hint ─── */
+/* ═══ GROUP FOOTER HINT ═══ */
 .settings-group-footer {
-  padding: 8px 10px 0;
+  padding: 10px 4px 0;
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--text3);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 .settings-group-footer i {
   flex-shrink: 0;
   margin-top: 1px;
   color: var(--primary);
-  font-size: 11px;
+  font-size: 12px;
 }
 
-/* ─── Mini button (API) ─── */
+/* ═══ MINI BUTTON (API) ═══ */
 .settings-mini-btn {
-  padding: 5px 10px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  font-size: 10.5px;
+  padding: 6px 12px;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--primary);
   cursor: pointer;
@@ -2379,52 +2457,51 @@ input[type="month"].form-input,
   transition: all .15s ease;
   flex-shrink: 0;
   font-family: inherit;
-  text-transform: none;
   letter-spacing: 0;
-}
-.settings-mini-btn:hover {
-  border-color: var(--primary);
-  background: var(--primary-light);
+  -webkit-tap-highlight-color: transparent;
 }
 .settings-mini-btn:active { transform: scale(.94); }
+.settings-mini-btn:hover  { border-color: var(--primary); background: var(--primary-light) !important; }
 .settings-mini-btn:disabled { opacity: .55; cursor: not-allowed; }
 
-/* ─── Danger row ─── */
-.settings-row-danger:hover  { background: #FEF2F2 !important; }
-.settings-row-danger:active { background: #FEE2E2 !important; transform: scale(.995); }
+/* ═══ DANGER ROW ═══ */
+.settings-row-danger:active { background: rgba(239,68,68,.08) !important; }
 
-/* ─── Dark mode ─── */
+/* ═══ DARK MODE ═══ */
 @media (prefers-color-scheme: dark) {
-  .settings-group-body { background: var(--surface2); border-color: var(--border); }
-  .settings-row { background: var(--surface2); }
-  .settings-row-button { background: var(--surface2); }
-  .settings-row-button:hover  { background: var(--surface3); }
+  .swal2-container.settings-container { background: #080F1E !important; }
+  .swal2-popup.settings-popup,
+  .settings-body,
+  .settings-popup .swal2-html-container { background: #080F1E !important; }
+  .settings-group-body { background: var(--surface); }
+  .settings-row,
+  .settings-row-button { background: var(--surface); }
   .settings-row-button:active { background: var(--surface3); }
-  .settings-popup .swal2-actions { background: var(--surface2) !important; }
+  .settings-popup .swal2-actions { background: var(--surface) !important; }
   .settings-icon-blue    { background: rgba(74,123,200,.18); }
   .settings-icon-amber   { background: rgba(245,158,11,.18); }
   .settings-icon-info    { background: rgba(56,189,248,.18); }
   .settings-icon-primary { background: rgba(74,123,200,.18); }
   .settings-icon-success { background: rgba(16,185,129,.18); }
   .settings-icon-danger  { background: rgba(239,68,68,.18); }
-  .settings-mini-btn { background: var(--surface3); }
-  .settings-mini-btn:hover { background: var(--primary-light); }
-  .settings-row-danger:hover  { background: rgba(239,68,68,.10) !important; }
-  .settings-row-danger:active { background: rgba(239,68,68,.15) !important; }
-  .settings-input-sm { background: var(--surface3) !important; }
-  .settings-row-select { background: var(--surface3) !important; }
+  .settings-mini-btn { background: var(--surface2) !important; }
+  .settings-input-sm,
+  .settings-row-select { background: var(--surface2) !important; }
+  .settings-row-danger:active { background: rgba(239,68,68,.12) !important; }
 }
 
-/* ─── Small screens ─── */
+/* ═══ SMALL SCREENS ═══ */
 @media (max-width: 400px) {
-  .settings-hero { padding: 18px 16px 16px; }
-  .settings-hero-icon { width: 48px; height: 48px; font-size: 22px; border-radius: 14px; }
-  .settings-hero-title { font-size: 18px; }
-  .settings-group { padding: 0 10px; margin-bottom: 16px; }
-  .settings-row-select { max-width: 105px; font-size: 11px; }
+  .settings-hero-title { font-size: 26px; }
+  .settings-hero-icon  { width: 48px; height: 48px; font-size: 20px; }
+  .settings-group      { padding: 0 12px; margin-bottom: 20px; }
+  .settings-row,
+  .settings-row-button { padding: 11px 14px; gap: 12px; }
+  .settings-row-label  { font-size: 15px; }
+  .settings-row-sub    { font-size: 12px; }
+  .settings-row-select { max-width: 115px !important; font-size: 13px !important; }
   .settings-input-inline { width: 100px; }
-  .settings-input-sm { font-size: 15px !important; }
-  .settings-popup .swal2-html-container { max-height: 70vh !important; }
+  .settings-input-sm   { font-size: 15px !important; }
 }
 </style>
 
@@ -9717,14 +9794,16 @@ async openSettingsModal() {
 
       <!-- ═══ HERO ═══ -->
       <div class="settings-hero">
-        <div class="settings-hero-icon">⚙️</div>
+        <div class="settings-hero-icon">
+          <i class="fas fa-gear"></i>
+        </div>
         <div class="settings-hero-content">
           <div class="settings-hero-title">Ayarlar</div>
           <div class="settings-hero-sub">EBHA Mani · v6.0</div>
         </div>
       </div>
 
-      <!-- ═══ 1. GENEL ═══ -->
+      <!-- ═══ GENEL ═══ -->
       <div class="settings-group">
         <div class="settings-group-title">Genel</div>
         <div class="settings-group-body">
@@ -9744,7 +9823,7 @@ async openSettingsModal() {
         </div>
       </div>
 
-      <!-- ═══ 2. ALTIN FİYATLARI ═══ -->
+      <!-- ═══ ALTIN FİYATLARI ═══ -->
       <div class="settings-group">
         <div class="settings-group-title">
           <span>Altın Fiyatları</span>
@@ -9786,7 +9865,7 @@ async openSettingsModal() {
         </div>
       </div>
 
-      <!-- ═══ 3. ARAÇ HATIRLATICILARI ═══ -->
+      <!-- ═══ ARAÇ HATIRLATICILARI ═══ -->
       <div class="settings-group">
         <div class="settings-group-title">Araç Hatırlatıcıları</div>
         <div class="settings-group-body">
@@ -9826,7 +9905,7 @@ async openSettingsModal() {
         </div>
       </div>
 
-      <!-- ═══ 4. UYGULAMA ═══ -->
+      <!-- ═══ UYGULAMA ═══ -->
       <div class="settings-group">
         <div class="settings-group-title">Uygulama</div>
         <div class="settings-group-body">
@@ -9843,7 +9922,7 @@ async openSettingsModal() {
         </div>
       </div>
 
-      <!-- ═══ 5. TEHLİKELİ BÖLGE ═══ -->
+      <!-- ═══ TEHLİKELİ BÖLGE ═══ -->
       <div class="settings-group">
         <div class="settings-group-title">
           <span style="color:var(--danger);">Tehlikeli Bölge</span>
@@ -9858,17 +9937,21 @@ async openSettingsModal() {
               <div class="settings-row-label" style="color:var(--danger);">Tüm Verileri Sıfırla</div>
               <div class="settings-row-sub">Gelir, gider, borç, arşiv, yedek — hepsi silinir</div>
             </div>
-            <i class="fas fa-exclamation-triangle" style="color:var(--danger);font-size:12px;"></i>
+            <i class="fas fa-exclamation-triangle" style="color:var(--danger);font-size:14px;"></i>
           </button>
         </div>
       </div>
 
     </div>`,
-    width: Math.min(500, window.innerWidth - 16),
+    width: undefined,
+    showCloseButton: true,
     showCancelButton: true,
     confirmButtonText: '💾 Kaydet',
     cancelButtonText: 'İptal',
-    customClass: { popup: 'settings-popup' },
+    customClass: {
+      popup: 'settings-popup',
+      container: 'settings-container'
+    },
     focusConfirm: false,
     preConfirm: () => {
       const gramEl   = document.getElementById('sGramAltin');
@@ -9898,7 +9981,6 @@ async openSettingsModal() {
     await this.loadPage(this.currentPage);
   }
 },
-
 /* 🆕 Ayarlar modalındaki API butonu için — gold-only modalındaki
    _refreshGoldInModal'ı DEĞİL, settings'e özel hafif bir versiyon kullanıyoruz. */
 async _refreshGoldInSettings() {
