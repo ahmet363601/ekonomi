@@ -4076,55 +4076,6 @@ const App = {
           ` : ''}
         </div>
       ` : ''}
-      <!-- 🆕 AYLIK INSIGHT -->
-      ${insight ? `
-        <div class="card" style="border-left:4px solid var(--info);">
-          <div class="section-header">
-            <span class="section-title" style="display:flex;align-items:center;gap:8px;">
-              <i class="fas fa-lightbulb" style="color:var(--info);"></i>
-              Aylık Öngörü
-            </span>
-          </div>
-          ${insight.topIncrease ? `
-            <div style="padding:10px 12px;background:var(--warning-light);border-radius:8px;margin-bottom:8px;">
-              <div style="font-size:11px;font-weight:700;color:var(--warning);margin-bottom:4px;">
-                📈 En Çok Artan Kategori (Geçen Aya Göre)
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <strong style="font-size:13px;">${UI.escHtml(insight.topIncrease.kat)}</strong>
-                <span style="color:var(--danger);font-weight:800;font-size:15px;">+%${insight.topIncrease.pct.toFixed(0)}</span>
-              </div>
-              <div style="font-size:10.5px;color:var(--text3);margin-top:3px;">
-                Bu ay ${Calc.fmt(insight.topIncrease.bu)} · geçen ay ${Calc.fmt(insight.topIncrease.prev)}
-              </div>
-            </div>
-          ` : ''}
-          ${insight.forecast ? `
-            <div style="padding:10px 12px;background:var(--primary-light);border-radius:8px;">
-              <div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:6px;">
-                🔮 Ay Sonu Gider Tahmini
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:flex-end;">
-                <div>
-                  <div style="font-size:10px;color:var(--text3);">Tahmini Toplam</div>
-                  <strong style="color:var(--danger);font-size:15px;">${Calc.fmt(insight.forecast.projectedGider)}</strong>
-                </div>
-                <div style="text-align:right;">
-                  <div style="font-size:10px;color:var(--text3);">Bugüne kadar</div>
-                  <strong style="font-size:12px;">${Calc.fmt(insight.forecast.currentGider)}</strong>
-                </div>
-              </div>
-              <div class="progress-track" style="margin:8px 0 4px;">
-                <div class="progress-bar" style="width:${insight.forecast.progressPct}%;background:${insight.forecast.progressPct > 95 ? 'var(--warning)' : 'var(--primary)'};"></div>
-              </div>
-              <div style="font-size:10px;color:var(--text3);display:flex;justify-content:space-between;">
-                <span>${insight.forecast.daysLeft} gün kaldı</span>
-                <span>Günlük ort. ${Calc.fmt(insight.forecast.dailyAvg)}</span>
-              </div>
-            </div>
-          ` : ''}
-        </div>
-      ` : ''}
 
       <!-- 🆕 ANOMALİLER -->
       ${anomaliler.length > 0 ? `
