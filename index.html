@@ -3001,15 +3001,12 @@ input[type="month"].form-input,
 /* ─── FILTRE TABS ─── */
 .task-filter-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 4px;
   margin-bottom: 12px;
-  scrollbar-width: none;
 }
-.task-filter-tabs::-webkit-scrollbar { display: none; }
 .task-filter-tab {
-  padding: 7px 13px;
+  padding: 8px 12px;
   border-radius: 30px;
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -3019,10 +3016,12 @@ input[type="month"].form-input,
   cursor: pointer;
   color: var(--text2);
   transition: all .15s ease;
-  flex-shrink: 0;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 .task-filter-tab.active {
   background: var(--primary);
@@ -3469,6 +3468,100 @@ input[type="month"].form-input,
   border-color: var(--primary);
   color: #fff;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   ✨ iOS-STİL GÖREV FORMU
+   ═══════════════════════════════════════════════════════════════ */
+.task-form-popup {
+  border-radius: 22px !important;
+  padding: 22px 18px 18px !important;
+}
+.task-form-popup .swal2-title {
+  padding: 0 0 14px 0 !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  letter-spacing: -.4px !important;
+}
+.task-form-popup .swal2-html-container {
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+}
+.task-form-popup .swal2-actions {
+  margin-top: 18px !important;
+  gap: 8px !important;
+}
+
+.task-form-ios {
+  text-align: left;
+}
+.task-form-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  margin: 4px 0 7px 2px;
+}
+.task-form-opt {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text3);
+  opacity: .65;
+  font-size: 10.5px;
+}
+.task-form-input {
+  width: 100% !important;
+  padding: 13px 15px !important;
+  border: 1.5px solid var(--border) !important;
+  border-radius: 13px !important;
+  background: var(--surface2) !important;
+  font-size: 16px !important;
+  font-family: inherit !important;
+  color: var(--text) !important;
+  margin: 0 0 14px 0 !important;
+  box-sizing: border-box !important;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease !important;
+  -webkit-appearance: none;
+  appearance: none;
+  height: auto !important;
+  line-height: 1.4 !important;
+}
+.task-form-input:focus {
+  outline: none !important;
+  border-color: var(--primary) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 0 0 3px var(--primary-light) !important;
+}
+.task-form-input::placeholder {
+  color: var(--text3) !important;
+  font-weight: 400 !important;
+  opacity: .75 !important;
+}
+.task-form-textarea {
+  min-height: 88px;
+  resize: none;
+  line-height: 1.5;
+}
+.task-form-input[type="date"] {
+  -webkit-appearance: auto !important;
+  appearance: auto !important;
+  min-height: 50px;
+}
+
+/* Karanlık mod desteği */
+@media (prefers-color-scheme: dark) {
+  .task-form-input {
+    background: var(--surface3) !important;
+    border-color: var(--border-strong) !important;
+  }
+  .task-form-input:focus {
+    background: var(--surface2) !important;
+  }
+}
 </style>
 
 </head>
@@ -3578,7 +3671,7 @@ try {
    CONSTANTS
 ───────────────────────────────────────────── */
 const DB_NAME    = 'ButcemProDB';
-const DB_VERSION = 5;
+const DB_VERSION = 6;   // v5→v6: gorevler store eklendi
   const PARA       = 'TL';
 
 /* iOS tespiti — PWA kurulum yönlendirmesi ve ITP uyarısı için */
@@ -3748,7 +3841,7 @@ function openDB() {
 
     req.onupgradeneeded = (e) => {
       const d = e.target.result;
-      const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','ayarlar','archives','logs','backups','araclar','notifications'];
+      const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','ayarlar','archives','logs','backups','araclar','notifications','gorevler'];
       stores.forEach(s => {
         if (!d.objectStoreNames.contains(s)) {
           const keyPath = s === 'kategoriler' ? 'tip' : s === 'limitler' ? 'kategori' : s === 'archives' ? 'month' : 'id';
@@ -5472,12 +5565,8 @@ const CRUD = {
       id: Date.now() + Math.random(),
       baslik: (data.baslik || '').trim(),
       aciklama: (data.aciklama || '').trim(),
-      kategori: data.kategori || 'diger',
       oncelik: data.oncelik || 'normal',
       tarih: data.tarih || null,
-      hatirlatma: data.hatirlatma || null,
-      altGorevler: Array.isArray(data.altGorevler) ? data.altGorevler : [],
-      notlar: (data.notlar || '').trim(),
       tamamlandi: false,
       tamamlanmaTarihi: null,
       arsivlendi: false,
@@ -5488,10 +5577,9 @@ const CRUD = {
     if (!item.baslik) return null;
     state.gorevler.push(item);
     await saveGorevler();
-    await addLog('gorev_ekle', item.baslik, { entityId: item.id, kategori: item.kategori, oncelik: item.oncelik });
+    await addLog('gorev_ekle', item.baslik, { entityId: item.id, oncelik: item.oncelik });
     return item;
   },
-
   async gorevGuncelle(id, data) {
     const idx = state.gorevler.findIndex(g => g.id == id);
     if (idx === -1) return false;
@@ -6303,7 +6391,7 @@ const Notifications = {
         await Notifications.add({
           type: 'gorev_due',
           title: `Görev · ${g.baslik.substring(0, 30)}`,
-          description: `${durum} — ${GOREV_KATEGORI[g.kategori]?.label || 'Görev'}`,
+          description: durum,
           details: `**${g.baslik}**\n\n**Durum:** ${durum}\n\n` +
                    `**Ne yapmalısınız?**\n` +
                    `• Görevler sayfasından tamamlayın\n` +
@@ -12811,9 +12899,9 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     const tabs = [
       { key: 'aktif', label: 'Aktif', icon: 'fa-list-check', count: aktif.length },
       { key: 'bugun', label: 'Bugün', icon: 'fa-sun', count: bugun.length },
-      { key: 'hafta', label: 'Bu Hafta', icon: 'fa-calendar-week', count: hafta.length },
+      { key: 'hafta', label: 'Hafta', icon: 'fa-calendar-week', count: hafta.length },
       { key: 'geciken', label: 'Geciken', icon: 'fa-exclamation-triangle', count: geciken.length },
-      { key: 'tamamlanan', label: 'Tamamlanan', icon: 'fa-check-circle', count: tamamlanan.length },
+      { key: 'tamamlanan', label: 'Biten', icon: 'fa-check-circle', count: tamamlanan.length },
       { key: 'arsiv', label: 'Arşiv', icon: 'fa-box-archive', count: arsiv.length }
     ];
 
@@ -12902,25 +12990,8 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
   },
 
   _renderTaskCard(g) {
-    const cat = GOREV_KATEGORI[g.kategori] || GOREV_KATEGORI.diger;
     const pri = GOREV_ONCELIK[g.oncelik] || GOREV_ONCELIK.normal;
     const rel = TaskDate.relative(g.tarih);
-
-    let altHTML = '';
-    if (Array.isArray(g.altGorevler) && g.altGorevler.length > 0) {
-      const total = g.altGorevler.length;
-      const done = g.altGorevler.filter(s => s.tamamlandi).length;
-      const pct = Math.round((done / total) * 100);
-      altHTML = `
-        <div class="task-subtask-bar">
-          <i class="fas fa-list-check" style="font-size:10px;"></i>
-          <span>${done}/${total}</span>
-          <div class="task-subtask-mini-track">
-            <div class="task-subtask-mini-bar" style="width:${pct}%;"></div>
-          </div>
-        </div>
-      `;
-    }
 
     const isGeciken = rel && rel.cls === 'tarih-geciken';
     const classes = [
@@ -12939,10 +13010,6 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
         <div class="task-body">
           <div class="task-title">${UI.escHtml(g.baslik)}</div>
           <div class="task-meta">
-            <span class="task-meta-item cat">
-              <i class="fas ${cat.icon}" style="color:${cat.color};font-size:10px;"></i>
-              ${cat.label}
-            </span>
             ${rel ? `<span class="task-meta-item ${rel.cls}">
               <i class="fas ${rel.icon}" style="font-size:9px;"></i> ${rel.text}
             </span>` : ''}
@@ -12950,7 +13017,7 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
               <i class="fas ${pri.icon}" style="font-size:8px;"></i> ${pri.label}
             </span>
           </div>
-          ${altHTML}
+          ${g.aciklama ? `<div style="font-size:11.5px;color:var(--text3);margin-top:4px;line-height:1.45;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${UI.escHtml(g.aciklama)}</div>` : ''}
         </div>
         <div class="task-actions">
           <button class="task-action-btn" onclick="event.stopPropagation();App.openGorevForm(${g.id})" title="Düzenle">
@@ -13054,77 +13121,50 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
   async openGorevForm(id = null) {
     const eski = id ? state.gorevler.find(g => g.id == id) : null;
     this._taskFormTemp = {
-      kategori: eski?.kategori || 'diger',
-      oncelik: eski?.oncelik || 'normal',
-      altGorevler: eski ? [...(eski.altGorevler || [])] : []
+      oncelik: eski?.oncelik || 'normal'
     };
 
-    const catChipsHTML = Object.entries(GOREV_KATEGORI).map(([key, m]) => `
-      <button type="button" class="task-cat-chip${key === this._taskFormTemp.kategori ? ' active' : ''}"
-              data-cat="${key}" onclick="App._taskFormSetCat('${key}')">
-        <i class="fas ${m.icon}"></i>
-        ${m.label}
-      </button>
-    `).join('');
-
-    const priChipsHTML = Object.entries(GOREV_ONCELIK).map(([key, m]) => `
-      <button type="button" class="task-pri-chip${key === this._taskFormTemp.oncelik ? ' active' : ''}"
-              data-pri="${key}" onclick="App._taskFormSetPri('${key}')">
-        <i class="fas ${m.icon}" style="font-size:10px;"></i> ${m.label}
+    const priChipsHTML = [
+      { key: 'dusuk',  label: 'Düşük',  icon: 'fa-arrow-down' },
+      { key: 'normal', label: 'Normal', icon: 'fa-minus' },
+      { key: 'yuksek', label: 'Yüksek', icon: 'fa-arrow-up' }
+    ].map(p => `
+      <button type="button" class="task-pri-chip${p.key === this._taskFormTemp.oncelik ? ' active' : ''}"
+              data-pri="${p.key}" onclick="App._taskFormSetPri('${p.key}')">
+        <i class="fas ${p.icon}" style="font-size:10px;"></i> ${p.label}
       </button>
     `).join('');
 
     const { value } = await Swal.fire({
-      title: eski ? '✏️ Görevi Düzenle' : '🎯 Yeni Görev',
-      html: `<div style="text-align:left;max-height:70vh;overflow-y:auto;padding-right:4px;">
-        <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;">Başlık *</label>
-        <input type="text" id="tfBaslik" class="swal2-input" placeholder="Ne yapmalısın?"
+      title: eski ? '✏️ Görevi Düzenle' : '✨ Yeni Görev',
+      html: `<div class="task-form-ios">
+
+        <label class="task-form-label">Başlık</label>
+        <input type="text" id="tfBaslik" class="task-form-input"
+               placeholder="Ne yapmalısın?"
                value="${eski ? UI.escHtml(eski.baslik) : ''}"
-               maxlength="120"
-               style="margin:0 0 12px 0;width:100%;">
+               maxlength="120" autocomplete="off" autocorrect="off">
 
-        <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;">Açıklama</label>
-        <textarea id="tfAciklama" class="swal2-textarea" placeholder="Detaylar…" style="height:64px;margin:0 0 14px 0;width:100%;">${eski ? UI.escHtml(eski.aciklama || '') : ''}</textarea>
+        <label class="task-form-label">Açıklama <span class="task-form-opt">(opsiyonel)</span></label>
+        <textarea id="tfAciklama" class="task-form-input task-form-textarea"
+                  placeholder="Detaylar, notlar…">${eski ? UI.escHtml(eski.aciklama || '') : ''}</textarea>
 
-        <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;">Kategori</label>
-        <div class="task-cat-grid" id="tfCatGrid">${catChipsHTML}</div>
+        <label class="task-form-label">Bitiş Tarihi <span class="task-form-opt">(opsiyonel)</span></label>
+        <input type="date" id="tfTarih" class="task-form-input"
+               value="${eski?.tarih || ''}">
 
-        <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;">Öncelik</label>
-        <div class="task-pri-chips" id="tfPriChips">${priChipsHTML}</div>
+        <label class="task-form-label">Öncelik</label>
+        <div class="task-pri-chips" id="tfPriChips" style="margin-bottom:0;">${priChipsHTML}</div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
-          <div>
-            <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;">Bitiş Tarihi</label>
-            <input type="date" id="tfTarih" class="swal2-input"
-                   value="${eski?.tarih || ''}"
-                   style="margin:0;width:100%;">
-          </div>
-          <div>
-            <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;">Hatırlatma</label>
-            <input type="date" id="tfHatirlatma" class="swal2-input"
-                   value="${eski?.hatirlatma || ''}"
-                   style="margin:0;width:100%;">
-          </div>
-        </div>
-
-        <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;">Alt Görevler</label>
-        <div id="tfAltGorevList" class="task-subtasks-list"></div>
-        <div class="task-subtask-add-row" style="margin-bottom:14px;">
-          <input type="text" id="tfAltGorevInput" placeholder="Alt görev ekle… (Enter)" maxlength="100"
-                 onkeydown="if(event.key==='Enter'){event.preventDefault();App._taskFormAddSub();}">
-          <button type="button" onclick="App._taskFormAddSub()">+</button>
-        </div>
-
-        <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;">Notlar</label>
-        <textarea id="tfNotlar" class="swal2-textarea" placeholder="Ek notlar…" style="height:60px;width:100%;">${eski ? UI.escHtml(eski.notlar || '') : ''}</textarea>
       </div>`,
       showCancelButton: true,
-      confirmButtonText: eski ? '💾 Güncelle' : '✅ Oluştur',
+      confirmButtonText: eski ? 'Güncelle' : 'Oluştur',
       cancelButtonText: 'İptal',
-      width: Math.min(500, window.innerWidth - 24),
+      width: Math.min(440, window.innerWidth - 24),
+      customClass: { popup: 'task-form-popup' },
+      focusConfirm: false,
       didOpen: () => {
-        this._taskFormRenderSubs();
-        setTimeout(() => document.getElementById('tfBaslik')?.focus(), 150);
+        setTimeout(() => document.getElementById('tfBaslik')?.focus(), 200);
       },
       preConfirm: () => {
         const baslik = document.getElementById('tfBaslik')?.value?.trim();
@@ -13135,37 +13175,35 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
         return {
           baslik,
           aciklama: document.getElementById('tfAciklama').value.trim(),
-          kategori: this._taskFormTemp.kategori,
           oncelik: this._taskFormTemp.oncelik,
-          tarih: document.getElementById('tfTarih').value || null,
-          hatirlatma: document.getElementById('tfHatirlatma').value || null,
-          altGorevler: this._taskFormTemp.altGorevler,
-          notlar: document.getElementById('tfNotlar').value.trim()
+          tarih: document.getElementById('tfTarih').value || null
         };
       }
     });
 
     if (!value) return;
 
-    if (eski) {
-      await CRUD.gorevGuncelle(id, value);
-      showToast('✅ Görev güncellendi');
-    } else {
-      await CRUD.gorevEkle(value);
-      showToast('🎯 Görev oluşturuldu');
+    try {
+      if (eski) {
+        await CRUD.gorevGuncelle(id, value);
+        showToast('✅ Görev güncellendi');
+      } else {
+        await CRUD.gorevEkle(value);
+        showToast('✨ Görev oluşturuldu');
+      }
+    } catch (err) {
+      console.error('[openGorevForm]', err);
+      showToast('⚠️ Kayıt hatası, lütfen tekrar deneyin');
+      return;
     }
+
     this._updateTaskBadge();
     await this.renderGorevler();
   },
 
   _taskFormTemp: { kategori: 'diger', oncelik: 'normal', altGorevler: [] },
 
-  _taskFormSetCat(k) {
-    this._taskFormTemp.kategori = k;
-    document.querySelectorAll('#tfCatGrid .task-cat-chip').forEach(el => {
-      el.classList.toggle('active', el.dataset.cat === k);
-    });
-  },
+
 
   _taskFormSetPri(p) {
     this._taskFormTemp.oncelik = p;
@@ -13221,34 +13259,12 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     this._taskFormTemp.altGorevler = this._taskFormTemp.altGorevler.filter(x => x.id != id);
     this._taskFormRenderSubs();
   },
-
   async openGorevDetay(id) {
     const g = state.gorevler.find(x => x.id == id);
     if (!g) return;
 
-    const cat = GOREV_KATEGORI[g.kategori] || GOREV_KATEGORI.diger;
     const pri = GOREV_ONCELIK[g.oncelik] || GOREV_ONCELIK.normal;
     const rel = TaskDate.relative(g.tarih);
-
-    const altGorevlerHTML = Array.isArray(g.altGorevler) && g.altGorevler.length
-      ? g.altGorevler.map(s => `
-          <div class="task-subtask-row" style="padding:6px 8px;">
-            <div class="task-subtask-check${s.tamamlandi ? ' checked' : ''}"
-                 onclick="event.stopPropagation();App._toggleSubtask(${g.id},${s.id})">
-              <i class="fas fa-check"></i>
-            </div>
-            <span class="task-subtask-text${s.tamamlandi ? ' done' : ''}">${UI.escHtml(s.text)}</span>
-          </div>
-        `).join('')
-      : '<div style="font-size:11px;color:var(--text3);font-style:italic;">Alt görev yok</div>';
-
-    const buttons = [];
-    buttons.push(`<button class="swal2-styled" onclick="App._detailArchive(${g.id})" style="background:#0369A1;">
-      <i class="fas fa-box-archive"></i> ${g.arsivlendi ? 'Arşivden Çıkar' : 'Arşivle'}
-    </button>`);
-    buttons.push(`<button class="swal2-styled" onclick="App._detailDelete(${g.id})" style="background:#DC2626;">
-      <i class="fas fa-trash"></i> Sil
-    </button>`);
 
     await Swal.fire({
       title: '',
@@ -13256,45 +13272,37 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
         <div class="task-detail-header">
           <div class="task-detail-title">${UI.escHtml(g.baslik)}</div>
           <div class="task-detail-meta">
-            <span><i class="fas ${cat.icon}"></i> ${cat.label}</span>
-            <span class="task-priority-badge ${pri.cls}" style="font-size:8px;padding:1px 6px;">
-              <i class="fas ${pri.icon}" style="font-size:7px;"></i> ${pri.label}
+            <span class="task-priority-badge ${pri.cls}" style="font-size:9px;padding:2px 8px;">
+              <i class="fas ${pri.icon}" style="font-size:8px;"></i> ${pri.label}
             </span>
             ${rel ? `<span><i class="fas ${rel.icon}"></i> ${rel.text}</span>` : ''}
           </div>
         </div>
 
-        ${g.aciklama ? `<div style="margin-bottom:14px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12.5px;color:var(--text2);line-height:1.55;">${UI.escHtml(g.aciklama)}</div>` : ''}
+        ${g.aciklama ? `<div style="margin-bottom:14px;padding:12px 14px;background:var(--surface2);border-radius:10px;font-size:13px;color:var(--text2);line-height:1.55;">${UI.escHtml(g.aciklama)}</div>` : ''}
 
-        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">Alt Görevler</div>
-        <div class="task-subtasks-list" style="margin-bottom:14px;">${altGorevlerHTML}</div>
-
-        ${g.notlar ? `
-          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Notlar</div>
-          <div style="padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:14px;">${UI.escHtml(g.notlar)}</div>
-        ` : ''}
-
-        <div style="display:flex;gap:6px;font-size:10.5px;color:var(--text3);padding-top:10px;border-top:1px solid var(--border);flex-wrap:wrap;">
+        <div style="display:flex;gap:6px;font-size:10.5px;color:var(--text3);padding-top:10px;border-top:1px solid var(--border);flex-wrap:wrap;margin-bottom:14px;">
           <span><i class="fas fa-plus-circle"></i> ${dayjs(g.olusturulma).format('DD MMM YYYY HH:mm')}</span>
           ${g.tamamlandi ? `<span style="color:var(--accent);"><i class="fas fa-check-circle"></i> ${dayjs(g.tamamlanmaTarihi).format('DD MMM HH:mm')}</span>` : ''}
           ${g.arsivlendi ? `<span style="color:var(--info);"><i class="fas fa-box-archive"></i> Arşiv</span>` : ''}
         </div>
 
-        <div style="display:flex;gap:8px;margin-top:14px;">
-          ${buttons.join('')}
+        <div style="display:flex;gap:8px;">
+          <button class="swal2-styled" onclick="App._detailArchive(${g.id})" style="background:#0369A1;flex:1;">
+            <i class="fas fa-box-archive"></i> ${g.arsivlendi ? 'Arşivden Çıkar' : 'Arşivle'}
+          </button>
+          <button class="swal2-styled" onclick="App._detailDelete(${g.id})" style="background:#DC2626;flex:1;">
+            <i class="fas fa-trash"></i> Sil
+          </button>
         </div>
       </div>`,
       showConfirmButton: false,
       showCloseButton: true,
-      width: Math.min(500, window.innerWidth - 24)
+      width: Math.min(480, window.innerWidth - 24)
     });
   },
 
-  async _toggleSubtask(taskId, subId) {
-    await CRUD.gorevAltGorevToggle(taskId, subId);
-    await this.openGorevDetay(taskId);
-    await this.renderGorevler();
-  },
+
 
   async _detailArchive(id) {
     const g = state.gorevler.find(x => x.id == id);
