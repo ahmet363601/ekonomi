@@ -4680,66 +4680,29 @@ const App = {
     return { topIncrease, forecast };
   },
 
-  
   async renderDashboard() {
-    const ayF    = Calc.ayFilter();
-    const curKey = SalaryMonth.currentKey();
+    const ayF      = Calc.ayFilter();
+    const curKey   = SalaryMonth.currentKey();
     const curRange = SalaryMonth.range(curKey);
-    const bakiye = Calc._toplamGelirTum() - Calc._toplamGiderTum();   // ✅ arşiv dahil
-    const gelirT = Calc._toplamGelirTum();                              // ✅ arşiv dahil
-    const giderT = Calc._toplamGiderTum();                              // ✅ arşiv dahil
-    const ayGelir= Calc._toplamGelirTum(ayF);                           // ✅ arşiv dahil
-    const ayGider= Calc._toplamGiderTum(ayF);                           // ✅ arşiv dahil
-    const borcT  = Calc.aktifBorcAlacak();
-    const baOzet = Calc.borcAlacakOzet();
-    const anomaliler = Calc.anomaliTespit();
-    const vadeler = Calc.vadeleriGelenBorclar(7);
-    const araclar = Vehicle.getUpcoming(45);
-    const kmAktif = Vehicle.getKmAktif();
-    const hasVehicles = state.araclar && state.araclar.length > 0; 
-    const insight = this._calculateMonthlyInsight();
-
-    const limitAlerts = Object.entries(state.limitler)
-      .filter(([k, l]) => Calc.aylikGiderKategori(k) > l)
-      .map(([k, l]) => `<div class="alert alert-warning">
-        <i class="fas fa-exclamation-triangle"></i>
-        <div><strong>${UI.escHtml(k)}</strong> limiti aşıldı — Limit: ${Calc.fmt(l)} · Harcanan: ${Calc.fmt(Calc.aylikGiderKategori(k))}</div>
-      </div>`)
-      .join('');
+    const bakiye   = Calc._toplamGelirTum() - Calc._toplamGiderTum();   // arşiv dahil
+    const gelirT   = Calc._toplamGelirTum();                            // arşiv dahil
+    const giderT   = Calc._toplamGiderTum();                            // arşiv dahil
+    const ayGelir  = Calc._toplamGelirTum(ayF);                         // arşiv dahil
+    const ayGider  = Calc._toplamGiderTum(ayF);                         // arşiv dahil
+    const borcT    = Calc.aktifBorcAlacak();
+    const baOzet   = Calc.borcAlacakOzet();
 
     const tabs = ['tum','gelir','gider','borc'];
     const tabLabels = { tum:'Tümü', gelir:'Gelir', gider:'Gider', borc:'Borç/Alacak' };
 
-document.getElementById('view').innerHTML = `<div class="page-in">
-
-      ${(() => {
-        const kritikKm = kmAktif.filter(k => k.seviye === 'gecti' || k.seviye === 'acil');
-        const kritikTarih = araclar.filter(a => a.seviye === 'gecti' || a.seviye === 'acil');
-        if (kritikKm.length === 0 && kritikTarih.length === 0) return '';
-        return `
-          <div class="card bakim-pulse-red" style="border-left:4px solid var(--danger);background:var(--danger-light);margin-bottom:14px;">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <i class="fas fa-exclamation-triangle" style="color:var(--danger);font-size:22px;"></i>
-              <div style="flex:1;">
-                <div style="font-size:13px;font-weight:800;color:var(--danger);margin-bottom:2px;">
-                  🚨 KRİTİK BAKIM UYARISI
-                </div>
-                <div style="font-size:11px;color:var(--danger);line-height:1.4;">
-                  ${kritikKm.map(k => `<strong>${UI.escHtml(k.plaka)}</strong>: ${k.bildirimMetni}`).join(' · ')}
-                  ${kritikTarih.length > 0 ? `<br>${kritikTarih.length} adet vadesi yaklaşan/geçmiş evrak` : ''}
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
-      })()}
+    document.getElementById('view').innerHTML = `<div class="page-in">
 
       <div class="hero-card">
         <div class="hero-label">Net Bakiye</div>
         <div class="hero-amount">${Calc.fmt(bakiye)}</div>
         <div class="hero-meta">
-    <span><i class="fas fa-arrow-up"></i> Toplam: ${Calc.fmt(gelirT)}</span>
-    <span><i class="fas fa-arrow-down"></i> Toplam: ${Calc.fmt(giderT)}</span>
+          <span><i class="fas fa-arrow-up"></i> Toplam: ${Calc.fmt(gelirT)}</span>
+          <span><i class="fas fa-arrow-down"></i> Toplam: ${Calc.fmt(giderT)}</span>
         </div>
         <div style="font-size:10px;opacity:.65;margin-top:8px;letter-spacing:.3px;font-style:italic;">
           Paranı gör, geleceğini planla
@@ -4747,16 +4710,16 @@ document.getElementById('view').innerHTML = `<div class="page-in">
       </div>
 
       <div class="stat-grid">
-<div class="stat-card">
-  <div class="card-label">Bu Dönem Gelir</div>
-  <div class="stat-amount green">${Calc.fmt(ayGelir)}</div>
-  <div style="font-size:9px;color:var(--text3);margin-top:3px;letter-spacing:.2px;">${curRange.start.substring(5)} → ${curRange.end.substring(5)}</div>
-</div>
-<div class="stat-card">
-  <div class="card-label">Bu Dönem Gider</div>
-  <div class="stat-amount red">${Calc.fmt(ayGider)}</div>
-  <div style="font-size:9px;color:var(--text3);margin-top:3px;letter-spacing:.2px;">${curRange.start.substring(5)} → ${curRange.end.substring(5)}</div>
-</div>
+        <div class="stat-card">
+          <div class="card-label">Bu Dönem Gelir</div>
+          <div class="stat-amount green">${Calc.fmt(ayGelir)}</div>
+          <div style="font-size:9px;color:var(--text3);margin-top:3px;letter-spacing:.2px;">${curRange.start.substring(5)} → ${curRange.end.substring(5)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="card-label">Bu Dönem Gider</div>
+          <div class="stat-amount red">${Calc.fmt(ayGider)}</div>
+          <div style="font-size:9px;color:var(--text3);margin-top:3px;letter-spacing:.2px;">${curRange.start.substring(5)} → ${curRange.end.substring(5)}</div>
+        </div>
         <div class="stat-card full">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
             <div class="card-label" style="margin-bottom:0;">Aktif Borç & Alacak</div>
@@ -4775,74 +4738,6 @@ document.getElementById('view').innerHTML = `<div class="page-in">
           ` : ''}
         </div>
       </div>
-
-      ${limitAlerts}
-
-      <!-- 🆕 VADESİ YAKLAŞAN BORÇLAR -->
-      ${vadeler.length > 0 ? `
-        <div class="card" style="border-left:4px solid ${vadeler.some(v => v.gecti) ? 'var(--danger)' : 'var(--warning)'};">
-          <div class="section-header">
-            <span class="section-title" style="display:flex;align-items:center;gap:8px;">
-              <i class="fas fa-bell" style="color:${vadeler.some(v => v.gecti) ? 'var(--danger)' : 'var(--warning)'};"></i>
-              Vadesi Yaklaşan Borçlar
-            </span>
-            <span class="badge ${vadeler.some(v => v.gecti) ? 'badge-danger' : 'badge-amber'}">${vadeler.length}</span>
-          </div>
-          ${vadeler.map(b => {
-            const durum = b.gecti
-              ? `<span style="color:var(--danger);font-weight:800;">${Math.abs(b.kalanGun)} gün gecikti!</span>`
-              : b.bugun
-              ? '<span style="color:var(--warning);font-weight:800;">Bugün vade!</span>'
-              : `<span style="color:var(--warning);font-weight:700;">${b.kalanGun} gün kaldı</span>`;
-            const bg = b.gecti ? 'var(--danger-light)' : 'var(--warning-light)';
-            return `<div onclick="App.showTransactionDetail(${b.id},'${b.tip}')"
-                    style="padding:10px;background:${bg};border-radius:8px;margin-bottom:6px;cursor:pointer;">
-              <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
-                <strong style="font-size:13px;">${UI.escHtml(b.kisiAdi)}</strong>
-                <span style="color:${b.tip==='alacak'?'var(--accent)':'var(--danger)'};font-weight:700;">${Calc.formatBirim(b)}</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--text3);">
-                <span>Vade: ${dayjs(b.vadeTarihi).format('DD MMM YYYY')}</span>
-                ${durum}
-              </div>
-            </div>`;
-          }).join('')}
-        </div>
-      ` : ''}     
-
-      <!-- 🆕 ANOMALİLER -->
-      ${anomaliler.length > 0 ? `
-        <div class="card" style="border-left:4px solid var(--warning);">
-          <div class="section-header">
-            <span class="section-title" style="display:flex;align-items:center;gap:8px;">
-              <i class="fas fa-chart-line" style="color:var(--warning);"></i>
-              Anormal Harcama Artışı
-            </span>
-            <span class="badge badge-amber">${anomaliler.length}</span>
-          </div>
-          ${anomaliler.slice(0, 3).map(a => `
-            <div style="padding:8px 10px;background:var(--warning-light);border-radius:8px;margin-bottom:6px;font-size:12px;">
-              <div style="display:flex;justify-content:space-between;">
-                <strong>${UI.escHtml(a.kategori)}</strong>
-                <span style="color:var(--danger);font-weight:700;">+%${a.artisYuzde}</span>
-              </div>
-              <div style="font-size:10.5px;color:var(--text3);margin-top:2px;">
-                ${Calc.fmt(a.bu)} · ortalama ${Calc.fmt(a.ortalama)}
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      ` : ''}
-
-      ${SalaryMonth.isOverdue() ? `
-        <div class="alert" style="background:#FEF3C7;border:1px solid #FCD34D;color:#92400E;cursor:pointer;" onclick="App.loadPage('arsiv')">
-          <i class="fas fa-exclamation-triangle"></i>
-          <div>
-            <strong>Arşiv gecikmiş!</strong> ${SalaryMonth.shortLabel(SalaryMonth.previousKey())} bekliyor.
-            <span style="text-decoration:underline;font-weight:700;">Arşive git →</span>
-          </div>
-        </div>
-      ` : ''}
 
       <div class="card">
         <div class="section-header">
@@ -4863,94 +4758,6 @@ document.getElementById('view').innerHTML = `<div class="page-in">
         </div>
         <div class="chart-wrap"><canvas id="dashDonutChart"></canvas></div>
       </div>
-      <!-- 🆕 ARAÇLAR & HATIRLATICILAR (KM bazlı yağ bakımı + tarih) -->
-      ${hasVehicles ? `
-      <div class="card" style="border-left:4px solid ${
-        kmAktif.some(k => k.seviye === 'gecti' || k.seviye === 'acil') || araclar.some(a => a.seviye === 'gecti' || a.seviye === 'acil')
-          ? 'var(--danger)' 
-          : (kmAktif.some(k => k.seviye === 'yaklasiyor') || araclar.some(a => a.seviye === 'yaklasiyor')
-            ? 'var(--warning)' 
-            : 'var(--primary)')
-      };">
-          <div class="section-header">
-            <span class="section-title" style="display:flex;align-items:center;gap:8px;">
-              <i class="fas fa-car" style="color:var(--primary);"></i>
-              Araçlar & Hatırlatıcılar
-            </span>
-            <button onclick="App.openVehicleModal()" class="btn btn-sm btn-ghost" style="padding:0 10px;height:28px;">
-              <i class="fas fa-cog"></i>
-            </button>
-          </div>
-
-          ${state.araclar.map(v => {
-            const km = kmAktif.find(k => k.vid === v.id);
-            const tarihler = araclar.filter(a => a.vid === v.id);
-            return `
-              <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2);">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                  <div>
-                    <strong style="font-size:14px;">${UI.escHtml(v.plaka || '—')}</strong>
-                    <span style="font-size:11px;color:var(--text3);margin-left:6px;">${UI.escHtml((v.marka||'') + ' ' + (v.model||'')).trim()}</span>
-                  </div>
-                </div>
-
-              ${km ? `
-              <div style="margin-bottom:8px;padding:10px;background:${km.bg};border-radius:8px;border-left:3px solid ${km.renk};${(km.seviye === 'acil' || km.seviye === 'gecti') ? 'animation:pulseRed 2s ease-in-out infinite;' : (km.seviye === 'yaklasiyor' ? 'animation:pulseAmber 2.2s ease-in-out infinite;' : '')}">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                  <span style="font-size:11px;font-weight:700;color:${km.renk};">
-                    🛢️ Yağ Bakımı
-                  </span>
-                  <span style="font-size:12px;font-weight:800;color:${km.renk};">
-                    ${km.emoji} ${km.bildirimMetni}
-                  </span>
-                </div>
-                <div class="progress-track" style="margin:0 0 4px;">
-                  <div class="progress-bar" style="width:${km.ilerleme}%;background:${km.renk};"></div>
-                </div>
-                <div style="display:flex;justify-content:space-between;font-size:9.5px;color:var(--text3);margin-bottom:8px;">
-                  <span>Son: ${km.sonBakimKm.toLocaleString('tr-TR')} km</span>
-                  <span>Şu an: ${km.currentKm.toLocaleString('tr-TR')} km</span>
-                  <span>Hedef: ${km.hedefKm.toLocaleString('tr-TR')} km</span>
-                </div>
-                <div style="display:flex;gap:6px;">
-                  <button onclick="event.stopPropagation();App.showBakimGecmisi(${v.id})" style="flex:1;background:var(--surface);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;">
-                    <i class="fas fa-history"></i> Bakım Geçmişi (${(v.bakimGecmisi || []).length})
-                  </button>
-                </div>
-              </div>
-            ` : `...`}
-                  <div style="margin-bottom:8px;padding:10px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;font-size:10.5px;color:var(--text3);text-align:center;">
-                    <i class="fas fa-info-circle"></i> Yağ bakımı takibi için 
-                    <a href="#" onclick="event.preventDefault();App._editVehicle(${v.id})" style="color:var(--primary);font-weight:600;">araç ayarlarına</a> 
-                    başlangıç KM girin
-                  </div>
-               
-                
-                ${tarihler.length > 0 ? tarihler.map(r => {
-                  const pulse = (r.seviye === 'acil' || r.seviye === 'gecti')
-                    ? 'animation:pulseRed 2s ease-in-out infinite;'
-                    : (r.seviye === 'yaklasiyor' ? 'animation:pulseAmber 2.2s ease-in-out infinite;' : '');
-                  return `
-                    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:${r.bg};border-radius:6px;margin-bottom:4px;font-size:11px;${pulse}">
-                      <span><i class="fas ${r.icon}" style="color:${r.renk};width:14px;"></i> ${r.label}</span>
-                      <span style="color:${r.renk};font-weight:700;">
-                        ${r.emoji} ${r.gecti ? `${Math.abs(r.days)} gün geçti` : (r.bugun ? 'Bugün!' : `${r.days} gün`)}
-                      </span>
-                    </div>
-                  `;
-                }).join('') : ''}
-
-          ${kmAktif.length === 0 && araclar.length === 0 ? `
-            <div style="text-align:center;padding:12px;color:var(--text3);font-size:11px;">
-              <i class="fas fa-info-circle"></i> Hatırlatıcı yok —
-              <a href="#" onclick="event.preventDefault();App.openVehicleModal()" style="color:var(--primary);font-weight:600;">araç ekle</a>
-            </div>
-          ` : ''}
-              </div>
-            `;
-          }).join('')}
-      </div>
-      ` : ''}
 
       <div class="card">
         <div class="section-header">
@@ -4990,66 +4797,65 @@ document.getElementById('view').innerHTML = `<div class="page-in">
 
     if (isFuel) {
       this._setFuelTip(this._fuelTipCurrent || 'benzin');
-      this._updateFuelKmPlaceholder();   // 🆕 Son KM'yi placeholder'a yaz
+      this._updateFuelKmPlaceholder();
     }
-    this._updateKategoriAylikOzet();   // 🆕 Özet kutusunu güncelle
+    this._updateKategoriAylikOzet();
   },
 
-  /* 🆕 KATEGORİ AYLIK ÖZET GÖSTER */
-_updateKategoriAylikOzet() {
-  const el = document.getElementById('kategoriAylikOzet');
-  if (!el) return;
+  _updateKategoriAylikOzet() {
+    const el = document.getElementById('kategoriAylikOzet');
+    if (!el) return;
 
-  const sel = document.getElementById('islemKategori');
-  const tip = document.getElementById('islemTipHidden')?.value || this._islemTip;
-  const kategori = sel?.value;
+    const sel = document.getElementById('islemKategori');
+    const tip = document.getElementById('islemTipHidden')?.value || this._islemTip;
+    const kategori = sel?.value;
 
-  /* Akaryakıt / Araç Yakıt için gösterme (kendi paneli var) */
-  const isFuelKat = kategori === 'Araç Yakıt' || kategori === 'Akaryakıt';
-  if (!kategori || tip !== 'gider' || isFuelKat) {
-    el.style.display = 'none';
-    el.innerHTML = '';
-    return;
-  }
+    /* Akaryakıt / Araç Yakıt için gösterme (kendi paneli var) */
+    const isFuelKat = kategori === 'Araç Yakıt' || kategori === 'Akaryakıt';
+    if (!kategori || tip !== 'gider' || isFuelKat) {
+      el.style.display = 'none';
+      el.innerHTML = '';
+      return;
+    }
 
-  const toplam = Calc.aylikGiderKategori(kategori);
-  const limit  = state.limitler[kategori];
-  const asim   = limit && toplam > limit;
-  const yuzde  = limit ? Math.min(100, (toplam / limit) * 100) : 0;
-  const kalan  = limit && !asim ? (limit - toplam) : 0;
+    const toplam = Calc.aylikGiderKategori(kategori);
+    const limit  = state.limitler[kategori];
+    const asim   = limit && toplam > limit;
+    const yuzde  = limit ? Math.min(100, (toplam / limit) * 100) : 0;
+    const kalan  = limit && !asim ? (limit - toplam) : 0;
 
-  const limitHTML = limit ? `
-    <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:var(--text3);margin-top:6px;">
-      <span>Limit: <strong style="color:var(--text2);">${Calc.fmt(limit)}</strong></span>
-      <span style="color:${asim ? 'var(--danger)' : 'var(--accent)'};font-weight:700;">
-        ${asim ? `Aşım: ${Calc.fmt(toplam - limit)}` : `Kalan: ${Calc.fmt(kalan)}`}
-      </span>
-    </div>
-    <div class="progress-track" style="margin:4px 0 0;height:4px;">
-      <div class="progress-bar" style="width:${yuzde}%;background:${asim ? 'var(--danger)' : 'var(--warning)'};"></div>
-    </div>
-  ` : '';
-
-  el.innerHTML = `
-    <div style="padding:10px 12px;background:${asim ? 'var(--danger-light)' : 'var(--primary-light)'};
-                border-radius:9px;border:1px solid ${asim ? 'rgba(185,28,28,.35)' : 'var(--border)'};
-                margin-bottom:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-size:11px;color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;">
-          <i class="fas fa-receipt" style="color:${asim ? 'var(--danger)' : 'var(--primary)'};font-size:11px;"></i>
-          Bu Dönem · ${UI.escHtml(kategori)}
+    const limitHTML = limit ? `
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:var(--text3);margin-top:6px;">
+        <span>Limit: <strong style="color:var(--text2);">${Calc.fmt(limit)}</strong></span>
+        <span style="color:${asim ? 'var(--danger)' : 'var(--accent)'};font-weight:700;">
+          ${asim ? `Aşım: ${Calc.fmt(toplam - limit)}` : `Kalan: ${Calc.fmt(kalan)}`}
         </span>
-        <strong style="font-family:'Inter',sans-serif;font-size:14px;
-                       color:${asim ? 'var(--danger)' : 'var(--primary)'};
-                       font-variant-numeric:tabular-nums;">
-          ${Calc.fmt(toplam)}
-        </strong>
       </div>
-      ${limitHTML}
-    </div>
-  `;
-  el.style.display = 'block';
-},
+      <div class="progress-track" style="margin:4px 0 0;height:4px;">
+        <div class="progress-bar" style="width:${yuzde}%;background:${asim ? 'var(--danger)' : 'var(--warning)'};"></div>
+      </div>
+    ` : '';
+
+    el.innerHTML = `
+      <div style="padding:10px 12px;background:${asim ? 'var(--danger-light)' : 'var(--primary-light)'};
+                  border-radius:9px;border:1px solid ${asim ? 'rgba(185,28,28,.35)' : 'var(--border)'};
+                  margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;">
+            <i class="fas fa-receipt" style="color:${asim ? 'var(--danger)' : 'var(--primary)'};font-size:11px;"></i>
+            Bu Dönem · ${UI.escHtml(kategori)}
+          </span>
+          <strong style="font-family:'Inter',sans-serif;font-size:14px;
+                         color:${asim ? 'var(--danger)' : 'var(--primary)'};
+                         font-variant-numeric:tabular-nums;">
+            ${Calc.fmt(toplam)}
+          </strong>
+        </div>
+        ${limitHTML}
+      </div>
+    `;
+    el.style.display = 'block';
+  },
 
   _setFuelTip(tip) {
     this._fuelTipCurrent = tip;
@@ -5089,7 +4895,7 @@ _updateKategoriAylikOzet() {
     const eligible = all.filter(g => g.tarih <= beforeDate);
     return eligible[eligible.length - 1] || null;
   },
-    /* ✅ Yeni: Belirli yakıt tipine göre önceki KM */
+
   _findPrevFuelRecordSameType(excludeId, beforeDate, fuelType) {
     const all = Calc._allGiderler()
       .filter(g => {
@@ -5099,8 +4905,8 @@ _updateKategoriAylikOzet() {
       .filter(g => {
         if (excludeId && g.id === excludeId) return false;
         const t = g.fuel.tip || 'benzin';
-        if (fuelType === 'lpg')     return t === 'lpg'    || t === 'her-ikisi';
-        if (fuelType === 'benzin')  return t === 'benzin' || t === 'her-ikisi';
+        if (fuelType === 'lpg')    return t === 'lpg'    || t === 'her-ikisi';
+        if (fuelType === 'benzin') return t === 'benzin' || t === 'her-ikisi';
         return true;
       })
       .sort((a, b) => {
@@ -5113,7 +4919,6 @@ _updateKategoriAylikOzet() {
     return eligible[eligible.length - 1] || null;
   },
 
-  /* 🆕 Son akaryakıt KM'sini placeholder'a yaz */
   _updateFuelKmPlaceholder() {
     const kmEl = document.getElementById('fuelKm');
     if (!kmEl) return;
@@ -5129,12 +4934,12 @@ _updateKategoriAylikOzet() {
   _updateFuelPreview() {
     const tip = this._fuelTipCurrent || 'benzin';
 
-    const kmVal      = parseFloat(document.getElementById('fuelKm')?.value);
-    const bLitreVal  = parseFloat(document.getElementById('fuelBenzinLitre')?.value);
-    const bFiyatVal  = parseFloat(document.getElementById('fuelBenzinFiyat')?.value);
-    const lLitreVal  = parseFloat(document.getElementById('fuelLpgLitre')?.value);
-    const lFiyatVal  = parseFloat(document.getElementById('fuelLpgFiyat')?.value);
-    const tarih      = document.getElementById('islemTarih')?.value || dayjs().format('YYYY-MM-DD');
+    const kmVal     = parseFloat(document.getElementById('fuelKm')?.value);
+    const bLitreVal = parseFloat(document.getElementById('fuelBenzinLitre')?.value);
+    const bFiyatVal = parseFloat(document.getElementById('fuelBenzinFiyat')?.value);
+    const lLitreVal = parseFloat(document.getElementById('fuelLpgLitre')?.value);
+    const lFiyatVal = parseFloat(document.getElementById('fuelLpgFiyat')?.value);
+    const tarih     = document.getElementById('islemTarih')?.value || dayjs().format('YYYY-MM-DD');
 
     const bTL = (tip === 'benzin' || tip === 'her-ikisi') ? ((bLitreVal || 0) * (bFiyatVal || 0)) : 0;
     const lTL = (tip === 'lpg'    || tip === 'her-ikisi') ? ((lLitreVal || 0) * (lFiyatVal || 0)) : 0;
@@ -5153,7 +4958,6 @@ _updateKategoriAylikOzet() {
 
     const parts = [];
 
-    /* ✅ Her yakıt için KENDİ tipinden önceki km ile tüketim */
     if ((tip === 'benzin' || tip === 'her-ikisi') && bLitreVal > 0) {
       const prevB = this._findPrevFuelRecordSameType(null, tarih, 'benzin');
       const prevBKm = prevB?.fuel?.km;
@@ -5183,6 +4987,7 @@ _updateKategoriAylikOzet() {
     preview.innerHTML = parts.join('');
     preview.classList.add('visible');
   },
+
   setRecentTab(t) { this._recentTab = t; this._recentPage = 1; UI.updateChips(document.getElementById('recentTabs'), t); this.renderRecentList(); },
   prevRecentPage() { if (this._recentPage > 1) { this._recentPage--; this.renderRecentList(); } },
   nextRecentPage() { this._recentPage++; this.renderRecentList(); },
