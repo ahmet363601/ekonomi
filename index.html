@@ -9927,83 +9927,151 @@ if (overdue) {
     document.getElementById('view').innerHTML = `<div class="page-in">
 
       ${kumulatifHTML}
-      <!-- ═══ AKTİF DÖNEM ═══ -->
-      <div class="card">
-        <div class="section-header" style="margin-bottom:10px;">
-          <span class="section-title" style="display:flex;align-items:center;gap:8px;">
-            <i class="fas fa-calendar-check" style="color:var(--primary);"></i>
-            Aktif Maaş Dönemi
-          </span>
-          <span class="badge badge-${durum.badge}">${durum.baslik}</span>
-        </div>
+      <!-- ═══ AKTİF DÖNEM — Hero Tasarım ═══ -->
+      <div class="card" style="padding:0;overflow:hidden;position:relative;">
 
-        <div style="font-family:'Plus Jakarta Sans';font-size:18px;font-weight:900;color:var(--text);margin-bottom:2px;">
-          ${SalaryMonth.shortLabel(currentKey)}
-        </div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:14px;">
-          ${currentRange.start} → ${currentRange.end}
-        </div>
+        <!-- ── Gradient HEADER ── -->
+        <div style="background:linear-gradient(135deg, #0F2A5C 0%, #1E3A7A 60%, #0A1F44 100%);padding:18px 18px 20px;color:#fff;position:relative;overflow:hidden;">
 
-        <!-- TEK statü satırı -->
-        <div style="padding:10px 12px;background:${durum.bg};border-radius:10px;margin-bottom:12px;display:flex;align-items:center;gap:10px;">
-          <i class="fas ${durum.icon}" style="color:${durum.color};font-size:16px;flex-shrink:0;"></i>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:12px;font-weight:800;color:${durum.color};">${durum.baslik}</div>
-            <div style="font-size:10.5px;color:var(--text3);margin-top:1px;">${durum.alt}</div>
+          <!-- Dekoratif daireler -->
+          <div style="position:absolute;top:-50px;right:-40px;width:160px;height:160px;background:radial-gradient(circle, rgba(74,123,200,.35) 0%, transparent 70%);border-radius:50%;pointer-events:none;"></div>
+          <div style="position:absolute;bottom:-60px;left:-20px;width:140px;height:140px;background:radial-gradient(circle, rgba(16,185,129,.20) 0%, transparent 70%);border-radius:50%;pointer-events:none;"></div>
+
+          <!-- Üst satır: Başlık + Status pill -->
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;position:relative;z-index:1;">
+            <div style="display:flex;align-items:center;gap:8px;opacity:.72;">
+              <i class="fas fa-calendar-check" style="font-size:13px;"></i>
+              <span style="font-size:10.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;">Aktif Dönem</span>
+            </div>
+            <div style="background:rgba(255,255,255,.15);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:#fff;font-size:9.5px;font-weight:800;padding:5px 10px;border-radius:20px;display:flex;align-items:center;gap:5px;letter-spacing:.4px;border:1px solid rgba(255,255,255,.20);">
+              <span style="width:6px;height:6px;border-radius:50%;background:${durum.color === 'var(--danger)' ? '#F87171' : durum.color === 'var(--warning)' ? '#FBBF24' : '#34D399'};box-shadow:0 0 8px ${durum.color === 'var(--danger)' ? '#F87171' : durum.color === 'var(--warning)' ? '#FBBF24' : '#34D399'};"></span>
+              ${durum.baslik.toUpperCase()}
+            </div>
+          </div>
+
+          <!-- Orta: Büyük tarih -->
+          <div style="position:relative;z-index:1;">
+            <div style="font-size:11px;opacity:.62;margin-bottom:4px;letter-spacing:.2px;font-weight:500;">
+              ${SalaryMonth.shortLabel(currentKey)}
+            </div>
+            <div style="font-family:'Inter',sans-serif;font-size:24px;font-weight:900;letter-spacing:-.7px;line-height:1.1;display:flex;align-items:baseline;gap:8px;">
+              <span>${dayjs(currentRange.start).format('DD MMM')}</span>
+              <span style="opacity:.35;font-weight:300;font-size:18px;">→</span>
+              <span>${dayjs(currentRange.end).format('DD MMM')}</span>
+            </div>
+          </div>
+
+          <!-- Alt: Progress + bilgi -->
+          <div style="margin-top:16px;position:relative;z-index:1;">
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;opacity:.85;margin-bottom:6px;gap:8px;">
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${durum.alt}</span>
+              <strong style="font-family:'Inter',sans-serif;font-size:11px;flex-shrink:0;">%${pct}</strong>
+            </div>
+            <div style="height:5px;background:rgba(255,255,255,.16);border-radius:99px;overflow:hidden;">
+              <div style="height:100%;width:${pct}%;background:${pct >= 90 ? '#F59E0B' : (pct >= 50 ? '#34D399' : 'rgba(255,255,255,.95)')};border-radius:99px;transition:width .5s ease;box-shadow:0 0 8px rgba(255,255,255,.30);"></div>
+            </div>
           </div>
         </div>
 
-        <!-- Progress -->
-        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:5px;">
-          <span>Dönem İlerlemesi</span>
-          <span style="font-weight:700;color:${durum.color};">%${pct}</span>
-        </div>
-        <div class="progress-track" style="margin:0 0 14px 0;">
-          <div class="progress-bar" style="width:${pct}%;background:${durum.color};"></div>
-        </div>
+        <!-- ── Gelir / Gider / Net (beyaz bölüm) ── -->
+        <div style="padding:14px 16px;background:var(--surface);">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
 
-        <!-- Gelir / Gider / Net -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-          <div style="text-align:center;padding:10px 6px;background:var(--accent-light);border-radius:8px;">
-            <div style="font-size:9px;color:var(--accent);text-transform:uppercase;font-weight:700;margin-bottom:3px;letter-spacing:.3px;">Gelir</div>
-            <div style="font-family:'Inter',sans-serif;font-size:12px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;">${Calc.fmt(curGelir)}</div>
-          </div>
-          <div style="text-align:center;padding:10px 6px;background:var(--danger-light);border-radius:8px;">
-            <div style="font-size:9px;color:var(--danger);text-transform:uppercase;font-weight:700;margin-bottom:3px;letter-spacing:.3px;">Gider</div>
-            <div style="font-family:'Inter',sans-serif;font-size:12px;font-weight:800;color:var(--danger);font-variant-numeric:tabular-nums;">${Calc.fmt(curGider)}</div>
-          </div>
-          <div style="text-align:center;padding:10px 6px;background:var(--surface2);border-radius:8px;">
-            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:3px;letter-spacing:.3px;">Net</div>
-            <div style="font-family:'Inter',sans-serif;font-size:12px;font-weight:800;color:${curNet>=0?'var(--accent)':'var(--danger)'};font-variant-numeric:tabular-nums;">${Calc.fmt(curNet)}</div>
+            <div style="padding:10px 6px;background:var(--accent-light);border-radius:10px;text-align:center;border:1px solid rgba(4,120,87,.10);">
+              <div style="display:flex;align-items:center;justify-content:center;gap:4px;font-size:9px;color:var(--accent);text-transform:uppercase;font-weight:800;letter-spacing:.4px;margin-bottom:5px;">
+                <i class="fas fa-arrow-up" style="font-size:8px;"></i>
+                Gelir
+              </div>
+              <div style="font-family:'Inter',sans-serif;font-size:13px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;letter-spacing:-.3px;">${Calc.fmt(curGelir)}</div>
+            </div>
+
+            <div style="padding:10px 6px;background:var(--danger-light);border-radius:10px;text-align:center;border:1px solid rgba(185,28,28,.10);">
+              <div style="display:flex;align-items:center;justify-content:center;gap:4px;font-size:9px;color:var(--danger);text-transform:uppercase;font-weight:800;letter-spacing:.4px;margin-bottom:5px;">
+                <i class="fas fa-arrow-down" style="font-size:8px;"></i>
+                Gider
+              </div>
+              <div style="font-family:'Inter',sans-serif;font-size:13px;font-weight:800;color:var(--danger);font-variant-numeric:tabular-nums;letter-spacing:-.3px;">${Calc.fmt(curGider)}</div>
+            </div>
+
+            <div style="padding:10px 6px;background:var(--surface2);border-radius:10px;text-align:center;border:1px solid var(--border);">
+              <div style="display:flex;align-items:center;justify-content:center;gap:4px;font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:800;letter-spacing:.4px;margin-bottom:5px;">
+                <i class="fas fa-equals" style="font-size:8px;"></i>
+                Net
+              </div>
+              <div style="font-family:'Inter',sans-serif;font-size:13px;font-weight:800;color:${curNet>=0?'var(--accent)':'var(--danger)'};font-variant-numeric:tabular-nums;letter-spacing:-.3px;">${Calc.fmt(curNet)}</div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- ═══ ARŞİV AKSİYON ═══ -->
+      <!-- ═══ ARŞİV AKSİYON — Bilgi Kartı ═══ -->
       ${(() => {
         const currentHasData = curGelir > 0 || curGider > 0;
-        if (!prevArchived && prevHasData) {
-          return `<button class="btn ${overdue ? 'btn-danger' : 'btn-primary'} btn-full"
-                          onclick="App.manualArchive('${prevKey}')"
-                          style="margin-bottom:10px;">
-            <i class="fas fa-archive"></i>
-            ${SalaryMonth.shortLabel(prevKey)} Dönemini Arşivle
-          </button>`;
-        }
-        if (currentHasData) {
-          return `<button class="btn btn-ghost btn-full"
-                          onclick="App.manualArchive('${currentKey}')"
-                          style="margin-bottom:10px;font-size:12px;border-style:dashed;">
-            <i class="fas fa-archive"></i>
-            ${SalaryMonth.shortLabel(currentKey)} Dönemini Arşivle (erken)
-          </button>`;
-        }
-        return `<button class="btn btn-ghost btn-full" disabled
-                        style="margin-bottom:10px;font-size:12px;opacity:.5;cursor:not-allowed;">
-          <i class="fas fa-inbox"></i> Bu dönemde kayıt yok
-        </button>`;
-      })()}
 
+        // 1) Önceki dönem arşivlenmemiş → öncelikli CTA
+        if (!prevArchived && prevHasData) {
+          const c = overdue ? 'var(--danger)' : 'var(--primary)';
+          const cbg = overdue ? 'var(--danger-light)' : 'var(--primary-light)';
+          return `<div class="card" style="padding:14px 16px;border-left:4px solid ${c};">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+              <div style="width:38px;height:38px;border-radius:11px;background:${cbg};color:${c};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="fas fa-archive" style="font-size:15px;"></i>
+              </div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:13px;font-weight:800;color:var(--text);letter-spacing:-.2px;line-height:1.3;">
+                  ${overdue ? 'Arşiv gecikmiş' : 'Arşivlenmeyi bekliyor'}
+                </div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px;">
+                  ${SalaryMonth.shortLabel(prevKey)} · önceki dönem arşive taşınmadı
+                </div>
+              </div>
+            </div>
+            <button class="btn ${overdue ? 'btn-danger' : 'btn-primary'} btn-full"
+                    onclick="App.manualArchive('${prevKey}')">
+              <i class="fas fa-archive"></i>
+              ${SalaryMonth.shortLabel(prevKey)} Arşivle
+            </button>
+          </div>`;
+        }
+
+        // 2) Aktif dönemde veri var → erken arşivle (nötr, hafif)
+        if (currentHasData) {
+          return `<div class="card" style="padding:14px 16px;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+              <div style="width:38px;height:38px;border-radius:11px;background:var(--surface2);color:var(--text3);display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px dashed var(--border-strong);">
+                <i class="fas fa-clock" style="font-size:14px;"></i>
+              </div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:12.5px;font-weight:700;color:var(--text2);line-height:1.3;">
+                  Aktif dönemi erken arşivle
+                </div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px;">
+                  Normal arşiv: ${dayjs(nextDate).format('DD MMMM')} · ${daysLeft} gün kaldı
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-ghost btn-full"
+                    onclick="App.manualArchive('${currentKey}')"
+                    style="font-size:12px;border-style:dashed;">
+              <i class="fas fa-archive"></i>
+              ${SalaryMonth.shortLabel(currentKey)} Dönemini Arşivle
+            </button>
+          </div>`;
+        }
+
+        // 3) Hiç veri yok
+        return `<div class="card" style="padding:14px 16px;opacity:.7;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:38px;height:38px;border-radius:11px;background:var(--surface2);color:var(--text3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <i class="fas fa-inbox" style="font-size:15px;"></i>
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:12.5px;font-weight:700;color:var(--text2);">Bu dönemde kayıt yok</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px;">İşlem ekleyince arşiv aktif olur</div>
+            </div>
+          </div>
+        </div>`;
+      })()}
       <!-- ═══ BEKLEYENLER ═══ -->
       ${pendingMonths.length > 0 ? `
         <div class="card" style="border-left:4px solid var(--warning);">
