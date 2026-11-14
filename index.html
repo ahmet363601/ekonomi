@@ -9790,7 +9790,12 @@ async showBakimGecmisi(vehicleId) {
 async openSettingsModal() {
   const { value } = await Swal.fire({
     title: '',
-    html: `<div class="settings-body">
+html: `<div class="settings-body">
+
+      <!-- 🎯 Oto-focus tuzak — Swal'ın ilk focusable öğeyi (Rapor Aralığı <select>)
+           focus'lamasını engeller; böylece iOS/Android'de picker açık gelmez -->
+      <button type="button" tabindex="0" autofocus
+              style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;"></button>
 
       <!-- ═══ HERO ═══ -->
       <div class="settings-hero">
