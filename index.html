@@ -3663,7 +3663,47 @@ if (_missing.length > 0) {
     </div>`;
   throw new Error('CDN libraries failed: ' + _missing.join(', '));
 }
+/* ═══════════════════════════════════════════════════════════════
+   MULTI-TAB SYNC — BroadcastChannel
+   Safari sekmesi + ana ekran uygulaması aynı IndexedDB'yi paylaşır.
+   Bir pencere yazınca diğerleri state'i DB'den tazeler.
+   ═══════════════════════════════════════════════════════════════ */
+const _bc = (typeof BroadcastChannel !== 'undefined')
+  ? new BroadcastChannel('ebha-sync')
+  : null;
 
+/* Yazma sonrası çağır — diğer pencereleri uyar */
+function _broadcastWrite(storeName) {
+  if (_bc) {
+    try { _bc.postMessage({ type: 'write', store: storeName, ts: Date.now() }); } catch (_) {}
+  }
+}
+
+/* Diğer pencerelerden gelen yazma mesajlarını dinle → state'i tazele */
+let _reloadDebounce = null;
+if (_bc) {
+  _bc.onmessage = (e) => {
+    if (!e.data || e.data.type !== 'write') return;
+    clearTimeout(_reloadDebounce);
+    _reloadDebounce = setTimeout(async () => {
+      try {
+        if (typeof loadAllData !== 'function') return;
+        await loadAllData();
+        // Aktif sayfayı sessizce yenile
+        if (typeof App !== 'undefined' && App.currentPage) {
+          const view = document.getElementById('view');
+          if (view && view.querySelector('.spinner-wrap') === null) {
+            // Kullanıcının scroll pozisyonu bozulmasın diye sadece değişimi bildir
+            if (typeof Notifications?.updateBadge === 'function') Notifications.updateBadge();
+            if (typeof App._updateTaskBadge === 'function') App._updateTaskBadge();
+          }
+        }
+      } catch (err) { console.warn('[BC] Reload hatası:', err); }
+    }, 300);
+  };
+}
+
+/* Queue'dan yazma bittikten sonra BroadcastChannel ile duyur */
 /* ─────────────────────────────────────────────
    SERVICE WORKER (optional)
 ───────────────────────────────────────────── */
@@ -4035,19 +4075,33 @@ async function loadAllData() {
    ═══════════════════════════════════════════════════════════════ */
 
 let _saveChain = Promise.resolve();
-function queueSave(fn) {
-  const result = _saveChain.then(fn);
+function queueSave(fn, storeName = null) {
+  const result = _saveChain.then(fn).then(r => {
+    if (storeName) _broadcastWrite(storeName);
+    return r;
+  });
   _saveChain = result.catch(e => {
     console.error('[Queue] Kayıt hatası:', e);
     if (typeof showToast === 'function') {
       showToast('⚠️ Kayıt başarısız! Yedek alın.');
     }
   });
-  return result;  // ✅ gerçek sonuç — rejection çağırana ulaşır
+  return result;
 }
 
-/* Tek store, tek transaction — ya hep ya hiç */
-/* Tek store, tek transaction — ya hep ya hiç */
+/* Store → keyPath eşlemesi */
+const STORE_KEYPATHS = {
+  kategoriler:  'tip',
+  limitler:     'kategori',
+  archives:     'month',
+  ayarlar:      'id',
+  /* geri kalan tüm store'lar: 'id' */
+};
+function _getKeyPath(storeName) {
+  return STORE_KEYPATHS[storeName] || 'id';
+}
+
+/* clear() YOK — sadece diff. Mevcut kayıtları silmez, sadece değişeni yazar. */
 function saveStore(storeName, items) {
   return new Promise((resolve, reject) => {
     if (!db) return reject(new Error('DB açık değil'));
@@ -4056,21 +4110,37 @@ function saveStore(storeName, items) {
     catch (e) { return reject(e); }
 
     const store = tx.objectStore(storeName);
+    const kp = _getKeyPath(storeName);
 
-    try {
-      store.clear();
-      for (const item of items) {
-        /* ✅ Boş array, primitif, undefined → put denenmez (DataError önlenir) */
-        if (item && typeof item === 'object' && !Array.isArray(item)) {
+    // getAllKeys ile mevcut DB'deki kayıtları al → silinmesi gerekenleri belirle
+    const keysReq = store.getAllKeys();
+
+    keysReq.onsuccess = () => {
+      const existingKeys = new Set(keysReq.result || []);
+      const newKeys = new Set();
+
+      try {
+        for (const item of items) {
+          if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+          const key = item[kp];
+          if (key === undefined || key === null) continue; // key'siz item yazılamaz
           store.put(item);
+          newKeys.add(key);
         }
+        // DB'de olup state'te olmayan kayıtları sil
+        for (const k of existingKeys) {
+          if (!newKeys.has(k)) store.delete(k);
+        }
+      } catch (e) {
+        try { tx.abort(); } catch (_) {}
+        return reject(e);
       }
-    } catch (e) {
-      /* 🔴 KRİTİK: put() senkron hata fırlatırsa transaction'ı İPTAL ET.
-         Aksi halde clear() commit edilir → store tamamen silinir, veri yazılmaz. */
-      try { tx.abort(); } catch(_) {}
-      return reject(e);
-    }
+    };
+
+    keysReq.onerror = () => {
+      try { tx.abort(); } catch (_) {}
+      reject(keysReq.error);
+    };
 
     tx.oncomplete = () => resolve();
     tx.onerror    = () => reject(tx.error);
@@ -4078,27 +4148,26 @@ function saveStore(storeName, items) {
   });
 }
 
-/* Store bazlı kayıt fonksiyonları (CRUD bunları kullanacak) */
-const saveGelirler    = () => queueSave(() => saveStore('gelirler',    state.gelirler));
-const saveGiderler    = () => queueSave(() => saveStore('giderler',    state.giderler));
-const saveBorclar     = () => queueSave(() => saveStore('borcalacaklar', state.borcalacaklar));
-const saveLimitler    = () => queueSave(() => saveStore('limitler', Object.entries(state.limitler).map(([kategori, limit]) => ({ kategori, limit }))));
+const saveGelirler    = () => queueSave(() => saveStore('gelirler',    state.gelirler),          'gelirler');
+const saveGiderler    = () => queueSave(() => saveStore('giderler',    state.giderler),          'giderler');
+const saveBorclar     = () => queueSave(() => saveStore('borcalacaklar', state.borcalacaklar),   'borcalacaklar');
+const saveLimitler    = () => queueSave(() => saveStore('limitler', Object.entries(state.limitler).map(([kategori, limit]) => ({ kategori, limit }))), 'limitler');
 const saveAyarlar     = () => queueSave(() => saveStore('ayarlar', [{
   id: 'settings',
   varsayilanRaporAraligi: state.ayarlar.varsayilanRaporAraligi,
   gramAltinFiyati: Number(state.ayarlar.gramAltinFiyati) || 0,
   ceyrekAltinFiyati: Number(state.ayarlar.ceyrekAltinFiyati) || 0,
   maasGun: Number(state.ayarlar.maasGun) || 15
-}]));
-const saveArchives    = () => queueSave(() => saveStore('archives', Object.entries(state.archives).map(([month, data]) => ({ month, data }))));
-const saveLogs        = () => queueSave(() => saveStore('logs', state.logs));
-const saveBackups     = () => queueSave(() => saveStore('backups', state.backups));
+}]), 'ayarlar');
+const saveArchives    = () => queueSave(() => saveStore('archives', Object.entries(state.archives).map(([month, data]) => ({ month, data }))), 'archives');
+const saveLogs        = () => queueSave(() => saveStore('logs', state.logs), 'logs');
+const saveBackups     = () => queueSave(() => saveStore('backups', state.backups), 'backups');
 const saveKategoriler = () => queueSave(() => saveStore('kategoriler', [
   { tip: 'gelir', kategoriler: state.kategoriler.gelir },
   { tip: 'gider', kategoriler: state.kategoriler.gider }
-]));
-const saveAraclar = () => queueSave(() => saveStore('araclar', state.araclar));
-const saveGorevler = () => queueSave(() => saveStore('gorevler', state.gorevler));
+]), 'kategoriler');
+const saveAraclar = () => queueSave(() => saveStore('araclar', state.araclar), 'araclar');
+const saveGorevler = () => queueSave(() => saveStore('gorevler', state.gorevler), 'gorevler');
 
 /* 🛡️ Bildirimler kritik olmayan veri — hata verirse uygulamayı kilitlemesin.
    Ana queueSave yerine sessiz fallback kullanıyoruz. */
@@ -4116,7 +4185,20 @@ const saveNotifications = () => {
   return result;
 };
 /* Tüm store'ları yaz — sadece resetAll/import gibi nadir durumlarda */
-
+const saveNotifications = () => {
+  const result = _saveChain
+    .then(() => saveStore('notifications', state.notifications))
+    .then(r => { _broadcastWrite('notifications'); return r; });
+  _saveChain = result.catch(e => {
+    const nm = e?.name || '';
+    if (nm === 'NotFoundError' || nm === 'DataError') {
+      console.warn('[Notifications] Kayıt atlandı (sessiz):', nm);
+    } else {
+      console.warn('[Notifications] Kayıt hatası:', e);
+    }
+  });
+  return result;
+};
 /* Tüm store'ları yaz — sadece resetAll/import gibi nadir durumlarda */
 async function saveAllData() {
   try {
@@ -4223,6 +4305,7 @@ const LOG_ACTIONS = {
   gorev_geri_al:   { cat:'gorev', sev:'warning', icon:'fa-undo',          label:'Görev Geri Alındı' },
   gorev_sil:       { cat:'gorev', sev:'danger',  icon:'fa-trash',         label:'Görev Silindi' },
   gorev_arsivle:   { cat:'gorev', sev:'info',    icon:'fa-box-archive',   label:'Görev Arşivlendi' },
+  gorev_import:    { cat:'gorev', sev:'info',    icon:'fa-file-import',   label:'Görev Yedekten Yüklendi' },
 };
 
 const LOG_META = {
@@ -4415,14 +4498,14 @@ daysUntilArchive() {
   },
 
   /** Arşivlenmemiş, verisi olan geçmiş dönemler */
-  pendingMonths() {
-    const months = new Set();
-    state.gelirler.forEach(g => { if (g.tarih) months.add(this.keyOf(g.tarih)); });
-    state.giderler.forEach(g => { if (g.tarih) months.add(this.keyOf(g.tarih)); });
-    const current = this.currentKey();
-    /* 🆕 Birleştirme sayesinde ana listede kalan her geçmiş dönem "bekleyen" sayılır */
-    return [...months].filter(k => k !== current).sort();
-  },
+pendingMonths() {
+  const months = new Set();
+  state.gelirler.forEach(g => { if (g.tarih) months.add(this.keyOf(g.tarih)); });
+  state.giderler.forEach(g => { if (g.tarih) months.add(this.keyOf(g.tarih)); });
+  const current = this.currentKey();
+  // Sadece geçmiş dönemler; gelecek (k > current) hariç
+  return [...months].filter(k => k < current).sort();
+}
 
   /** Arşiv gecikmiş mi (3 gün tolerans) */
   isOverdue() {
@@ -4795,27 +4878,26 @@ kategoriTrendBetween(startDate, endDate, maxMonths = 12, topN = 6) {
     const lpgTotalTL    = lpgItems.reduce((s, i) => s + i._lpg.toplam, 0);
     const lpgAvgFiyat   = lpgTotalLitre > 0 ? lpgTotalTL / lpgTotalLitre : 0;
 
-    const lpgWithKm = lpgItems.filter(i => i._km > 0)
-      .sort((a, b) => {
-        if (a.tarih !== b.tarih) return a.tarih.localeCompare(b.tarih);
-        return (a.createdAt || '').localeCompare(b.createdAt || '');
-      });
+const lpgWithKm = lpgItems.filter(i => i._km > 0)
+  .sort((a, b) => {...});
 
-    const consumptionRecords = [];
-    for (let i = 1; i < lpgWithKm.length; i++) {
-      const diff = lpgWithKm[i]._km - lpgWithKm[i-1]._km;
-      if (diff > 0) {
-        const l100 = (lpgWithKm[i]._lpg.litre * 100) / diff;
-        const tlKm = lpgWithKm[i]._lpg.toplam / diff;
-        lpgWithKm[i]._lpgMesafe = diff;
-        lpgWithKm[i]._lpgL100 = l100;
-        lpgWithKm[i]._lpgTlKm = tlKm;
-        consumptionRecords.push({
-          item: lpgWithKm[i], mesafe: diff, l100, tlKm,
-          tl: lpgWithKm[i]._lpg.toplam
-        });
-      }
-    }
+const consumptionRecords = [];
+for (let i = 1; i < lpgWithKm.length; i++) {
+  const cur = lpgWithKm[i];
+  const prev = lpgWithKm[i-1];
+  // Sadece her iki kayıt da depo dolu ise hesapla
+  if (cur.fuel && cur.fuel.fullTank === false) continue;
+  if (prev.fuel && prev.fuel.fullTank === false) continue;
+  const diff = cur._km - prev._km;
+  if (diff > 0) {
+    const l100 = (cur._lpg.litre * 100) / diff;
+    const tlKm = cur._lpg.toplam / diff;
+    cur._lpgMesafe = diff;
+    cur._lpgL100 = l100;
+    cur._lpgTlKm = tlKm;
+    consumptionRecords.push({ item: cur, mesafe: diff, l100, tlKm, tl: cur._lpg.toplam });
+  }
+}
 
     const lpgTotalKm = consumptionRecords.reduce((s, r) => s + r.mesafe, 0);
     const lpgLitreForCalc = consumptionRecords.reduce((s, r) => s + r.item._lpg.litre, 0);
@@ -5150,6 +5232,7 @@ const Vehicle = {
       out.push({
         vid: v.id, plaka: v.plaka || '', marka: v.marka || '', model: v.model || '',
         sonBakimKm: sonKm, hedefKm, currentKm, kalanKm, ilerleme, aralik,
+        tip: 'Yağ Bakımı',
         seviye, renk, bg, emoji, bildirimMetni
       });
     });
@@ -5181,34 +5264,33 @@ const Vehicle = {
   },
 
   /* ───── Bakım yapıldı — kayıt ekle + sayaç sıfırla ───── */
-  async bakimYap(vehicleId, detay) {
-    const v = state.araclar.find(a => a.id === vehicleId);
-    if (!v) return false;
+async bakimYap(vehicleId, detay) {
+  const v = state.araclar.find(a => a.id === vehicleId);
+  if (!v) return false;
 
-    const currentKm = _getLastFuelKm();
-    if (currentKm === 0) return false;
+  const km = Number(detay.km) || _getLastFuelKm();
+  if (km <= 0) return false;
 
-    const aralik = Number(v.yagBakimAralikKm) || 10000;
-    const kayit = {
-      id: Date.now() + Math.random(),
-      tarih: detay.tarih || dayjs().format('YYYY-MM-DD'),
-      km: currentKm,
-      yer: detay.yer || '',
-      degisiklikler: detay.degisiklikler || '',
-      maliyet: parseFloat(detay.maliyet) || 0,
-      notlar: detay.notlar || '',
-      sonrakiBakimKm: currentKm + aralik,
-      createdAt: new Date().toISOString()
-    };
+  const aralik = Number(detay.aralik) || Number(v.yagBakimAralikKm) || 10000;
+  const kayit = {
+    id: Date.now() + Math.random(),
+    tarih: detay.tarih || dayjs().format('YYYY-MM-DD'),
+    km,
+    yer: detay.yer || '',
+    degisiklikler: detay.degisiklikler || '',
+    maliyet: parseFloat(detay.maliyet) || 0,
+    notlar: detay.notlar || '',
+    sonrakiBakimKm: km + aralik,
+    createdAt: new Date().toISOString()
+  };
 
-    if (!v.bakimGecmisi) v.bakimGecmisi = [];
-    v.bakimGecmisi.push(kayit);
-    v.yagBakimKm = currentKm;   // Sayaç sıfırla
-
-    await saveAraclar();
-    await addLog('arac_bakim', `${v.plaka} yağ bakımı — ${currentKm.toLocaleString('tr-TR')} km`);
-    return kayit;
-  },
+  if (!v.bakimGecmisi) v.bakimGecmisi = [];
+  v.bakimGecmisi.push(kayit);
+  v.yagBakimKm = km;
+  await saveAraclar();
+  await addLog('arac_bakim', `${v.plaka} yağ bakımı — ${km.toLocaleString('tr-TR')} km`);
+  return kayit;
+}
 
   /* ───── Bakım geçmişi ───── */
   getBakimGecmisi(vehicleId) {
@@ -5217,31 +5299,42 @@ const Vehicle = {
   }
 };
 const CRUD = {
-  async islemEkle(tip, miktar, kategori, tarih, aciklama, extra = {}) {
-    const item = {
-      id: Date.now() + Math.random(),
-      miktar: parseFloat(miktar), kategori, tarih,
-      aciklama: aciklama || '',
-      createdAt: new Date().toISOString(),
-      ...extra
-    };
-    if (tip === 'gelir') {
-      state.gelirler.push(item);
+async islemEkle(tip, miktar, kategori, tarih, aciklama, extra = {}) {
+  const item = {
+    id: Date.now() + Math.random(),
+    miktar: parseFloat(miktar), kategori, tarih,
+    aciklama: aciklama || '',
+    createdAt: new Date().toISOString(),
+    ...extra
+  };
+  if (tip === 'gelir') {
+    state.gelirler.push(item);
+    try {
       await saveGelirler();
-    } else {
-      state.giderler.push(item);
-      await saveGiderler();
-      const limit = state.limitler[kategori];
-      if (limit && Calc.aylikGiderKategori(kategori) > limit) {
-        Swal.fire({ icon: 'warning', title: '⚠️ Limit Aşımı!', text: `${kategori} için ${Calc.fmt(limit)} limiti aşıldı!`, timer: 2500, showConfirmButton: false });
-      }
+    } catch (e) {
+      // Rollback
+      state.gelirler = state.gelirler.filter(g => g.id !== item.id);
+      throw e;
     }
-    await addLog(`${tip}_ekle`,
-      `${Calc.fmt(miktar)} · ${kategori}${aciklama ? ' — ' + aciklama.substring(0, 40) : ''}`,
-      { entityId: item.id, entityType: tip, amount: miktar, category: kategori, date: tarih });
-    await createAutoBackup();
-    return item;
-  },
+  } else {
+    state.giderler.push(item);
+    try {
+      await saveGiderler();
+    } catch (e) {
+      state.giderler = state.giderler.filter(g => g.id !== item.id);
+      throw e;
+    }
+    const limit = state.limitler[kategori];
+    if (limit && Calc.aylikGiderKategori(kategori) > limit) {
+      Swal.fire({ icon: 'warning', title: '⚠️ Limit Aşımı!', text: `${kategori} için ${Calc.fmt(limit)} limiti aşıldı!`, timer: 2500, showConfirmButton: false });
+    }
+  }
+  await addLog(`${tip}_ekle`,
+    `${Calc.fmt(miktar)} · ${kategori}${aciklama ? ' — ' + aciklama.substring(0, 40) : ''}`,
+    { entityId: item.id, entityType: tip, amount: miktar, category: kategori, date: tarih });
+  await createAutoBackup();
+  return item;
+}
 
   async islemGuncelle(id, tip, guncelleme) {
     const arr = tip === 'gelir' ? state.gelirler : state.giderler;
@@ -5279,16 +5372,21 @@ const CRUD = {
     await createAutoBackup();
   },
 
-  async borcEkle(tip, kisiAdi, miktar, birim, tarih, aciklama, vadeTarihi) {
-    birim = birim || 'tl';
-    const item = { id: Date.now() + Math.random(), tip, kisiAdi, miktar: parseFloat(miktar), birim, tarih, aciklama: aciklama || '', vadeTarihi: vadeTarihi || null, payments: [], odendiMi: false, createdAt: new Date().toISOString() };
-    state.borcalacaklar.push(item);
+async borcEkle(tip, kisiAdi, miktar, birim, tarih, aciklama, vadeTarihi) {
+  birim = birim || 'tl';
+  const item = { id: Date.now() + Math.random(), tip, kisiAdi, miktar: parseFloat(miktar), birim, tarih, aciklama: aciklama || '', vadeTarihi: vadeTarihi || null, payments: [], odendiMi: false, createdAt: new Date().toISOString() };
+  state.borcalacaklar.push(item);
+  try {
     await saveBorclar();
-    await addLog(`borc_ekle_${tip}`,
-      `${kisiAdi} · ${Calc.formatBirim(item)}${aciklama ? ' — ' + aciklama.substring(0, 40) : ''}`,
-      { entityId: item.id, entityType: tip, person: kisiAdi, amount: miktar, unit: birim, tlValue: Calc.tlKarsiligi(item) });    await createAutoBackup();
-    return item;
-  },
+  } catch (e) {
+    state.borcalacaklar = state.borcalacaklar.filter(b => b.id !== item.id);
+    throw e;
+  }
+  await addLog(`borc_ekle_${tip}`, `${kisiAdi} · ${Calc.formatBirim(item)}${aciklama ? ' — ' + aciklama.substring(0, 40) : ''}`,
+    { entityId: item.id, entityType: tip, person: kisiAdi, amount: miktar, unit: birim, tlValue: Calc.tlKarsiligi(item) });
+  await createAutoBackup();
+  return item;
+}
 
   async borcSil(id) {
     /* Silmeden ÖNCE yakala */
@@ -5563,39 +5661,31 @@ const CRUD = {
     /* ═══════════════════════════════════════════════════════════════
      🎯 GÖREV CRUD METODLARI
      ═══════════════════════════════════════════════════════════════ */
-  async gorevEkle(data) {
-    const item = {
-      id: Date.now() + Math.random(),
-      baslik: (data.baslik || '').trim(),
-      aciklama: (data.aciklama || '').trim(),
-      oncelik: data.oncelik || 'normal',
-      tarih: data.tarih || null,
-      tamamlandi: false,
-      tamamlanmaTarihi: null,
-      arsivlendi: false,
-      arsivTarihi: null,
-      olusturulma: new Date().toISOString(),
-      guncellenme: new Date().toISOString()
-    };
-    if (!item.baslik) return null;
-    state.gorevler.push(item);
+async gorevEkle(data) {
+  const item = {
+    id: Date.now() + Math.random(),
+    baslik: (data.baslik || '').trim(),
+    aciklama: (data.aciklama || '').trim(),
+    oncelik: data.oncelik || 'normal',
+    tarih: data.tarih || null,
+    tamamlandi: false,
+    tamamlanmaTarihi: null,
+    arsivlendi: false,
+    arsivTarihi: null,
+    olusturulma: new Date().toISOString(),
+    guncellenme: new Date().toISOString()
+  };
+  if (!item.baslik) return null;
+  state.gorevler.push(item);
+  try {
     await saveGorevler();
-    await addLog('gorev_ekle', item.baslik, { entityId: item.id, oncelik: item.oncelik });
-    return item;
-  },
-  async gorevGuncelle(id, data) {
-    const idx = state.gorevler.findIndex(g => g.id == id);
-    if (idx === -1) return false;
-    const eski = { ...state.gorevler[idx] };
-    state.gorevler[idx] = {
-      ...state.gorevler[idx],
-      ...data,
-      guncellenme: new Date().toISOString()
-    };
-    await saveGorevler();
-    await addLog('gorev_guncelle', state.gorevler[idx].baslik, { entityId: id });
-    return true;
-  },
+  } catch (e) {
+    state.gorevler = state.gorevler.filter(g => g.id !== item.id);
+    throw e;
+  }
+  await addLog('gorev_ekle', item.baslik, { entityId: item.id, oncelik: item.oncelik });
+  return item;
+}
 
   async gorevTamamla(id, tamam = true) {
     const item = state.gorevler.find(g => g.id == id);
@@ -6120,9 +6210,17 @@ function showToast(msg, opts = {}) {
   } else {
     t.textContent = msg;
   }
-
-  document.body.appendChild(t);
-  t.addEventListener('animationend', () => t.remove());
+document.body.appendChild(t);
+// CSS animationend güvenilmez (prefers-reduced-motion'da animasyon süresi .01ms olur)
+const lifetime = opts.actionLabel ? 5000 : 2800;
+const _toastTimer = setTimeout(() => {
+  if (t.parentNode) t.remove();
+}, lifetime);
+// Kullanıcı manuel kapatırsa timer'ı temizle
+t.addEventListener('click', () => {
+  clearTimeout(_toastTimer);
+  if (t.parentNode) t.remove();
+}, { once: true });
 }
 /* ═══════════════════════════════════════════════════════════════
    🔔 BİLDİRİM SİSTEMİ — Kapsamlı, Modüler
@@ -6303,21 +6401,21 @@ const Notifications = {
 
           await Notifications.add({
             type: 'vehicle_km',
-            title: `Yağ Bakımı · ${k.plaka}`,
+            title: `${k.tip || 'Yağ Bakımı'} · ${k.plaka}`,
             description: `${durumText} — Hedef: ${k.hedefKm.toLocaleString('tr-TR')} km`,
             details: `**${k.plaka}** aracınız **${k.currentKm.toLocaleString('tr-TR')} km**'de.\n` +
-              `Hedef bakım noktası: **${k.hedefKm.toLocaleString('tr-TR')} km**.\n\n` +
+              `**${k.tip || 'Yağ Bakımı'}** hedef: **${k.hedefKm.toLocaleString('tr-TR')} km**.\n\n` +
               `**Ne yapmalısınız?**\n` +
               `• Son bakım: ${k.sonBakimKm.toLocaleString('tr-TR')} km\n` +
               `• Aralık: ${k.aralik.toLocaleString('tr-TR')} km\n` +
               `• Durum: ${durumText}\n\n` +
               (k.kalanKm < 0
-                ? `⚠️ **Gecikmiş bakım motor ömrünü ciddi etkiler.** Hemen servise uğrayın. Bakım sonrası Dashboard'dan "Bakım Yapıldı" butonuyla sayaç sıfırlayın.`
+                ? `⚠️ **Gecikmiş bakım** motor/aksam ömrünü ciddi etkiler. Hemen servise uğrayın.`
                 : `Bakıma az kaldı. Yakın zamanda servise uğramanız önerilir.`),
             priority: priority,
             source: 'vehicle_km',
             sourceId: k.vid,
-            dedupKey: `vehicle_km_${k.vid}`,
+            dedupKey: `vehicle_km_${k.vid}_${k.tip || 'yag'}`,
             action: { type: 'goto', target: 'vehicle', payload: k.vid }
           });
         }
@@ -6409,28 +6507,74 @@ const Notifications = {
       }
     } catch (e) { console.warn('[Notif] gorev:', e); }
     /* 5️⃣ ARŞİV GECİKMESİ */
-    try {
-      if (SalaryMonth.isOverdue()) {
-        const prevKey = SalaryMonth.previousKey();
-        await Notifications.add({
-          type: 'archive',
-          title: 'Arşiv Gecikmiş',
-          description: `${SalaryMonth.shortLabel(prevKey)} arşivlenmeyi bekliyor`,
-          details: `**${SalaryMonth.shortLabel(prevKey)}** dönemi henüz arşivlenmedi.\n\n` +
-            `Arşivleme, geçmiş dönemin kilitlenmesini ve verilerinizin güvende kalmasını sağlar.\n\n` +
-            `**Ne yapmalısınız?**\n` +
-            `• Arşiv sayfasına gidin\n` +
-            `• "${SalaryMonth.shortLabel(prevKey)} Dönemini Arşivle" butonuna tıklayın\n` +
-            `• PDF raporu otomatik oluşturulur`,
-          priority: 'normal',
-          source: 'archive',
-          sourceId: prevKey,
-          dedupKey: `archive_${prevKey}`,
-          action: { type: 'goto', target: 'arsiv' }
-        });
-      }
-    } catch (e) { console.warn('[Notif] archive:', e); }
+   /* 5️⃣ ARŞİV GECİKMESİ */
+try {
+  if (SalaryMonth.isOverdue()) {
+    const prevKey = SalaryMonth.previousKey();
+    await Notifications.add({
+      type: 'archive',
+      title: 'Arşiv Gecikmiş',
+      description: `${SalaryMonth.shortLabel(prevKey)} arşivlenmeyi bekliyor`,
+      details: `...`,
+      priority: 'normal',
+      source: 'archive',
+      sourceId: prevKey,
+      dedupKey: `archive_${prevKey}`,
+      action: { type: 'goto', target: 'arsiv' }
+    });
   }
+} catch (e) { console.warn('[Notif] archive:', e); }
+
+/* 6️⃣ STALE TEMİZLİĞİ — artık geçerli olmayan dedupKey'leri sil */
+try {
+  const aktifKeys = new Set();
+  // vehicle_date
+  for (const r of Vehicle.getUpcoming(45)) {
+    if (['gecti','acil','yaklasiyor'].includes(r.seviye)) {
+      aktifKeys.add(`vehicle_date_${r.vid}_${r.label}`);
+    }
+  }
+  // vehicle_km
+  for (const k of Vehicle.getKmAktif()) {
+    if (['gecti','acil','yaklasiyor'].includes(k.seviye)) {
+      aktifKeys.add(`vehicle_km_${k.vid}_${k.tip || 'yag'}`);
+    }
+  }
+  // budget
+  const curKey = SalaryMonth.currentKey();
+  for (const [kategori, limit] of Object.entries(state.limitler)) {
+    if (Calc.aylikGiderKategori(kategori) > limit) {
+      aktifKeys.add(`budget_${kategori}_${curKey}`);
+    }
+  }
+  // debt
+  for (const b of Calc.vadeleriGelenBorclar(7)) {
+    aktifKeys.add(`debt_${b.id}`);
+  }
+  // gorev
+  for (const g of state.gorevler) {
+    if (!g.tamamlandi && !g.arsivlendi && g.tarih) {
+      const d = TaskDate.diffDays(g.tarih);
+      if (d !== null && d <= 1) aktifKeys.add(`gorev_${g.id}_${g.tarih}`);
+    }
+  }
+  // archive
+  if (SalaryMonth.isOverdue()) {
+    aktifKeys.add(`archive_${SalaryMonth.previousKey()}`);
+  }
+
+  const before = state.notifications.length;
+  state.notifications = state.notifications.filter(n => {
+    if (!n.dedupKey) return true;               // dedupKey'siz olanları koru
+    return aktifKeys.has(n.dedupKey);           // sadece hâlâ geçerli olanları tut
+  });
+  if (state.notifications.length !== before) {
+    await saveNotifications();
+    Notifications.updateBadge();
+  }
+} catch (e) { console.warn('[Notif] stale cleanup:', e); }
+
+} // generateAll sonu
 };
 /* ─────────────────────────────────────────────
    APP CONTROLLER
@@ -6615,7 +6759,9 @@ async renderDashboard() {
           </div>
 
           ${state.araclar.map(v => {
-            const km = kmAktif.find(k => k.vid === v.id);
+            const yagKm = kmAktif.find(k => k.vid === v.id && !k.tip);   // yağ bakımı
+            const digerKm = kmAktif.filter(k => k.vid === v.id && k.tip); // lastik/balata/akü
+            const km = yagKm;   // eski "km" değişkeni yağ bakımı demek
             const tarihler = araclar.filter(a => a.vid === v.id);
             return `
               <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2);">
@@ -6657,7 +6803,17 @@ async renderDashboard() {
                 başlangıç KM girin
               </div>
             `}
-
+              ${digerKm.length > 0 ? `
+                <div style="margin-bottom:8px;padding:8px;background:var(--surface);border-radius:6px;border:1px solid var(--border);">
+                  <div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:4px;text-transform:uppercase;">Diğer Bakımlar</div>
+                  ${digerKm.map(d => `
+                    <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;padding:3px 0;">
+                      <span>${d.tip}</span>
+                      <span style="color:${d.renk};font-weight:700;">${d.kalanKm > 0 ? `${d.kalanKm.toLocaleString('tr-TR')} km` : `${Math.abs(d.kalanKm).toLocaleString('tr-TR')} km geçti`}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              ` : ''}
                 ${tarihler.length > 0 ? tarihler.map(r => {
                   const pulse = (r.seviye === 'acil' || r.seviye === 'gecti')
                     ? 'animation:pulseRed 2s ease-in-out infinite;'
@@ -6681,6 +6837,7 @@ async renderDashboard() {
               </div>
             `;
           }).join('')}
+          
       </div>
       ` : ''}
 
@@ -7042,14 +7199,19 @@ async renderDashboard() {
               </div>
             </div>
 
-            <!-- Genel Toplam -->
-            <div class="fuel-grand-total">
-              <span><i class="fas fa-calculator"></i> Genel Toplam</span>
-              <strong id="fuelGrandTotal">0,00 ₺</strong>
-            </div>
+<div class="fuel-grand-total">
+  <span><i class="fas fa-calculator"></i> Genel Toplam</span>
+  <strong id="fuelGrandTotal">0,00 ₺</strong>
+</div>
 
-            <!-- Preview -->
-            <div id="fuelPreview" class="fuel-preview"></div>
+<!-- 🆕 DEPO DOLDU MU? -->
+<label style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--text2);padding:8px;background:var(--surface);border-radius:8px;border:1px solid var(--border);margin-bottom:10px;cursor:pointer;">
+  <input type="checkbox" id="fuelFullTank" checked style="width:16px;height:16px;">
+  <span><strong>Depo tam doldu</strong> — L/100km hesabı sadece dolu→dolu aralıklarda yapılır</span>
+</label>
+
+<!-- Preview -->
+<div id="fuelPreview" class="fuel-preview"></div>
           </div>
         </div>
 
@@ -7215,10 +7377,14 @@ async renderDashboard() {
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
               <div class="tx-amount ${i._tip==='gelir'?'pos':'neg'}">${i._tip==='gelir'?'+':'-'}${Calc.fmt(i.miktar)}</div>
-              <div class="tx-actions">
-                <button class="tx-action-btn edit" onclick="event.stopPropagation();App.editIslem(${i.id},'${i._tip}')"><i class="fas fa-pencil"></i></button>
-                <button class="tx-action-btn del"  onclick="event.stopPropagation();App.deleteIslem(${i.id},'${i._tip}')"><i class="fas fa-trash"></i></button>
-              </div>
+              ${i._arsivKey ? `
+                <span style="font-size:9px;color:var(--text3);font-style:italic;">🔒 Arşiv</span>
+              ` : `
+                <div class="tx-actions">
+                  <button class="tx-action-btn edit" onclick="event.stopPropagation();App.editIslem(${i.id},'${i._tip}')"><i class="fas fa-pencil"></i></button>
+                  <button class="tx-action-btn del"  onclick="event.stopPropagation();App.deleteIslem(${i.id},'${i._tip}')"><i class="fas fa-trash"></i></button>
+                </div>
+              `}
             </div>
           </div>`).join('');
       }
@@ -7287,9 +7453,9 @@ async renderDashboard() {
         tip: fuelTip,
         toplamTL: miktar,
         toplamLitre: 0,
-        tlPerKm: null
+        tlPerKm: null,
+        fullTank: document.getElementById('fuelFullTank')?.checked !== false
       };
-
       /* ✅ Her yakıt için KENDİ tipinden önceki KM */
       if (fuelTip === 'benzin' || fuelTip === 'her-ikisi') {
         const prevB = this._findPrevFuelRecordSameType(null, tarih, 'benzin');
@@ -8160,6 +8326,33 @@ async araOdeme(id) {
     else if (this.currentPage === 'borcalacak') await this.renderBorcList();
     else if (this.currentPage === 'arsiv')     await this.renderArsiv();
 },
+  async araOdemeEkle(borcId, miktar, tarih, aciklama) {
+  const item = state.borcalacaklar.find(b => b.id == borcId);
+  if (!item) return false;
+
+  const paid = (item.payments || []).reduce((s, p) => s + (Number(p.miktar) || 0), 0);
+  const kalan = Math.max(0, (Number(item.miktar) || 0) - paid);
+  const m = parseFloat(miktar);
+  if (!(m > 0)) throw new Error('Geçersiz miktar');
+  if (m > kalan + 0.001) throw new Error(`Kalan ${kalan} — daha fazla ödeme yapılamaz`);
+
+  if (!item.payments) item.payments = [];
+  const payment = { id: Date.now() + Math.random(), miktar: m, tarih, aciklama: aciklama || '' };
+  item.payments.push(payment);
+  if (paid + m >= Number(item.miktar) - 0.001) {
+    item.odendiMi = true;
+    item.odemeTarihi = new Date().toISOString();
+  }
+  try {
+    await saveBorclar();
+  } catch (e) {
+    // rollback
+    item.payments = item.payments.filter(p => p.id !== payment.id);
+    throw e;
+  }
+  // ... log + backup
+  return true;
+}
 
   async tamOdendi(id) {
     const r = await Swal.fire({ icon:'question', title:'Tamamen ödendi mi?', showCancelButton:true, confirmButtonText:'Evet', cancelButtonText:'İptal' });
@@ -8284,18 +8477,22 @@ async araOdeme(id) {
     }
   },
 
-  async geriAlTamamlananBorc(id) {
-    const b = state.borcalacaklar.find(x => x.id == id);
-    if (!b) return;
+async geriAlTamamlananBorc(id) {
+  const b = state.borcalacaklar.find(x => x.id == id);
+  if (!b) return;
 
-    b.odendiMi = false;
-    delete b.odemeTarihi;
+  b.odendiMi = false;
+  delete b.odemeTarihi;
+  // Ödemeleri SİLME — kullanıcı manuel olarak tek tek siler
+  // (Yoksa veri kaybı yaşanır)
 
-    // Eğer ödemeler toplamı borcu karşılıyorsa, son ödemeyi geri al
-    const totalPaid = (b.payments || []).reduce((s, p) => s + (Number(p.miktar) || 0), 0);
-    if (totalPaid >= b.miktar && b.payments && b.payments.length > 0) {
-      b.payments = b.payments.slice(0, -1);
-    }
+  await saveBorclar();
+  await addLog('borc_geri_alindi', b.kisiAdi);
+  await createAutoBackup();
+
+  showToast('↩️ Kayıt tekrar aktif olarak işaretlendi');
+  await this.renderArsiv();
+}
 
     await saveBorclar();
     await addLog('borc_geri_alindi', b.kisiAdi);
@@ -9127,12 +9324,9 @@ if (stats.count === 0) {
     const allGelirler = Calc._allGelirler().filter(g => g.tarih >= start && g.tarih <= end);
     const allGiderler = Calc._allGiderler().filter(g => g.tarih >= start && g.tarih <= end);
     const ayBazli = {};
-    [...allGelirler.map(x=>({...x,_tip:'gelir'})), ...allGiderler.map(x=>({...x,_tip:'gider'}))].forEach(tx => {
-      const key = SalaryMonth.keyOf(tx.tarih);
-      if (!ayBazli[key]) ayBazli[key] = { gelir: 0, gider: 0, islem: 0 };
-      if (tx._tip === 'gelir') ayBazli[key].gelir += Number(tx.miktar) || 0;
-      else ayBazli[key].gider += Number(tx.miktar) || 0;
-      ayBazli[key].islem++;
+    [...gelirlerFiltre.map(x=>({...x,_tip:'gelir'})), ...giderlerFiltre.map(x=>({...x,_tip:'gider'}))].forEach(tx => {
+      const key = SalaryMonth.keyOf(tx.tarih);  // ✅ maaş dönemi
+      ...
     });
     const ayList = Object.entries(ayBazli)
       .sort((a,b) => a[0].localeCompare(b[0]))
@@ -11051,9 +11245,10 @@ if (overdue) {
     const counts = {};
     timeFiltered.forEach(l => { counts[l.category || 'diger'] = (counts[l.category || 'diger'] || 0) + 1; });
 
-    const cats = [['tum', 'Tümü'], ['islem','İşlemler'], ['borc','Borç/Alacak'],
-                  ['kategori','Kategori'], ['limit','Limit'], ['arsiv','Arşiv'],
-                  ['veri','Veri'], ['sistem','Sistem']];
+const cats = [['tum', 'Tümü'], ['islem','İşlemler'], ['borc','Borç/Alacak'],
+              ['kategori','Kategori'], ['limit','Limit'], ['arsiv','Arşiv'],
+              ['arac','Araç'], ['gorev','Görev'],
+              ['veri','Veri'], ['sistem','Sistem']];
 
     container.innerHTML = cats.map(([k, v]) => {
       const cnt = k === 'tum' ? timeFiltered.length : (counts[k] || 0);
@@ -11596,63 +11791,109 @@ const value = swalResult.value;
 async openBakimYapModal(vehicleId) {
   const v = state.araclar.find(a => a.id === vehicleId);
   if (!v) return;
-  const currentKm = _getLastFuelKm();
-  if (currentKm === 0) {
-    Swal.fire({ icon: 'warning', title: 'KM Bilgisi Yok', text: 'Önce bir akaryakıt kaydı ekleyin — güncel KM oradan alınır.', confirmButtonText: 'Tamam' });
-    return;
-  }
+  const lastFuelKm = _getLastFuelKm();
   const aralik = Number(v.yagBakimAralikKm) || 10000;
+
+  // Bakım türü seçenekleri
+  const digerBakimList = ['Yağ Bakımı', 'Lastik', 'Balata', 'Akü', 'Periyodik'];
+  const mevcutDiger = v.digerBakimlar || {};
 
   const { value } = await Swal.fire({
     title: '🛠️ Bakım Yapıldı',
     html: `<div style="text-align:left;">
-      <div style="padding:12px;background:var(--accent-light);border-radius:10px;margin-bottom:12px;border:1px solid var(--accent);">
-        <div style="font-size:13px;font-weight:800;color:var(--accent);margin-bottom:6px;">
-          <i class="fas fa-car"></i> ${UI.escHtml(v.plaka)}
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;">
-          <span>Mevcut KM:</span>
-          <strong>${currentKm.toLocaleString('tr-TR')} km</strong>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:4px;">
-          <span>Yeni hedef:</span>
-          <strong>${(currentKm + aralik).toLocaleString('tr-TR')} km</strong>
-        </div>
-      </div>
+      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:5px;">Bakım Türü</label>
+      <select id="bkTip" class="swal2-select" style="margin-bottom:10px;width:100%;">
+        ${digerBakimList.map(t => `<option value="${t}">${t}</option>`).join('')}
+      </select>
 
-      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:5px;">Bakım Tarihi</label>
-      <input id="bkTarih" type="date" class="swal2-input" value="${dayjs().format('YYYY-MM-DD')}" style="margin:0 0 10px 0;width:100%;">
+      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:5px;">
+        Bakım KM'si
+        <span style="font-size:10px;color:#94a3b8;font-weight:400;">(son yakıt: ${lastFuelKm.toLocaleString('tr-TR')} km)</span>
+      </label>
+      <input id="bkKm" type="number" class="swal2-input"
+             value="${lastFuelKm > 0 ? lastFuelKm : ''}"
+             placeholder="Mevcut km" inputmode="numeric"
+             style="margin-bottom:10px;width:100%;">
 
-      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:5px;">Yapılan Yer / Servis</label>
-      <input id="bkYer" type="text" class="swal2-input" placeholder="örn. Toyota Yetkili Servis" style="margin:0 0 10px 0;width:100%;">
+      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:5px;">Bakım Aralığı (km)</label>
+      <input id="bkAralik" type="number" class="swal2-input"
+             value="${aralik}" inputmode="numeric"
+             style="margin-bottom:10px;width:100%;">
 
-      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:5px;">Değiştirilen Parçalar</label>
-      <textarea id="bkDegisiklikler" class="swal2-textarea" style="height:60px;margin-bottom:10px;width:100%;" placeholder="örn. Motor yağı, yağ filtresi, hava filtresi, polen filtresi"></textarea>
+      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:5px;">Tarih</label>
+      <input id="bkTarih" type="date" class="swal2-input"
+             value="${dayjs().format('YYYY-MM-DD')}" style="margin-bottom:10px;width:100%;">
+
+      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:5px;">Servis / Yer</label>
+      <input id="bkYer" type="text" class="swal2-input" placeholder="örn. Toyota Yetkili Servis"
+             style="margin-bottom:10px;width:100%;">
+
+      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:5px;">Değişen Parçalar</label>
+      <textarea id="bkDegisiklikler" class="swal2-textarea" style="height:60px;margin-bottom:10px;width:100%;"
+                placeholder="Motor yağı, filtre..."></textarea>
 
       <label style="font-size:12px;font-weight:600;display:block;margin-bottom:5px;">Maliyet (TL)</label>
-      <input id="bkMaliyet" type="number" step="0.01" min="0" class="swal2-input" placeholder="0,00" style="margin:0 0 10px 0;width:100%;">
-
-      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:5px;">Notlar (opsiyonel)</label>
-      <textarea id="bkNotlar" class="swal2-textarea" style="height:50px;width:100%;" placeholder="Kısa not..."></textarea>
+      <input id="bkMaliyet" type="number" step="0.01" min="0" class="swal2-input"
+             placeholder="0,00" style="margin-bottom:10px;width:100%;">
     </div>`,
     showCancelButton: true,
-    confirmButtonText: '✅ Kaydet ve Sıfırla',
+    confirmButtonText: '✅ Kaydet',
     cancelButtonText: 'İptal',
     width: Math.min(500, window.innerWidth - 24),
-    preConfirm: () => ({
-      tarih: document.getElementById('bkTarih').value,
-      yer: document.getElementById('bkYer').value.trim(),
-      degisiklikler: document.getElementById('bkDegisiklikler').value.trim(),
-      maliyet: document.getElementById('bkMaliyet').value,
-      notlar: document.getElementById('bkNotlar').value.trim()
-    })
+    preConfirm: () => {
+      const km = parseInt(document.getElementById('bkKm').value);
+      if (!km || km <= 0) { Swal.showValidationMessage('Geçerli KM girin'); return false; }
+      if (lastFuelKm > 0 && km < lastFuelKm) {
+        Swal.showValidationMessage(`KM son yakıt kaydından (${lastFuelKm.toLocaleString('tr-TR')} km) küçük olamaz`);
+        return false;
+      }
+      return {
+        tip: document.getElementById('bkTip').value,
+        km,
+        aralik: parseInt(document.getElementById('bkAralik').value) || aralik,
+        tarih: document.getElementById('bkTarih').value,
+        yer: document.getElementById('bkYer').value.trim(),
+        degisiklikler: document.getElementById('bkDegisiklikler').value.trim(),
+        maliyet: document.getElementById('bkMaliyet').value
+      };
+    }
   });
 
-  if (value) {
-    await Vehicle.bakimYap(vehicleId, value);
-    showToast('✅ Bakım kaydedildi, sayaç sıfırlandı!');
-    await this.renderDashboard();
+  if (!value) return;
+
+  if (value.tip === 'Yağ Bakımı') {
+    await Vehicle.bakimYap(vehicleId, {
+      tarih: value.tarih,
+      yer: value.yer,
+      degisiklikler: value.degisiklikler,
+      maliyet: value.maliyet,
+      km: value.km,
+      aralik: value.aralik
+    });
+  } else {
+    // Diğer bakım türleri
+    const v2 = state.araclar.find(a => a.id === vehicleId);
+    if (!v2) return;
+    if (!v2.digerBakimlar) v2.digerBakimlar = {};
+    v2.digerBakimlar[value.tip] = { sonKm: value.km, aralikKm: value.aralik };
+    if (!v2.bakimGecmisi) v2.bakimGecmisi = [];
+    v2.bakimGecmisi.push({
+      id: Date.now() + Math.random(),
+      tarih: value.tarih,
+      km: value.km,
+      tip: value.tip,
+      yer: value.yer,
+      degisiklikler: value.degisiklikler,
+      maliyet: parseFloat(value.maliyet) || 0,
+      sonrakiBakimKm: value.km + value.aralik,
+      createdAt: new Date().toISOString()
+    });
+    await saveAraclar();
+    await addLog('arac_bakim', `${v2.plaka} ${value.tip} — ${value.km.toLocaleString('tr-TR')} km`);
   }
+  showToast(`✅ ${value.tip} kaydedildi`);
+  await this.renderDashboard();
+}
 },
 
 /* 🆕 Bakım Geçmişi Görüntüle */
@@ -12095,6 +12336,17 @@ async showBakimGecmisi(vehicleId) {
       if (maasGun < 1 || maasGun > 28) {
         Swal.showValidationMessage('Maaş günü 1 ile 28 arasında olmalı');
         return false;
+      }
+      // ⚠️ Maaş günü değişimi geçmiş tüm dönem anahtarlarını kaydırır
+      const eskiGun = Number(state.ayarlar.maasGun) || 15;
+      if (maasGun !== eskiGun) {
+        const onay = window.confirm(
+          `Maaş günü ${eskiGun} → ${maasGun} olarak değişecek.\n\n` +
+          `Bu, tüm geçmiş kayıtların hangi maaş dönemine ait olduğunu değiştirir. ` +
+          `Arşivlenmemiş eski kayıtlar yanlış dönemde görünebilir.\n\n` +
+          `Devam etmek istiyor musunuz?`
+        );
+        if (!onay) { Swal.showValidationMessage('İptal edildi'); return false; }
       }
       return {
         varsayilanRaporAraligi: raEl?.value || 'ay',
@@ -14011,7 +14263,41 @@ async exportToJSON() {
       </div>
     `;
   },
+/* ═══════════════════════════════════════════════════════════════
+   saveFile — iOS/Android'de önce Web Share API, fallback <a download>
+   Blob verilir → kullanıcıya kaydetme seçenekleri sunar.
+   ═══════════════════════════════════════════════════════════════ */
+async function saveFile(blob, filename) {
+  // 1) Web Share API (iOS 15+, Android Chrome)
+  try {
+    if (navigator.canShare) {
+      const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: filename });
+        return { ok: true, method: 'share' };
+      }
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return { ok: false, cancelled: true };
+    // share başarısız → fallback dene
+  }
 
+  // 2) Fallback: <a download>
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    return { ok: true, method: 'download' };
+  } catch (e) {
+    return { ok: false, error: e };
+  }
+}
   async _toggleTaskComplete(id) {
     const g = state.gorevler.find(x => x.id == id);
     if (!g) return;
@@ -14191,7 +14477,7 @@ async exportToJSON() {
         }
 
         await saveGorevler();
-        await addLog('gorev_arsivle',
+        await addLog('gorev_import',
           `JSON ${isReplace ? 'değiştirdi' : 'birleştirdi'}: ${eklenenAdet} görev`,
           { kaynak: 'gorev_json_import' });
 
