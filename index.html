@@ -10221,10 +10221,10 @@ async openAboutModal() {
     customClass: { popup: 'about-popup', container: 'about-container' }
   });
 },
-async openSettingsModal() {
+  async openSettingsModal() {
   const { value } = await Swal.fire({
     title: '',
-html: `<div class="settings-body">
+    html: `<div class="settings-body">
 
       <!-- 🎯 Oto-focus tuzak — Swal'ın ilk focusable öğeyi (Rapor Aralığı <select>)
            focus'lamasını engeller; böylece iOS/Android'de picker açık gelmez -->
@@ -10349,16 +10349,6 @@ html: `<div class="settings-body">
         <div class="settings-group-title">Uygulama</div>
         <div class="settings-group-body">
           <button type="button" class="settings-row-button" onclick="App.promptInstall()">
-          <button type="button" class="settings-row-button" onclick="App.openAboutModal()">
-  <div class="settings-row-icon settings-icon-success">
-    <i class="fas fa-circle-info"></i>
-  </div>
-  <div class="settings-row-body">
-    <div class="settings-row-label">Hakkında</div>
-    <div class="settings-row-sub">Uygulama, sürüm ve geliştirici</div>
-  </div>
-  <i class="fas fa-chevron-right settings-row-chevron"></i>
-</button>
             <div class="settings-row-icon settings-icon-primary">
               <i class="fas fa-mobile-alt"></i>
             </div>
@@ -10369,15 +10359,15 @@ html: `<div class="settings-body">
             <i class="fas fa-chevron-right settings-row-chevron"></i>
           </button>
           <button type="button" class="settings-row-button" onclick="App.openAboutModal()">
-  <div class="settings-row-icon settings-icon-success">
-    <i class="fas fa-circle-info"></i>
-  </div>
-  <div class="settings-row-body">
-    <div class="settings-row-label">Hakkında</div>
-    <div class="settings-row-sub">Uygulama, sürüm ve geliştirici</div>
-  </div>
-  <i class="fas fa-chevron-right settings-row-chevron"></i>
-</button>
+            <div class="settings-row-icon settings-icon-success">
+              <i class="fas fa-circle-info"></i>
+            </div>
+            <div class="settings-row-body">
+              <div class="settings-row-label">Hakkında</div>
+              <div class="settings-row-sub">Uygulama, sürüm ve geliştirici</div>
+            </div>
+            <i class="fas fa-chevron-right settings-row-chevron"></i>
+          </button>
         </div>
       </div>
 
@@ -10440,6 +10430,7 @@ html: `<div class="settings-body">
     await this.loadPage(this.currentPage);
   }
 },
+
 /* 🆕 Ayarlar modalındaki API butonu için — gold-only modalındaki
    _refreshGoldInModal'ı DEĞİL, settings'e özel hafif bir versiyon kullanıyoruz. */
 async _refreshGoldInSettings() {
@@ -10465,11 +10456,12 @@ async _refreshGoldInSettings() {
     if (btn) { btn.disabled = false; btn.innerHTML = orig; }
   }
 },
-  /* ℹ️ HAKKINDA MODALI */
+
+/* ℹ️ HAKKINDA MODALI */
 async openAboutModal() {
   await Swal.fire({
     title: '',
-    html: `<div class="about-body">
+    html: `
       <!-- HERO -->
       <div class="about-hero">
         <div class="about-hero-logo"><i class="fas fa-wallet"></i></div>
@@ -10557,7 +10549,7 @@ async openAboutModal() {
       <div class="about-copy">
         © 2026 <strong>Ahmet Düzgün</strong> — Tüm Hakları Saklıdır<span class="about-copy-heart">♥</span>
       </div>
-    </div>`,
+    `,
     width: undefined,
     showCloseButton: true,
     showConfirmButton: false,
