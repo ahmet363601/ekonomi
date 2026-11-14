@@ -5418,20 +5418,6 @@ const CRUD = {
              (created && created >= range.start && created <= range.end);
     });
 
-    const kategoriDagilim = aGiderler.reduce((m, g) => {
-      const k = g.kategori || 'Diğer';
-      m[k] = (m[k] || 0) + (Number(g.miktar) || 0);
-      return m;
-    }, {});
-
-    const birikimKategori = aGiderler.filter(g =>
-      /birikim|yatırım|tasarruf/i.test(g.kategori || '')
-    ).reduce((s, g) => s + (Number(g.miktar) || 0), 0);
-
-    const borcOdemeKategori = aGiderler.filter(g =>
-      /kredi|borç/i.test(g.kategori || '')
-    ).reduce((s, g) => s + (Number(g.miktar) || 0), 0);
-    /* 🆕 Birleştirme — ID bazlı dedupe */
     /* 🆕 Birleştirme — ID bazlı dedupe */
     const _birlestir = (a, b) => {
       const seen = new Set((a || []).map(x => x.id));
@@ -5510,18 +5496,6 @@ const CRUD = {
 
     /* 🆕 Arşiv PDF'i üret ve arşive kaydet — GLOBAL buildArchivePDF'i çağır */
     /* 🆕 PDF arka planda üret — kullanıcı beklemiyor */
-    setTimeout(async () => {
-      try {
-        const pdfDataUrl = await buildArchivePDF(monthKey);
-        if (pdfDataUrl && state.archives[monthKey]) {
-          state.archives[monthKey].pdfDataUrl = pdfDataUrl;
-          state.archives[monthKey].pdfGeneratedAt = new Date().toISOString();
-          await saveArchives();
-        }
-      } catch (errPdf) {
-        console.warn('[manuel_archive] PDF arka plan hatası:', errPdf);
-      }
-    }, 100);
 
     const arsivLogObj = {
       id: Date.now() + Math.random(),
@@ -5572,7 +5546,7 @@ const CRUD = {
               <div style="font-family:'Inter',sans-serif;font-size:14px;font-weight:800;">${mergedGelirler.length + mergedGiderler.length}</div>
             </div>
           </div>
-          <p style="font-size:10.5px;color:var(--text3);margin-top:10px;font-style:italic;">📄 PDF raporu arka planda hazırlanıyor…</p>
+        <p style="font-size:10.5px;color:var(--text3);margin-top:10px;font-style:italic;">💡 PDF raporunu arşiv sayfasından manuel oluşturabilirsiniz.</p>
         </div>`,
         confirmButtonText: 'Tamam',
         width: Math.min(440, window.innerWidth - 24)
@@ -10096,7 +10070,20 @@ if (overdue) {
           }).join('')}
         </div>
       ` : ''}
-
+      <!-- 🧹 PDF TEMİZLİK UYARISI -->
+      ${Object.values(state.archives).some(a => a.pdfDataUrl) ? `
+        <div class="card" style="padding:12px 14px;border-left:4px solid var(--warning);display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <div style="font-size:11px;color:var(--text2);display:flex;align-items:center;gap:6px;min-width:0;">
+            <i class="fas fa-file-pdf" style="color:var(--warning);flex-shrink:0;"></i>
+            <span style="overflow:hidden;text-overflow:ellipsis;">
+              <strong>${Object.values(state.archives).filter(a => a.pdfDataUrl).length}</strong> arşivde eski PDF dosyası var
+            </span>
+          </div>
+          <button onclick="App.cleanupAllArchivePDFs()" class="btn btn-sm btn-ghost" style="font-size:11px;flex-shrink:0;">
+            <i class="fas fa-broom"></i> Temizle
+          </button>
+        </div>
+      ` : ''}
       <!-- ═══ İSTATİSTİK ═══ -->
       <div class="stat-grid">
         <div class="stat-card"><div class="card-label">Arşivlenen Dönem</div><div class="stat-amount blue">${keys.length}</div></div>
@@ -10180,6 +10167,23 @@ if (overdue) {
                       const logCnt = Array.isArray(a.loglar) ? a.loglar.length : 0;
                       const cnt = aG.length + aGd.length;
                       return `<div class="archive-card" style="position:relative;" onclick="App.showArchiveDetail('${k}')">
+                        ${a.pdfDataUrl ? `
+                          <button onclick="event.stopPropagation();App.downloadArchivePDF('${k}')"
+                                  title="PDF İndir"
+                                  style="position:absolute;top:6px;right:34px;background:var(--danger-light);color:var(--danger);
+                                         border:1px solid var(--danger);width:22px;height:22px;border-radius:6px;cursor:pointer;
+                                         font-size:10px;display:flex;align-items:center;justify-content:center;padding:0;z-index:2;">
+                            <i class="fas fa-file-pdf"></i>
+                          </button>
+                        ` : `
+                          <button onclick="event.stopPropagation();App.generateArchivePDFManually('${k}')"
+                                  title="PDF Oluştur"
+                                  style="position:absolute;top:6px;right:34px;background:var(--info-light);color:var(--info);
+                                         border:1px solid var(--info);width:22px;height:22px;border-radius:6px;cursor:pointer;
+                                         font-size:10px;display:flex;align-items:center;justify-content:center;padding:0;z-index:2;">
+                            <i class="fas fa-file-pdf"></i>
+                          </button>
+                        `}
                         <button onclick="event.stopPropagation();App.deleteArchive('${k}')"
                                 title="Arşivi Sil"
                                 style="position:absolute;top:6px;right:6px;background:var(--danger-light);color:var(--danger);
@@ -10514,7 +10518,6 @@ if (overdue) {
   },
 
   /* Arşiv detay modalı */
-
   /* Arşiv detay modalı */
   async showArchiveDetail(key) {
     const a = state.archives[key];
@@ -10548,6 +10551,26 @@ if (overdue) {
     ].sort((x, y) => (y.tarih || '') > (x.tarih || '') ? 1 : -1);
 
     const range = a.salaryMonthRange || SalaryMonth.range(key);
+
+    /* 🆕 PDF Butonu — durumuna göre etiket ve renk */
+    const pdfButtonHTML = a.pdfDataUrl
+      ? `<button onclick="App.downloadArchivePDF('${key}'); Swal.close();"
+              style="width:100%;padding:12px;background:var(--danger);color:#fff;border:none;border-radius:10px;
+                     cursor:pointer;font-size:13px;font-weight:800;display:flex;align-items:center;
+                     justify-content:center;gap:8px;transition:transform .15s ease;box-shadow:0 2px 8px rgba(220,38,38,.25);"
+              onmouseover="this.style.transform='scale(1.02)'"
+              onmouseout="this.style.transform='scale(1)'">
+          <i class="fas fa-file-pdf"></i> PDF Raporunu İndir
+          ${a.pdfGeneratedAt ? `<span style="font-size:10px;opacity:.8;font-weight:500;">· ${dayjs(a.pdfGeneratedAt).format('DD MMM HH:mm')}</span>` : ''}
+        </button>`
+      : `<button onclick="App.generateArchivePDFManually('${key}'); Swal.close();"
+              style="width:100%;padding:12px;background:var(--primary);color:#fff;border:none;border-radius:10px;
+                     cursor:pointer;font-size:13px;font-weight:800;display:flex;align-items:center;
+                     justify-content:center;gap:8px;transition:transform .15s ease;box-shadow:0 2px 8px rgba(15,42,92,.25);"
+              onmouseover="this.style.transform='scale(1.02)'"
+              onmouseout="this.style.transform='scale(1)'">
+          <i class="fas fa-file-pdf"></i> PDF Raporu Oluştur
+        </button>`;
 
     Swal.fire({
       title: SalaryMonth.label(key) + ' — Detaylı Analiz',
@@ -10609,6 +10632,12 @@ if (overdue) {
           <div class="archive-stat-label">Arşivlenme Tarihi</div>
           <div style="font-size:12px;margin-top:3px;">${a.archivedAt ? dayjs(a.archivedAt).format('DD MMMM YYYY HH:mm') : '-'}</div>
         </div>
+
+        <!-- 🆕 PDF RAPORU BUTONU -->
+        <div style="margin-bottom:14px;">
+          ${pdfButtonHTML}
+        </div>
+
         <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text);">İşlem Listesi (${allTx.length})</div>
         <div style="max-height:220px;overflow-y:auto;">
           ${allTx.slice(0, 30).map(tx => UI.txItem(tx)).join('')}
@@ -12564,6 +12593,95 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
       Swal.fire({ icon:'error', title:'Dosya Okunamadı', text:'Dosya bozuk veya okunamıyor.' });
     };
     reader.readAsText(file);
+  },
+    /* 🆕 Manuel PDF oluşturma — sadece kullanıcı istediğinde */
+  async generateArchivePDFManually(key) {
+    const archive = state.archives[key];
+    if (!archive) {
+      showToast('⚠️ Arşiv bulunamadı');
+      return;
+    }
+
+    /* Zaten varsa direkt indir */
+    if (archive.pdfDataUrl) {
+      return this.downloadArchivePDF(key);
+    }
+
+    Swal.fire({
+      title: '📄 PDF Oluşturuluyor...',
+      html: `<p style="font-size:13px;">${SalaryMonth.shortLabel(key)} raporu hazırlanıyor</p>
+             <p style="font-size:11px;color:var(--text3);margin-top:6px;">Bu işlem 3-8 saniye sürebilir</p>`,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    try {
+      const pdfDataUrl = await buildArchivePDF(key);
+      if (!pdfDataUrl) throw new Error('PDF üretilemedi — internet bağlantınızı kontrol edin');
+
+      archive.pdfDataUrl = pdfDataUrl;
+      archive.pdfGeneratedAt = new Date().toISOString();
+      await saveArchives();
+
+      Swal.close();
+      showToast('✅ PDF oluşturuldu, indiriliyor...');
+
+      /* Otomatik indir */
+      this.downloadArchivePDF(key);
+
+      /* UI'ı yenile */
+      await this.renderArsiv();
+
+    } catch (e) {
+      console.error('[generateArchivePDF]', e);
+      Swal.close();
+      Swal.fire({
+        icon: 'error',
+        title: 'PDF Oluşturulamadı',
+        text: e.message || 'Bilinmeyen hata. Tekrar deneyin.',
+        confirmButtonText: 'Tamam'
+      });
+    }
+  },
+
+  /* 🆕 Mevcut arşiv PDF'lerini temizle — hafıza kazanımı */
+  async cleanupAllArchivePDFs() {
+    const withPdf = Object.entries(state.archives).filter(([, a]) => a.pdfDataUrl);
+    if (!withPdf.length) {
+      showToast('ℹ️ Silinecek PDF yok');
+      return;
+    }
+
+    const totalChars = withPdf.reduce((s, [, a]) => s + (a.pdfDataUrl?.length || 0), 0);
+    const sizeMB = (totalChars / (1024 * 1024)).toFixed(2);
+
+    const r = await Swal.fire({
+      icon: 'warning',
+      title: 'PDF Temizliği',
+      html: `<div style="text-align:left;">
+        <p><strong>${withPdf.length}</strong> arşivde PDF dosyası var.</p>
+        <p style="font-size:12px;color:var(--text3);margin-top:8px;">Tahmini boyut: <strong>~${sizeMB} MB</strong></p>
+        <div style="margin-top:12px;padding:10px;background:var(--surface2);border-radius:8px;font-size:11px;color:var(--text3);">
+          ℹ️ Arşiv <strong>verileri korunur</strong>. Sadece PDF dosyaları silinir. İstediğinizde tekrar oluşturabilirsiniz.
+        </div>
+      </div>`,
+      showCancelButton: true,
+      confirmButtonText: 'PDF\'leri Sil',
+      cancelButtonText: 'İptal',
+      confirmButtonColor: '#DC2626'
+    });
+
+    if (!r.isConfirmed) return;
+
+    withPdf.forEach(([, a]) => {
+      delete a.pdfDataUrl;
+      delete a.pdfGeneratedAt;
+    });
+
+    await saveArchives();
+    showToast(`🗑️ ${withPdf.length} PDF silindi (~${sizeMB} MB kazanıldı)`);
+    await this.renderArsiv();
   },
   async downloadArchivePDF(key) {
     const archive = state.archives[key];
