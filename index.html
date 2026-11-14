@@ -3334,8 +3334,6 @@ const CRUD = {
 
     await createAutoBackup();
 
-    Swal.fire({
-      icon: 'success',
     // Sadece tek arşivlemede success göster (batch'te `_batchMode` ile susturulur)
     if (!this._batchMode) {
       Swal.fire({
@@ -8916,7 +8914,6 @@ openKategoriModal() {
               <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
                 <span>Araçlar:</span><strong>${newAraclar.length}</strong>
               </div>
-              </div>
             </div>
             <p style="font-size:12px;color:#DC2626;font-weight:600;">⚠️ Mevcut verileriniz TAMAMEN DEĞİŞTİRİLECEK!</p>
             <p style="font-size:11px;color:#94a3b8;margin-top:6px;">Devam etmeden önce mevcut verilerinizin JSON yedeğini almanız önerilir.</p>
@@ -9304,6 +9301,7 @@ async function autoArchiveCheck() {
       didOpen: () => Swal.showLoading()
     });
 
+    CRUD._batchMode = true;   // ← EKLE
     let basarili = 0;
     let basarisiz = 0;
     for (const k of pending) {
@@ -9316,6 +9314,7 @@ async function autoArchiveCheck() {
         basarisiz++;
       }
     }
+    CRUD._batchMode = false;  // ← EKLE
 
     Swal.close();
 
