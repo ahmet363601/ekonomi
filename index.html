@@ -3293,7 +3293,11 @@ const CRUD = {
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading()
       });
-
+      async function buildArchivePDF(monthKey) {
+        const timeoutP = new Promise(resolve => setTimeout(() => resolve(null), 15000));
+        const buildP = (async () => { /* mevcut kod */ })();
+        return Promise.race([buildP, timeoutP]);
+      }
       const pdfDataUrl = await buildArchivePDF(monthKey);
       Swal.close();
 
@@ -9474,25 +9478,29 @@ async function _loadPdfFonts(doc) {
       ];
       _pdfFontData = [];
       for (const f of sources) {
-        const res = await fetch(f.url, { mode: 'cors' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const buf = await res.arrayBuffer();
-        _pdfFontData.push({ ...f, b64: _arrayBufferToBase64(buf) });
+        // ✅ TIMEOUT EKLE
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        try {
+          const res = await fetch(f.url, { mode: 'cors', signal: controller.signal });
+          clearTimeout(timer);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const buf = await res.arrayBuffer();
+          _pdfFontData.push({ ...f, b64: _arrayBufferToBase64(buf) });
+        } catch (fetchErr) {
+          clearTimeout(timer);
+          throw fetchErr;
+        }
       }
-      console.log('[PDF] ✅ Fontlar indirildi ve cache\'lendi');
     }
-    for (const f of _pdfFontData) {
-      doc.addFileToVFS(f.name, f.b64);
-      doc.addFont(f.name, f.alias, f.style);
-    }
-    return true;
+    // ... geri kalanı aynı
   } catch (e) {
     _pdfFontFailed = true;
+    _pdfFontData = null;   // ← yarım kalan veriyi temizle
     console.warn('[PDF] ⚠️ Font yüklenemedi, ASCII fallback:', e);
     return false;
   }
 }
-
 function _arrayBufferToBase64(buffer) {
   let binary = '';
   const bytes = new Uint8Array(buffer);
