@@ -2637,9 +2637,9 @@ aylikTrendBetween(startDate, endDate, maxMonths = 12) {
                           .reduce((s, g) => s + (Number(g.miktar) || 0), 0)
     };
   });
-},
+},                           // 👈 VİRGÜL EKLENDİ
 
-  kategoriTrendBetween(startDate, endDate, maxMonths = 12, topN = 6) {
+kategoriTrendBetween(startDate, endDate, maxMonths = 12, topN = 6) {
     const tumGiderler = this._allGiderler();
     const startKey = SalaryMonth.keyOf(startDate);
     const endKey   = SalaryMonth.keyOf(endDate);
