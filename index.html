@@ -5509,32 +5509,19 @@ const CRUD = {
     }
 
     /* 🆕 Arşiv PDF'i üret ve arşive kaydet — GLOBAL buildArchivePDF'i çağır */
-    try {
-      Swal.fire({
-        title: '📄 Arşiv PDF oluşturuluyor...',
-        html: 'Bu birkaç saniye sürebilir',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
-      });
-
-      // ⬇️ TEK DEĞİŞİKLİK — nested fonksiyon SİLİNDİ, global olan Promise.race ile çağrılıyor
-      const timeoutP = new Promise(resolve => setTimeout(() => resolve(null), 15000));
-      const pdfDataUrl = await Promise.race([
-        buildArchivePDF(monthKey),
-        timeoutP
-      ]);
-
-      Swal.close();
-
-      if (pdfDataUrl) {
-        state.archives[monthKey].pdfDataUrl = pdfDataUrl;
-        state.archives[monthKey].pdfGeneratedAt = new Date().toISOString();
-        await saveArchives();
+    /* 🆕 PDF arka planda üret — kullanıcı beklemiyor */
+    setTimeout(async () => {
+      try {
+        const pdfDataUrl = await buildArchivePDF(monthKey);
+        if (pdfDataUrl && state.archives[monthKey]) {
+          state.archives[monthKey].pdfDataUrl = pdfDataUrl;
+          state.archives[monthKey].pdfGeneratedAt = new Date().toISOString();
+          await saveArchives();
+        }
+      } catch (errPdf) {
+        console.warn('[manuel_archive] PDF arka plan hatası:', errPdf);
       }
-    } catch (errPdf) {
-      Swal.close();
-      console.warn('[manuel_archiv] PDF üretim hatası (devam ediliyor):', errPdf);
-    }
+    }, 100);
 
     const arsivLogObj = {
       id: Date.now() + Math.random(),
@@ -5561,12 +5548,34 @@ const CRUD = {
     await createAutoBackup();
 
     if (!this._batchMode) {
+      const netDeger = totalGelir - totalGider;
       Swal.fire({
         icon: 'success',
         title: '✅ Arşivlendi',
-        html: `<p><strong>${SalaryMonth.shortLabel(monthKey)}</strong> · ${aGelir.length} gelir, ${aGider.length} gider arşive taşındı.</p>`,
-        timer: 1800,
-        showConfirmButton: false
+        html: `<div style="text-align:left;">
+          <p style="margin-bottom:10px;"><strong>${SalaryMonth.shortLabel(monthKey)}</strong> arşive taşındı.</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px;background:var(--surface2);border-radius:10px;">
+            <div>
+              <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;">Gelir</div>
+              <div style="font-family:'Inter',sans-serif;font-size:14px;font-weight:800;color:var(--accent);">${Calc.fmt(totalGelir)}</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;">Gider</div>
+              <div style="font-family:'Inter',sans-serif;font-size:14px;font-weight:800;color:var(--danger);">${Calc.fmt(totalGider)}</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;">Net</div>
+              <div style="font-family:'Inter',sans-serif;font-size:14px;font-weight:800;color:${netDeger >= 0 ? 'var(--accent)' : 'var(--danger)'};">${Calc.fmt(netDeger)}</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;">İşlem</div>
+              <div style="font-family:'Inter',sans-serif;font-size:14px;font-weight:800;">${mergedGelirler.length + mergedGiderler.length}</div>
+            </div>
+          </div>
+          <p style="font-size:10.5px;color:var(--text3);margin-top:10px;font-style:italic;">📄 PDF raporu arka planda hazırlanıyor…</p>
+        </div>`,
+        confirmButtonText: 'Tamam',
+        width: Math.min(440, window.innerWidth - 24)
       });
     }
     return true;
@@ -8938,26 +8947,7 @@ async araOdeme(id) {
       <div id="raporStats"></div>
       <div id="raporDetaylar"></div>
 
-      <div class="card">
-        <div class="section-header">
-          <span class="section-title">Aylık Gelir/Gider Trendi</span>
-          <button onclick="App.downloadChart('raporLineChart', 'Aylik_Trend')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;" title="PNG İndir">
-            <i class="fas fa-download"></i>
-          </button>
-        </div>
-        <div class="chart-wrap"><canvas id="raporLineChart"></canvas></div>
-      </div>
-
-      <div class="card">
-        <div class="section-header">
-          <span class="section-title">Kategori Yarışı</span>
-          <button onclick="App.downloadChart('raporKategoriTrendChart', 'Kategori_Yarisi')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;" title="PNG İndir">
-            <i class="fas fa-download"></i>
-          </button>
-        </div>
-        <div class="chart-wrap" style="height:240px;"><canvas id="raporKategoriTrendChart"></canvas></div>
-      </div>
-
+  
       <div class="card">
         <div class="section-header">
           <span class="section-title" style="display:flex;align-items:center;gap:8px;">
@@ -9272,14 +9262,6 @@ async araOdeme(id) {
       ` : ''}
     `;
 
-    // ─── GRAFİKLER ───
-requestAnimationFrame(() => {
-  /* ✅ MİNİMUM 6 AY göster — az veri olsa da trend görünsün */
-  const monthCount = Math.max(6, Math.min(12, dayjs(end).diff(dayjs(start), 'month') + 1));
-  Charts.line('raporLineChart', Calc.aylikTrendBetween(start, end, monthCount));
-  const kt = Calc.kategoriTrendBetween(start, end, monthCount, 6);
-  Charts.kategoriTrend('raporKategoriTrendChart', kt.data, kt.kategoriler);
-});
 
     this._fillKarsilastirmaSelects();
     this.renderFuelAnalysis();
@@ -9919,22 +9901,83 @@ requestAnimationFrame(() => {
     const curGider = state.giderler.filter(g => g.tarih >= currentRange.start && g.tarih <= currentRange.end).reduce((s, g) => s + (Number(g.miktar) || 0), 0);
     const curNet = curGelir - curGider;
 
-    const countdownColor = overdue ? 'var(--danger)' : (daysLeft <= 3 ? 'var(--warning)' : 'var(--primary)');
-    const countdownBg = overdue ? 'var(--danger-light)' : (daysLeft <= 3 ? 'var(--warning-light)' : 'var(--primary-light)');
-    const countdownIcon = overdue ? 'fa-exclamation-triangle' : 'fa-hourglass-half';
-    const countdownText = overdue
-      ? `Arşiv gecikmiş! ${SalaryMonth.shortLabel(prevKey)} bekliyor`
-      : (daysLeft === 0 ? 'Bugün arşiv günü!' : `${daysLeft} gün sonra arşiv`);
+/* Tek durum nesnesi — her yerde bu kullanılacak, çelişki yok */
+let durum;
+if (overdue) {
+  durum = { icon: 'fa-exclamation-triangle', color: 'var(--danger)', bg: 'var(--danger-light)',
+            badge: 'danger', baslik: 'Arşiv Gecikmiş',
+            alt: `${SalaryMonth.shortLabel(prevKey)} arşivlenmeyi bekliyor` };
+} else if (inWindow) {
+  durum = { icon: 'fa-clock', color: 'var(--accent)', bg: 'var(--accent-light)',
+            badge: 'success', baslik: 'Arşiv Zamanı',
+            alt: `Pencere: ${winInfo.start} → ${winInfo.end}` };
+} else if (daysLeft === 0) {
+  durum = { icon: 'fa-check-circle', color: 'var(--accent)', bg: 'var(--accent-light)',
+            badge: 'success', baslik: 'Bugün Arşiv Günü',
+            alt: `Sonraki arşiv: ${dayjs(nextDate).format('DD MMMM YYYY')}` };
+} else if (daysLeft <= 3) {
+  durum = { icon: 'fa-hourglass-half', color: 'var(--warning)', bg: 'var(--warning-light)',
+            badge: 'amber', baslik: 'Arşiv Yaklaşıyor',
+            alt: `${daysLeft} gün sonra — ${dayjs(nextDate).format('DD MMM')}` };
+} else {
+  durum = { icon: 'fa-hourglass-half', color: 'var(--primary)', bg: 'var(--primary-light)',
+            badge: 'blue', baslik: 'Aktif Dönem',
+            alt: `${daysLeft} gün sonra — ${dayjs(nextDate).format('DD MMM')}` };
+}
     document.getElementById('view').innerHTML = `<div class="page-in">
 
       ${kumulatifHTML}
-      <!-- ═══ AKTİF DÖNEM + SAYAÇ ═══ -->
-      <div class="card" style="background:linear-gradient(135deg, #EFF6FF, #FFFFFF);border-left:4px solid ${countdownColor};">
-        ${inWindow ? `
-          <div style="padding:8px 12px;background:var(--accent-light);border:1px solid var(--accent);border-radius:8px;margin-bottom:10px;font-size:11.5px;color:var(--accent);font-weight:700;display:flex;align-items:center;gap:6px;">
-            <i class="fas fa-clock"></i>
-            🎯 Arşiv penceresi açık! (${winInfo.start} → ${winInfo.end})
+      <!-- ═══ AKTİF DÖNEM ═══ -->
+      <div class="card">
+        <div class="section-header" style="margin-bottom:10px;">
+          <span class="section-title" style="display:flex;align-items:center;gap:8px;">
+            <i class="fas fa-calendar-check" style="color:var(--primary);"></i>
+            Aktif Maaş Dönemi
+          </span>
+          <span class="badge badge-${durum.badge}">${durum.baslik}</span>
+        </div>
+
+        <div style="font-family:'Plus Jakarta Sans';font-size:18px;font-weight:900;color:var(--text);margin-bottom:2px;">
+          ${SalaryMonth.shortLabel(currentKey)}
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:14px;">
+          ${currentRange.start} → ${currentRange.end}
+        </div>
+
+        <!-- TEK statü satırı -->
+        <div style="padding:10px 12px;background:${durum.bg};border-radius:10px;margin-bottom:12px;display:flex;align-items:center;gap:10px;">
+          <i class="fas ${durum.icon}" style="color:${durum.color};font-size:16px;flex-shrink:0;"></i>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:800;color:${durum.color};">${durum.baslik}</div>
+            <div style="font-size:10.5px;color:var(--text3);margin-top:1px;">${durum.alt}</div>
           </div>
+        </div>
+
+        <!-- Progress -->
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:5px;">
+          <span>Dönem İlerlemesi</span>
+          <span style="font-weight:700;color:${durum.color};">%${pct}</span>
+        </div>
+        <div class="progress-track" style="margin:0 0 14px 0;">
+          <div class="progress-bar" style="width:${pct}%;background:${durum.color};"></div>
+        </div>
+
+        <!-- Gelir / Gider / Net -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+          <div style="text-align:center;padding:10px 6px;background:var(--accent-light);border-radius:8px;">
+            <div style="font-size:9px;color:var(--accent);text-transform:uppercase;font-weight:700;margin-bottom:3px;letter-spacing:.3px;">Gelir</div>
+            <div style="font-family:'Inter',sans-serif;font-size:12px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;">${Calc.fmt(curGelir)}</div>
+          </div>
+          <div style="text-align:center;padding:10px 6px;background:var(--danger-light);border-radius:8px;">
+            <div style="font-size:9px;color:var(--danger);text-transform:uppercase;font-weight:700;margin-bottom:3px;letter-spacing:.3px;">Gider</div>
+            <div style="font-family:'Inter',sans-serif;font-size:12px;font-weight:800;color:var(--danger);font-variant-numeric:tabular-nums;">${Calc.fmt(curGider)}</div>
+          </div>
+          <div style="text-align:center;padding:10px 6px;background:var(--surface2);border-radius:8px;">
+            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:3px;letter-spacing:.3px;">Net</div>
+            <div style="font-family:'Inter',sans-serif;font-size:12px;font-weight:800;color:${curNet>=0?'var(--accent)':'var(--danger)'};font-variant-numeric:tabular-nums;">${Calc.fmt(curNet)}</div>
+          </div>
+        </div>
+      </div>
         ` : `
           <div style="padding:8px 12px;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;margin-bottom:10px;font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px;">
             <i class="fas fa-info-circle"></i>
@@ -9989,17 +10032,7 @@ requestAnimationFrame(() => {
         </div>
       </div>
 
-      <!-- ═══ ARŞİV BUTONU ═══ -->
-      ${(() => {
-        /* 1. Önceki dönem arşivlenmemişse → birincil buton */
-        if (!prevArchived && prevHasData) {
-          return `<button class="btn ${overdue ? 'btn-danger' : 'btn-primary'} btn-full" onclick="App.manualArchive()" style="margin-bottom:10px;">
-            <i class="fas fa-archive"></i>
-            ${overdue
-              ? `Gecikmiş Arşiv: ${SalaryMonth.shortLabel(prevKey)}`
-              : `${SalaryMonth.shortLabel(prevKey)} Dönemini Arşivle`}
-          </button>`;
-        }
+  async _manualArchiveInternal(targetKey) {
 
         /* 2. Aktif dönem son 5 gün içindeyse → belirgin buton */
         if (daysLeft <= 5 && daysLeft > 0 && (curGelir > 0 || curGider > 0)) {
@@ -10282,67 +10315,96 @@ requestAnimationFrame(() => {
   },
 
   async _manualArchiveInternal(targetKey) {
-    if (!targetKey) {
-      const prevKey = SalaryMonth.previousKey();
-      const curKey = SalaryMonth.currentKey();
-      const prevArchived = !!state.archives[prevKey];
-      const prevHasData = SalaryMonth.hasDataInRange(SalaryMonth.range(prevKey));
-      const curHasData = SalaryMonth.hasDataInRange(SalaryMonth.range(curKey));
+    try {
+      if (!targetKey) {
+        const prevKey = SalaryMonth.previousKey();
+        const curKey = SalaryMonth.currentKey();
+        const prevArchived = !!state.archives[prevKey];
+        const prevHasData = SalaryMonth.hasDataInRange(SalaryMonth.range(prevKey));
+        const curHasData = SalaryMonth.hasDataInRange(SalaryMonth.range(curKey));
 
-      if (!prevArchived && prevHasData) targetKey = prevKey;
-      else if (prevArchived && curHasData) targetKey = curKey;
-      else {
-        Swal.fire({ icon: 'info', title: 'Bilgi', text: 'Arşivlenecek dönem bulunamadı.' });
-        return;
+        if (!prevArchived && prevHasData) targetKey = prevKey;
+        else if (prevArchived && curHasData) targetKey = curKey;
+        else {
+          Swal.fire({ icon: 'info', title: 'Bilgi', text: 'Arşivlenecek dönem bulunamadı.' });
+          return false;
+        }
       }
-    }
 
-    const range = SalaryMonth.range(targetKey);
-    const isEarly = targetKey === SalaryMonth.currentKey();
+      const range = SalaryMonth.range(targetKey);
+      const isEarly = targetKey === SalaryMonth.currentKey();
 
-    const { isConfirmed } = await Swal.fire({
-      title: 'Dönemi Arşivle',
-      html: `<div style="text-align:left;">
-        <p>Aşağıdaki maaş dönemi arşivlenecek:</p>
-        <div style="margin:12px 0;padding:14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);">
-          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Dönem</div>
-          <div style="font-family:'Plus Jakarta Sans';font-size:16px;font-weight:800;">${SalaryMonth.shortLabel(targetKey)}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px;">${range.start} → ${range.end}</div>
-        </div>
-        ${isEarly ? `
-          <div style="margin-top:10px;padding:10px;background:#FEF3C7;border-radius:8px;font-size:12px;color:#92400E;">
-            ⚠️ <strong>Aktif dönemi</strong> erken arşivliyorsunuz. Sonraki günlerde eklenen işlemler ana listede kalır.
-          </div>` : ''}
-        <p style="font-size:12px;color:var(--text3);margin-top:12px;">Borç/Alacak kayıtları etkilenmeyecek.</p>
-        <label style="display:block;font-size:12px;font-weight:600;margin-top:14px;margin-bottom:5px;">📝 Dönem Notu (opsiyonel)</label>
-        <textarea id="archNote" class="swal2-textarea" placeholder="Bu dönem olağanüstü bir harcama oldu mu? (örn. araba tamiri, tatil, sağlık...)" style="height:70px;"></textarea>
-      </div>`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Evet, Arşivle',
-      cancelButtonText: 'İptal',
-      width: Math.min(520, window.innerWidth - 24)
-    });
-    if (!isConfirmed) return;
+      /* ✅ preConfirm ile note'u doğru oku — modal kapandıktan sonra DOM'a erişme yok */
+      const confirmedResult = await Swal.fire({
+        title: 'Dönemi Arşivle',
+        html: `<div style="text-align:left;">
+          <p>Aşağıdaki maaş dönemi arşivlenecek:</p>
+          <div style="margin:12px 0;padding:14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);">
+            <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Dönem</div>
+            <div style="font-family:'Plus Jakarta Sans';font-size:16px;font-weight:800;">${SalaryMonth.shortLabel(targetKey)}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px;">${range.start} → ${range.end}</div>
+          </div>
+          ${isEarly ? `
+            <div style="margin-top:10px;padding:10px;background:#FEF3C7;border-radius:8px;font-size:12px;color:#92400E;">
+              ⚠️ <strong>Aktif dönemi</strong> erken arşivliyorsunuz. Sonraki günlerde eklenen işlemler ana listede kalır.
+            </div>` : ''}
+          <p style="font-size:12px;color:var(--text3);margin-top:12px;">Borç/Alacak kayıtları etkilenmeyecek.</p>
+          <label style="display:block;font-size:12px;font-weight:600;margin-top:14px;margin-bottom:5px;">📝 Dönem Notu (opsiyonel)</label>
+          <textarea id="archNote" class="swal2-textarea" placeholder="Bu dönem olağanüstü bir harcama oldu mu?" style="height:70px;"></textarea>
+        </div>`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Evet, Arşivle',
+        cancelButtonText: 'İptal',
+        width: Math.min(520, window.innerWidth - 24),
+        preConfirm: () => ({
+          note: document.getElementById('archNote')?.value?.trim() || ''
+        })
+      });
 
-    /* 🆕 Not kaydet */
-    const archNote = document.getElementById('archNote')?.value?.trim() || '';
-    const ok = await CRUD.manualArchive(targetKey);
-    if (ok && archNote && state.archives[targetKey]) {
-      if (!state.archives[targetKey].ozet) state.archives[targetKey].ozet = {};
-      state.archives[targetKey].ozet.not = archNote;
-      await saveArchives();
-    }
-    if (ok) {
-      /* Yeni yılı accordion'da otomatik aç */
+      if (!confirmedResult.isConfirmed) return false;
+      const archNote = confirmedResult.value?.note || '';
+
+      /* ✅ CRUD.manualArchive — kendi içinde success mesajı gösterir */
+      const ok = await CRUD.manualArchive(targetKey);
+
+      if (!ok) {
+        /* CRUD zaten hata mesajını gösterdi */
+        return false;
+      }
+
+      /* Notu kaydet */
+      if (archNote && state.archives[targetKey]) {
+        if (!state.archives[targetKey].ozet) state.archives[targetKey].ozet = {};
+        state.archives[targetKey].ozet.not = archNote;
+        await saveArchives();
+      }
+
+      /* Yıl accordion'da aç */
       const newYear = SalaryMonth.yearOf(targetKey);
       if (!this._archiveOpenYears) this._archiveOpenYears = new Set();
       this._archiveOpenYears.add(newYear);
-      await this.renderArsiv();
-      if (this.currentPage === 'dashboard') await this.renderDashboard();
 
-      // 🆕 AYLIK RİTÜEL MODAL — "Bu ay nasıl geçti?"
-      await this._showMonthlyRitual(targetKey);
+      /* ✅ UI'ı yenile — try/catch ile UI hatası tüm işlemi çökertmesin */
+      try {
+        await this.renderArsiv();
+      } catch (renderErr) {
+        console.error('[manualArchive] UI render hatası:', renderErr);
+      }
+
+      if (this.currentPage === 'dashboard') {
+        try { await this.renderDashboard(); } catch(_) {}
+      }
+
+      return true;
+    } catch (err) {
+      console.error('[manualArchive] Beklenmeyen hata:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Arşivleme Hatası',
+        text: err?.message || 'Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.'
+      });
+      return false;
     }
   },
 
@@ -12842,7 +12904,145 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     });
   },
 
- 
+   /* 🆕 Global arama implementasyonu */
+  _performGlobalSearch() {
+    const inp = document.getElementById('globalSearchInput');
+    const box = document.getElementById('globalSearchResults');
+    if (!inp || !box) return;
+
+    const q = inp.value.trim().toLowerCase();
+
+    if (q.length < 2) {
+      box.innerHTML = `<div class="empty-state" style="padding:30px;">
+        <i class="fas fa-keyboard"></i>
+        <p>En az 2 karakter yazın</p>
+      </div>`;
+      return;
+    }
+
+    const results = [];
+
+    /* Gelirler */
+    state.gelirler.forEach(g => {
+      const hay = `${g.kategori || ''} ${g.aciklama || ''} ${g.tarih || ''}`.toLowerCase();
+      if (hay.includes(q)) {
+        results.push({
+          type: 'gelir', icon: 'fa-arrow-up',
+          color: 'var(--accent)', bg: 'var(--accent-light)',
+          baslik: g.kategori || 'Gelir',
+          alt: `${dayjs(g.tarih).format('DD MMM YYYY')} · ${Calc.fmt(g.miktar)}${g.aciklama ? ' · ' + g.aciklama.substring(0, 30) : ''}`,
+          onclick: `App.loadPage('islemler');setTimeout(()=>App.showTransactionDetail(${g.id},'gelir'),300)`
+        });
+      }
+    });
+
+    /* Giderler */
+    state.giderler.forEach(g => {
+      const hay = `${g.kategori || ''} ${g.aciklama || ''} ${g.tarih || ''}`.toLowerCase();
+      if (hay.includes(q)) {
+        results.push({
+          type: 'gider', icon: 'fa-arrow-down',
+          color: 'var(--danger)', bg: 'var(--danger-light)',
+          baslik: g.kategori || 'Gider',
+          alt: `${dayjs(g.tarih).format('DD MMM YYYY')} · ${Calc.fmt(g.miktar)}${g.aciklama ? ' · ' + g.aciklama.substring(0, 30) : ''}`,
+          onclick: `App.loadPage('islemler');setTimeout(()=>App.showTransactionDetail(${g.id},'gider'),300)`
+        });
+      }
+    });
+
+    /* Borç/Alacak */
+    state.borcalacaklar.forEach(b => {
+      const hay = `${b.kisiAdi || ''} ${b.aciklama || ''}`.toLowerCase();
+      if (hay.includes(q)) {
+        results.push({
+          type: 'borc',
+          icon: b.tip === 'alacak' ? 'fa-hand-holding-dollar' : 'fa-hand-holding-usd',
+          color: b.tip === 'alacak' ? 'var(--primary)' : 'var(--warning)',
+          bg: b.tip === 'alacak' ? 'var(--primary-light)' : 'var(--warning-light)',
+          baslik: b.kisiAdi || 'Borç/Alacak',
+          alt: `${dayjs(b.tarih).format('DD MMM YYYY')} · ${Calc.formatBirim(b)}${b.odendiMi ? ' (Ödendi)' : ''}`,
+          onclick: `App.loadPage('borcalacak');setTimeout(()=>App._showBorcDetail(${b.id}),300)`
+        });
+      }
+    });
+
+    /* Arşivler */
+    Object.entries(state.archives).forEach(([key, arc]) => {
+      const hay = `${key} ${SalaryMonth.shortLabel(key)}`.toLowerCase();
+      if (hay.includes(q)) {
+        const cnt = (arc.gelirler || []).length + (arc.giderler || []).length;
+        results.push({
+          type: 'arsiv', icon: 'fa-archive',
+          color: 'var(--info)', bg: 'var(--info-light)',
+          baslik: SalaryMonth.shortLabel(key),
+          alt: `${arc.salaryMonthRange?.start || ''} → ${arc.salaryMonthRange?.end || ''} · ${cnt} işlem`,
+          onclick: `App.loadPage('arsiv');setTimeout(()=>App.showArchiveDetail('${key}'),300)`
+        });
+      }
+    });
+
+    /* Görevler */
+    state.gorevler.forEach(g => {
+      const hay = `${g.baslik || ''} ${g.aciklama || ''}`.toLowerCase();
+      if (hay.includes(q)) {
+        results.push({
+          type: 'gorev', icon: 'fa-list-check',
+          color: '#7C3AED', bg: '#F3E8FF',
+          baslik: g.baslik || 'Görev',
+          alt: `${g.tarih ? dayjs(g.tarih).format('DD MMM YYYY') : 'Tarih yok'}${g.tamamlandi ? ' · ✅' : ''}`,
+          onclick: `App.loadPage('gorevler');setTimeout(()=>App.openGorevDetay(${g.id}),300)`
+        });
+      }
+    });
+
+    /* Araçlar */
+    state.araclar.forEach(a => {
+      const hay = `${a.plaka || ''} ${a.marka || ''} ${a.model || ''}`.toLowerCase();
+      if (hay.includes(q)) {
+        results.push({
+          type: 'arac', icon: 'fa-car',
+          color: '#0891B2', bg: '#ECFEFF',
+          baslik: a.plaka || 'Araç',
+          alt: `${a.marka || ''} ${a.model || ''} ${a.yil || ''}`.trim(),
+          onclick: `Swal.close();setTimeout(()=>App._editVehicle(${a.id}),200)`
+        });
+      }
+    });
+
+    if (!results.length) {
+      box.innerHTML = `<div class="empty-state" style="padding:30px;">
+        <i class="fas fa-search"></i>
+        <p>"${UI.escHtml(q)}" için sonuç bulunamadı</p>
+      </div>`;
+      return;
+    }
+
+    const typeLabels = { gelir: 'Gelir', gider: 'Gider', borc: 'Borç', arsiv: 'Arşiv', gorev: 'Görev', arac: 'Araç' };
+
+    box.innerHTML = results.slice(0, 50).map(r => `
+      <div onclick="${r.onclick};Swal.close();"
+           style="padding:10px 12px;border-radius:10px;margin-bottom:6px;cursor:pointer;background:var(--surface);border:1px solid var(--border);display:flex;gap:10px;align-items:center;transition:all .15s ease;"
+           onmouseover="this.style.borderColor='var(--primary)';this.style.background='var(--primary-light)'"
+           onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--surface)'">
+        <div style="width:34px;height:34px;border-radius:9px;background:${r.bg};color:${r.color};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">
+          <i class="fas ${r.icon}"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            ${UI.escHtml(r.baslik)}
+          </div>
+          <div style="font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            ${UI.escHtml(r.alt)}
+          </div>
+        </div>
+        <span style="font-size:9px;font-weight:700;color:${r.color};text-transform:uppercase;padding:3px 7px;background:${r.bg};border-radius:6px;flex-shrink:0;">${typeLabels[r.type]}</span>
+      </div>
+    `).join('');
+
+    if (results.length > 50) {
+      box.innerHTML += `<p style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0;">+${results.length - 50} sonuç daha</p>`;
+    }
+  },
 
 
 
@@ -13597,20 +13797,23 @@ async function autoArchiveCheck() {
       didOpen: () => Swal.showLoading()
     });
 
-    CRUD._batchMode = true;   // ← EKLE
+    CRUD._batchMode = true;
     let basarili = 0;
     let basarisiz = 0;
-    for (const k of pending) {
-      try {
-        const ok = await CRUD.manualArchive(k);
-        if (ok) basarili++;
-        else basarisiz++;
-      } catch (e) {
-        console.warn(`[autoArchive] ${k} başarısız:`, e);
-        basarisiz++;
+    try {
+      for (const k of pending) {
+        try {
+          const ok = await CRUD.manualArchive(k);
+          if (ok) basarili++;
+          else basarisiz++;
+        } catch (e) {
+          console.warn(`[autoArchive] ${k} başarısız:`, e);
+          basarisiz++;
+        }
       }
+    } finally {
+      CRUD._batchMode = false;
     }
-    CRUD._batchMode = false;  // ← EKLE
 
     Swal.close();
 
