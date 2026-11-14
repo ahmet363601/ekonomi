@@ -4680,17 +4680,22 @@ const App = {
     return { topIncrease, forecast };
   },
 
-  async renderDashboard() {
+async renderDashboard() {
     const ayF      = Calc.ayFilter();
     const curKey   = SalaryMonth.currentKey();
     const curRange = SalaryMonth.range(curKey);
-    const bakiye   = Calc._toplamGelirTum() - Calc._toplamGiderTum();   // arşiv dahil
-    const gelirT   = Calc._toplamGelirTum();                            // arşiv dahil
-    const giderT   = Calc._toplamGiderTum();                            // arşiv dahil
-    const ayGelir  = Calc._toplamGelirTum(ayF);                         // arşiv dahil
-    const ayGider  = Calc._toplamGiderTum(ayF);                         // arşiv dahil
+    const bakiye   = Calc._toplamGelirTum() - Calc._toplamGiderTum();
+    const gelirT   = Calc._toplamGelirTum();
+    const giderT   = Calc._toplamGiderTum();
+    const ayGelir  = Calc._toplamGelirTum(ayF);
+    const ayGider  = Calc._toplamGiderTum(ayF);
     const borcT    = Calc.aktifBorcAlacak();
     const baOzet   = Calc.borcAlacakOzet();
+
+    /* 🆕 Araç hatırlatıcı verileri (sadece kart için) */
+    const araclar     = Vehicle.getUpcoming(45);
+    const kmAktif     = Vehicle.getKmAktif();
+    const hasVehicles = state.araclar && state.araclar.length > 0;
 
     const tabs = ['tum','gelir','gider','borc'];
     const tabLabels = { tum:'Tümü', gelir:'Gelir', gider:'Gider', borc:'Borç/Alacak' };
@@ -4758,6 +4763,95 @@ const App = {
         </div>
         <div class="chart-wrap"><canvas id="dashDonutChart"></canvas></div>
       </div>
+
+      <!-- 🆕 ARAÇLAR & HATIRLATICILAR (KM bazlı yağ bakımı + tarih) -->
+      ${hasVehicles ? `
+      <div class="card" style="border-left:4px solid ${
+        kmAktif.some(k => k.seviye === 'gecti' || k.seviye === 'acil') || araclar.some(a => a.seviye === 'gecti' || a.seviye === 'acil')
+          ? 'var(--danger)' 
+          : (kmAktif.some(k => k.seviye === 'yaklasiyor') || araclar.some(a => a.seviye === 'yaklasiyor')
+            ? 'var(--warning)' 
+            : 'var(--primary)')
+      };">
+          <div class="section-header">
+            <span class="section-title" style="display:flex;align-items:center;gap:8px;">
+              <i class="fas fa-car" style="color:var(--primary);"></i>
+              Araçlar & Hatırlatıcılar
+            </span>
+            <button onclick="App.openVehicleModal()" class="btn btn-sm btn-ghost" style="padding:0 10px;height:28px;">
+              <i class="fas fa-cog"></i>
+            </button>
+          </div>
+
+          ${state.araclar.map(v => {
+            const km = kmAktif.find(k => k.vid === v.id);
+            const tarihler = araclar.filter(a => a.vid === v.id);
+            return `
+              <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2);">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                  <div>
+                    <strong style="font-size:14px;">${UI.escHtml(v.plaka || '—')}</strong>
+                    <span style="font-size:11px;color:var(--text3);margin-left:6px;">${UI.escHtml((v.marka||'') + ' ' + (v.model||'')).trim()}</span>
+                  </div>
+                </div>
+
+              ${km ? `
+              <div style="margin-bottom:8px;padding:10px;background:${km.bg};border-radius:8px;border-left:3px solid ${km.renk};${(km.seviye === 'acil' || km.seviye === 'gecti') ? 'animation:pulseRed 2s ease-in-out infinite;' : (km.seviye === 'yaklasiyor' ? 'animation:pulseAmber 2.2s ease-in-out infinite;' : '')}">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <span style="font-size:11px;font-weight:700;color:${km.renk};">
+                    🛢️ Yağ Bakımı
+                  </span>
+                  <span style="font-size:12px;font-weight:800;color:${km.renk};">
+                    ${km.emoji} ${km.bildirimMetni}
+                  </span>
+                </div>
+                <div class="progress-track" style="margin:0 0 4px;">
+                  <div class="progress-bar" style="width:${km.ilerleme}%;background:${km.renk};"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:9.5px;color:var(--text3);margin-bottom:8px;">
+                  <span>Son: ${km.sonBakimKm.toLocaleString('tr-TR')} km</span>
+                  <span>Şu an: ${km.currentKm.toLocaleString('tr-TR')} km</span>
+                  <span>Hedef: ${km.hedefKm.toLocaleString('tr-TR')} km</span>
+                </div>
+                <div style="display:flex;gap:6px;">
+                  <button onclick="event.stopPropagation();App.showBakimGecmisi(${v.id})" style="flex:1;background:var(--surface);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;">
+                    <i class="fas fa-history"></i> Bakım Geçmişi (${(v.bakimGecmisi || []).length})
+                  </button>
+                </div>
+              </div>
+            ` : `
+              <div style="margin-bottom:8px;padding:10px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;font-size:10.5px;color:var(--text3);text-align:center;">
+                <i class="fas fa-info-circle"></i> Yağ bakımı takibi için 
+                <a href="#" onclick="event.preventDefault();App._editVehicle(${v.id})" style="color:var(--primary);font-weight:600;">araç ayarlarına</a> 
+                başlangıç KM girin
+              </div>
+            `}
+
+                ${tarihler.length > 0 ? tarihler.map(r => {
+                  const pulse = (r.seviye === 'acil' || r.seviye === 'gecti')
+                    ? 'animation:pulseRed 2s ease-in-out infinite;'
+                    : (r.seviye === 'yaklasiyor' ? 'animation:pulseAmber 2.2s ease-in-out infinite;' : '');
+                  return `
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:${r.bg};border-radius:6px;margin-bottom:4px;font-size:11px;${pulse}">
+                      <span><i class="fas ${r.icon}" style="color:${r.renk};width:14px;"></i> ${r.label}</span>
+                      <span style="color:${r.renk};font-weight:700;">
+                        ${r.emoji} ${r.gecti ? `${Math.abs(r.days)} gün geçti` : (r.bugun ? 'Bugün!' : `${r.days} gün`)}
+                      </span>
+                    </div>
+                  `;
+                }).join('') : ''}
+
+                ${kmAktif.length === 0 && araclar.length === 0 ? `
+                  <div style="text-align:center;padding:12px;color:var(--text3);font-size:11px;">
+                    <i class="fas fa-info-circle"></i> Hatırlatıcı yok —
+                    <a href="#" onclick="event.preventDefault();App.openVehicleModal()" style="color:var(--primary);font-weight:600;">araç ekle</a>
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }).join('')}
+      </div>
+      ` : ''}
 
       <div class="card">
         <div class="section-header">
