@@ -3362,7 +3362,7 @@ const Vehicle = {
     v.yagBakimKm = currentKm;   // Sayaç sıfırla
 
     await saveAraclar();
-    await addLog('arac_ekle', `${v.plaka} yağ bakımı — ${currentKm.toLocaleString('tr-TR')} km`);
+    await addLog('arac_bakim', `${v.plaka} yağ bakımı — ${currentKm.toLocaleString('tr-TR')} km`);
     return kayit;
   },
 
@@ -8684,7 +8684,6 @@ const value = swalResult.value;
 
   /* 🆕 Bakım Yapıldı Modal */
 async openBakimYapModal(vehicleId) {
-async openBakimYapModal(vehicleId) {
   const v = state.araclar.find(a => a.id === vehicleId);
   if (!v) return;
   const currentKm = _getLastFuelKm();
@@ -8791,6 +8790,37 @@ async showBakimGecmisi(vehicleId) {
     width: Math.min(520, window.innerWidth - 20)
   });
 },
+    async _editVehicle(id) {
+    const v = state.araclar.find(a => a.id === id);
+    if (v) return this._vehicleForm(v);
+  },
+
+  /* 🆕 Araç sil */
+  async _deleteVehicle(id) {
+    const v = state.araclar.find(a => a.id === id);
+    if (!v) return;
+
+    const r = await Swal.fire({
+      icon: 'warning',
+      title: 'Aracı Sil',
+      html: `<p><strong>${UI.escHtml(v.plaka || '—')}</strong> aracı kalıcı olarak silinecek.</p>
+             <p style="font-size:12px;color:#94a3b8;margin-top:6px;">Bakım geçmişi de silinir. Bu işlem geri alınamaz.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Evet, Sil',
+      confirmButtonColor: '#DC2626',
+      cancelButtonText: 'İptal',
+      width: Math.min(420, window.innerWidth - 24)
+    });
+
+    if (!r.isConfirmed) return;
+
+    state.araclar = state.araclar.filter(a => a.id !== id);
+    await saveAraclar();
+    await addLog('arac_sil', v.plaka || '—');
+    showToast('🗑️ Araç silindi');
+    await this.openVehicleModal();
+    if (this.currentPage === 'dashboard') await this.renderDashboard();
+  },
   /* ══════════════════════════════════════
      AYARLAR
   ══════════════════════════════════════ */
