@@ -2920,6 +2920,11 @@ input[type="month"].form-input,
   background: var(--surface);
   position: relative;
   overflow: hidden;
+  /* 🆕 Tıklanabilir kart */
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .2s ease, border-color .15s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 .task-stat-card::before {
   content: '';
@@ -2931,6 +2936,21 @@ input[type="month"].form-input,
 .task-stat-card.sc-bugun::before    { background: var(--info); }
 .task-stat-card.sc-geciken::before  { background: var(--danger); }
 .task-stat-card.sc-tamam::before    { background: var(--accent); }
+
+/* 🆕 Hover + basış efekti */
+@media (hover: hover) {
+  .task-stat-card:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow);
+  }
+}
+.task-stat-card:active { transform: scale(.97); }
+
+/* 🆕 Aktif filtre göstergesi — her kartın kendi rengine göre */
+.task-stat-card.sc-aktif.active   { box-shadow: 0 0 0 2px var(--primary); }
+.task-stat-card.sc-bugun.active   { box-shadow: 0 0 0 2px var(--info); }
+.task-stat-card.sc-geciken.active { box-shadow: 0 0 0 2px var(--danger); }
+.task-stat-card.sc-tamam.active   { box-shadow: 0 0 0 2px var(--accent); }
 
 .task-stat-label {
   font-size: 10px;
@@ -12862,19 +12882,23 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
 
     const statHTML = `
       <div class="task-stats">
-        <div class="task-stat-card sc-aktif">
+        <div class="task-stat-card sc-aktif${this._gorevFilter === 'aktif' ? ' active' : ''}"
+             onclick="App.setGorevFilter('aktif')" role="button" tabindex="0" aria-label="Aktif görevleri göster">
           <div class="task-stat-label">Aktif</div>
           <div class="task-stat-value">${aktif.length}</div>
         </div>
-        <div class="task-stat-card sc-bugun">
+        <div class="task-stat-card sc-bugun${this._gorevFilter === 'bugun' ? ' active' : ''}"
+             onclick="App.setGorevFilter('bugun')" role="button" tabindex="0" aria-label="Bugünkü görevleri göster">
           <div class="task-stat-label">Bugün</div>
           <div class="task-stat-value">${bugun.length}</div>
         </div>
-        <div class="task-stat-card ${geciken.length > 0 ? 'sc-geciken' : ''}">
+        <div class="task-stat-card sc-geciken${this._gorevFilter === 'geciken' ? ' active' : ''}"
+             onclick="App.setGorevFilter('geciken')" role="button" tabindex="0" aria-label="Geciken görevleri göster">
           <div class="task-stat-label">Geciken</div>
           <div class="task-stat-value" style="color:${geciken.length > 0 ? 'var(--danger)' : 'var(--text)'};">${geciken.length}</div>
         </div>
-        <div class="task-stat-card sc-tamam">
+        <div class="task-stat-card sc-tamam${this._gorevFilter === 'tamamlanan' ? ' active' : ''}"
+             onclick="App.setGorevFilter('tamamlanan')" role="button" tabindex="0" aria-label="Tamamlanan görevleri göster">
           <div class="task-stat-label">Tamamlanan</div>
           <div class="task-stat-value">${tamamlanan.length}</div>
         </div>
