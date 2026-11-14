@@ -2956,6 +2956,13 @@ dayjs.locale('tr');
 dayjs.extend(window.dayjs_plugin_relativeTime);
 dayjs.extend(window.dayjs_plugin_advancedFormat);
 
+/* 🆕 Chart.js koyu mod metin rengi */
+try {
+  const _cssText2 = getComputedStyle(document.documentElement).getPropertyValue('--text2').trim();
+  Chart.defaults.color = _cssText2 || '#3D4A5C';
+  Chart.defaults.font.family = "'Inter', 'IBM Plex Sans', -apple-system, sans-serif";
+} catch (_) {}
+
 /* ─────────────────────────────────────────────
    CONSTANTS
 ───────────────────────────────────────────── */
@@ -3188,10 +3195,16 @@ async function loadAllData() {
     state.giderler       = await dbGetAll('giderler');
     state.borcalacaklar  = (await dbGetAll('borcalacaklar')).map(b => ({
       ...b,
-      birim: b.birim || 'tl'   // eski kayıtlar için varsayılan TL
+      birim: b.birim || 'tl'
     }));
 
-    /* 🆕 Kategori versiyon kontrolü — eski kategorileri zorla güncelle */
+    /* 🔴 KRİTİK FIX: Arşivleri yakıt migrasyonundan ÖNCE yükle.
+       Aksi halde migrasyon saveArchives() çağırıp boş {} yazar → tüm arşivler silinir. */
+    /* state.archives yukarıda yüklendi (migrasyondan önce) */
+
+    const logs = await dbGetAll('logs');
+
+    /* 🆕 Kategori versiyon kontrolü */
     const storedKatVer = Number(localStorage.getItem('kat_version') || 0);
     if (storedKatVer < KAT_VERSION) {
       state.kategoriler = DEFAULT_KATEGORILER();
@@ -3667,9 +3680,10 @@ const Calc = {
   ayFilter() {
     return SalaryMonth.range(SalaryMonth.currentKey());
   },
-  aktifBorcAlacak() {
+  aktifBorcAlacak(tip) {
+    /* tip verilirse sadece o tipi döner; verilmezse toplam kalanı döner */
     return state.borcalacaklar
-      .filter(b => !b.odendiMi)
+      .filter(b => !b.odendiMi && (!tip || b.tip === tip))
       .reduce((s, b) => {
         const fiyat = this.birimFiyat(b.birim || 'tl');
         const toplamTL = (Number(b.miktar) || 0) * fiyat;
@@ -4838,7 +4852,7 @@ const Charts = {
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
-          legend: { position: 'bottom', labels: { font: { size: 10, family: 'DM Sans' }, usePointStyle: true } },
+          legend: { position: 'bottom', labels: { font: { size: 10, family: 'Inter' }, usePointStyle: true } },
           tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${Calc.fmt(ctx.raw)}` } }
         },
         scales: {
@@ -4974,7 +4988,7 @@ const Charts = {
           tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${Calc.fmt(ctx.raw)}` } }
         },
         scales: {
-          y: { ticks: { callback: v => PARA + ' ' + v.toLocaleString('tr-TR'), font: { size: 10 } }, grid: { color: 'rgba(148,163,184,.12)' } },
+          y: { ticks: { callback: v => (v >= 1000 ? (v/1000).toFixed(0) + 'k ₺' : v.toLocaleString('tr-TR') + ' ₺'), font: { size: 10 } }, grid: { color: 'rgba(148,163,184,.12)' } },
           x: { ticks: { font: { size: 10 } }, grid: { display: false } }
         }
       }
@@ -5052,32 +5066,47 @@ const Charts = {
 /* ═══════════════════════════════════════════════════════════
    KATEGORİ RENK/İKON PALETİ
    ═══════════════════════════════════════════════════════════ */
+/* 🆕 Anahtar kelime tabanlı kategori ikon eşleştirme.
+   Tam eşleşme yerine desen → gerçek kategorilerin %95'i doğru ikon alır. */
 const KATEGORI_RENK = {
-  gelir: {
-    'Maaş':            { icon: 'fa-briefcase',      color: '#059669', bg: '#ECFDF5' },
-    'Serbest Çalışma': { icon: 'fa-laptop-code',    color: '#0891B2', bg: '#ECFEFF' },
-    'Yatırım':         { icon: 'fa-chart-line',     color: '#7C3AED', bg: '#F3E8FF' },
-    'Hediye':          { icon: 'fa-gift',           color: '#DB2777', bg: '#FCE7F3' },
-    'Kira Geliri':     { icon: 'fa-home',           color: '#D97706', bg: '#FEF3C7' },
-    'Diğer':           { icon: 'fa-plus-circle',    color: '#64748B', bg: '#F1F5F9' }
-  },
-  gider: {
-    'Market':          { icon: 'fa-shopping-cart',  color: '#059669', bg: '#ECFDF5' },
-    'Fatura':          { icon: 'fa-file-invoice',   color: '#2563EB', bg: '#EFF6FF' },
-    'Eğlence':         { icon: 'fa-film',           color: '#EA580C', bg: '#FFF7ED' },
-    'Ulaşım':          { icon: 'fa-car',            color: '#0891B2', bg: '#ECFEFF' },
-    'Sağlık':          { icon: 'fa-heart-pulse',    color: '#DC2626', bg: '#FEF2F2' },
-    'Eğitim':          { icon: 'fa-graduation-cap', color: '#7C3AED', bg: '#F3E8FF' },
-    'Yemek':           { icon: 'fa-utensils',       color: '#D97706', bg: '#FFFBEB' },
-    'Alışveriş':       { icon: 'fa-bag-shopping',   color: '#DB2777', bg: '#FCE7F3' },
-    'Araç Yakıt': { icon: 'fa-gas-pump', color: '#B45309', bg: '#FEF3C7' },
-    'Diğer':           { icon: 'fa-ellipsis',       color: '#64748B', bg: '#F1F5F9' }
-  }
+  gelir: [
+    [/maaş|ücret/i,        { icon: 'fa-briefcase',      color: '#059669', bg: '#ECFDF5' }],
+    [/serbest|freelance/i, { icon: 'fa-laptop-code',    color: '#0891B2', bg: '#ECFEFF' }],
+    [/yatırım|faiz|temettü/i, { icon: 'fa-chart-line',  color: '#7C3AED', bg: '#F3E8FF' }],
+    [/hediye|prim/i,       { icon: 'fa-gift',           color: '#DB2777', bg: '#FCE7F3' }],
+    [/kira/i,              { icon: 'fa-home',           color: '#D97706', bg: '#FEF3C7' }],
+    [/diğer/i,             { icon: 'fa-plus-circle',    color: '#64748B', bg: '#F1F5F9' }]
+  ],
+  gider: [
+    [/market|alışveriş/i,  { icon: 'fa-shopping-cart',  color: '#059669', bg: '#ECFDF5' }],
+    [/fatura|aidat/i,      { icon: 'fa-file-invoice',   color: '#2563EB', bg: '#EFF6FF' }],
+    [/yemek|kafe|restoran/i, { icon: 'fa-utensils',     color: '#D97706', bg: '#FFFBEB' }],
+    [/yakıt|akaryakıt/i,   { icon: 'fa-gas-pump',       color: '#B45309', bg: '#FEF3C7' }],
+    [/araç|bakım|oto|hgs|otopark|yıkama/i, { icon: 'fa-car', color: '#0891B2', bg: '#ECFEFF' }],
+    [/sağlık|ilaç|hastane/i, { icon: 'fa-heart-pulse',  color: '#DC2626', bg: '#FEF2F2' }],
+    [/okul|kreş|kurs|eğitim/i, { icon: 'fa-graduation-cap', color: '#7C3AED', bg: '#F3E8FF' }],
+    [/kira|ev|fuzul/i,     { icon: 'fa-home',           color: '#D97706', bg: '#FEF3C7' }],
+    [/kıyafet|giyim|moda/i,{ icon: 'fa-bag-shopping',   color: '#DB2777', bg: '#FCE7F3' }],
+    [/kredi|borç|taksit/i, { icon: 'fa-credit-card',    color: '#B91C1C', bg: '#FEF2F2' }],
+    [/birikim|yatırım/i,   { icon: 'fa-piggy-bank',     color: '#7C3AED', bg: '#F3E8FF' }],
+    [/sigorta|güvence/i,   { icon: 'fa-shield-halved',  color: '#2563EB', bg: '#EFF6FF' }],
+    [/eğlence|hobi|tatil|seyahat/i, { icon: 'fa-film',  color: '#EA580C', bg: '#FFF7ED' }],
+    [/hediye|ziyaret|bağış|zekat/i, { icon: 'fa-gift',  color: '#DB2777', bg: '#FCE7F3' }],
+    [/çocuk|harçlık/i,     { icon: 'fa-child',          color: '#0891B2', bg: '#ECFEFF' }],
+    [/kuaför|kişisel bakım/i, { icon: 'fa-spa',         color: '#DB2777', bg: '#FCE7F3' }],
+    [/teknoloji|dijital|abonelik/i, { icon: 'fa-mobile-screen', color: '#2563EB', bg: '#EFF6FF' }],
+    [/hırdavat|tamir/i,    { icon: 'fa-screwdriver-wrench', color: '#64748B', bg: '#F1F5F9' }],
+    [/diğer/i,             { icon: 'fa-ellipsis',       color: '#64748B', bg: '#F1F5F9' }]
+  ]
 };
 
 function kategoriMeta(tip, kategori) {
-  const grp = KATEGORI_RENK[tip] || KATEGORI_RENK.gider;
-  return grp[kategori] || { icon: 'fa-tag', color: '#64748B', bg: '#F1F5F9' };
+  const rules = KATEGORI_RENK[tip] || KATEGORI_RENK.gider;
+  const k = String(kategori || '');
+  for (const [re, meta] of rules) {
+    if (re.test(k)) return meta;
+  }
+  return { icon: 'fa-tag', color: '#64748B', bg: '#F1F5F9' };
 }
 /* ─────────────────────────────────────────────
    UI HELPERS
@@ -5559,51 +5588,7 @@ const App = {
   /* ══════════════════════════════════════
      DASHBOARD
   ══════════════════════════════════════ */
-    _calculateMonthlyInsight() {
-    const curKey  = SalaryMonth.currentKey();
-    const prevKey = SalaryMonth.previousKey();
-    const curR    = SalaryMonth.range(curKey);
-    const prevR   = SalaryMonth.range(prevKey);
 
-    // ─── En çok artan kategori ───
-    const buKats   = Calc._kategoriGiderlerTum({ start: curR.start,  end: curR.end });
-    const prevKats = Calc._kategoriGiderlerTum({ start: prevR.start, end: prevR.end });
-
-    let topIncrease = null;
-    Object.entries(buKats).forEach(([kat, bu]) => {
-      const prev = prevKats[kat] || 0;
-      if (prev >= 100 && bu > prev) {
-        const pct = ((bu - prev) / prev) * 100;
-        if (!topIncrease || pct > topIncrease.pct) {
-          topIncrease = { kat, bu, prev, pct };
-        }
-      }
-    });
-
-    // ─── Ay sonu gider tahmini ───
-    const today   = dayjs().startOf('day');
-    const startD  = dayjs(curR.start).startOf('day');
-    const endD    = dayjs(curR.end).startOf('day');
-
-    let forecast = null;
-    if (!today.isBefore(startD) && !today.isAfter(endD)) {
-      const daysPassed = today.diff(startD, 'day') + 1;
-      const totalDays  = endD.diff(startD, 'day') + 1;
-      const daysLeft   = Math.max(0, totalDays - daysPassed);
-      const currentGider = Calc.toplamGider({
-        start: curR.start,
-        end:   today.format('YYYY-MM-DD')
-      });
-      const dailyAvg       = currentGider / Math.max(1, daysPassed);
-      const projectedGider = dailyAvg * totalDays;
-      const progressPct    = Math.min(100, Math.round((daysPassed / totalDays) * 100));
-
-      forecast = { currentGider, projectedGider, dailyAvg, daysLeft, progressPct };
-    }
-
-    if (!topIncrease && !forecast) return null;
-    return { topIncrease, forecast };
-  },
 
 async renderDashboard() {
     const ayF      = Calc.ayFilter();
@@ -5614,7 +5599,9 @@ async renderDashboard() {
     const giderT   = Calc._toplamGiderTum();
     const ayGelir  = Calc._toplamGelirTum(ayF);
     const ayGider  = Calc._toplamGiderTum(ayF);
-    const borcT    = Calc.aktifBorcAlacak();
+    const alacakT  = Calc.aktifBorcAlacak('alacak');
+    const borcT    = Calc.aktifBorcAlacak('borc');
+    const netBT    = alacakT - borcT;
     const baOzet   = Calc.borcAlacakOzet();
 
     /* 🆕 Araç hatırlatıcı verileri (sadece kart için) */
@@ -5651,17 +5638,31 @@ async renderDashboard() {
           <div style="font-size:9px;color:var(--text3);margin-top:3px;letter-spacing:.2px;">${curRange.start.substring(5)} → ${curRange.end.substring(5)}</div>
         </div>
         <div class="stat-card full">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <div class="card-label" style="margin-bottom:0;">Aktif Borç & Alacak</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div class="card-label" style="margin-bottom:0;">Borç & Alacak</div>
             <button onclick="App.openGoldRateModal()" title="Altın Kuru Güncelle"
               style="background:var(--warning-light);color:var(--warning);border:1px solid var(--warning);width:26px;height:26px;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;padding:0;transition:var(--transition);flex-shrink:0;">
               <i class="fas fa-coins"></i>
             </button>
           </div>
-          <div class="stat-amount amber">${Calc.fmt(borcT)}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div>
+              <div style="font-size:10px;color:var(--accent);text-transform:uppercase;font-weight:700;letter-spacing:.4px;">Alacak</div>
+              <div class="stat-amount green" style="font-size:16px;">${Calc.fmt(alacakT)}</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--danger);text-transform:uppercase;font-weight:700;letter-spacing:.4px;">Borç</div>
+              <div class="stat-amount red" style="font-size:16px;">${Calc.fmt(borcT)}</div>
+            </div>
+          </div>
+          <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:11px;">
+            <span style="color:var(--text3);">Net Pozisyon</span>
+            <strong style="color:${netBT >= 0 ? 'var(--accent)' : 'var(--danger)'};font-variant-numeric:tabular-nums;">${Calc.fmt(netBT)}</strong>
+          </div>
           ${(baOzet.gram > 0 || baOzet.ceyrek > 0) ? `
-            <div style="font-size:11px;color:var(--text3);margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-              ${baOzet.gram > 0 ? `<span><strong style="color:var(--warning);">${baOzet.gram.toLocaleString('tr-TR',{maximumFractionDigits:2})}</strong> gram</span>` : ''}
+            <div style="font-size:10.5px;color:var(--text3);margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <span style="opacity:.7;">Altın:</span>
+              ${baOzet.gram > 0 ? `<span><strong style="color:var(--warning);">${baOzet.gram.toLocaleString('tr-TR',{maximumFractionDigits:2})}</strong> gr</span>` : ''}
               ${baOzet.gram > 0 && baOzet.ceyrek > 0 ? '<span style="opacity:.4;">·</span>' : ''}
               ${baOzet.ceyrek > 0 ? `<span><strong style="color:var(--warning);">${baOzet.ceyrek.toLocaleString('tr-TR',{maximumFractionDigits:2})}</strong> çeyrek</span>` : ''}
             </div>
@@ -7182,10 +7183,13 @@ async araOdeme(id) {
     if (!value || !(value.miktar > 0)) return;
 
     // ✅ DOĞRU ÇAĞRI: araOdemeEkle
+    // ✅ DOĞRU ÇAĞRI: araOdemeEkle
     await CRUD.araOdemeEkle(id, value.miktar, value.tarih, value.aciklama);
     showToast('💸 Ara ödeme eklendi');
-    await this.renderBorcList();
-    if (this.currentPage === 'dashboard') await this.renderRecentList();
+    /* 🆕 Borç toplamı dashboard kartında — tam renderDashboard gerekli */
+    if (this.currentPage === 'dashboard')      await this.renderDashboard();
+    else if (this.currentPage === 'borcalacak') await this.renderBorcList();
+    else if (this.currentPage === 'arsiv')     await this.renderArsiv();
 },
 
   async tamOdendi(id) {
@@ -7193,9 +7197,9 @@ async araOdeme(id) {
     if (r.isConfirmed) {
       await CRUD.borcOdendi(id);
       showToast('✅ Ödeme tamamlandı! Arşiv\'e eklendi.');
-      await this.renderBorcList();
-      if (this.currentPage === 'dashboard') await this.renderRecentList();
-      if (this.currentPage === 'arsiv') await this.renderArsiv();
+      if (this.currentPage === 'dashboard')      await this.renderDashboard();
+      else if (this.currentPage === 'borcalacak') await this.renderBorcList();
+      else if (this.currentPage === 'arsiv')     await this.renderArsiv();
     }
   },
 
@@ -7211,13 +7215,15 @@ async araOdeme(id) {
         onAction: async () => {
           state.borcalacaklar.push(snapshot);
           await saveBorclar();
-          await this.renderBorcList();
-          if (this.currentPage === 'dashboard') await this.renderRecentList();
+          if (this.currentPage === 'dashboard')      await this.renderDashboard();
+          else if (this.currentPage === 'borcalacak') await this.renderBorcList();
+          else if (this.currentPage === 'arsiv')     await this.renderArsiv();
           showToast('✅ Geri alındı');
         }
       });
-      await this.renderBorcList();
-      if (this.currentPage === 'dashboard') await this.renderRecentList();
+      if (this.currentPage === 'dashboard')      await this.renderDashboard();
+      else if (this.currentPage === 'borcalacak') await this.renderBorcList();
+      else if (this.currentPage === 'arsiv')     await this.renderArsiv();
     }
   },
 
@@ -9909,7 +9915,7 @@ openKategoriModal() {
           <span style="flex:1;font-size:12px;font-weight:600;">${UI.escHtml(k)}</span>
         <input type="number" step="0.01" placeholder="Limit…" value="${lim}" data-kat="${UI.escHtml(k)}"
         style="width:100px;padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;"
-        oninput="CRUD.limitEkle('${UI.escHtml(UI.jsEscape(k))}',this.value)">
+        onchange="CRUD.limitEkle('${UI.escHtml(UI.jsEscape(k))}',this.value); if(!this.value){ CRUD.limitSil('${UI.escHtml(UI.jsEscape(k))}').then(()=>App.openLimitModal()); }">
       ${lim?`<button onclick="CRUD.limitSil('${UI.escHtml(UI.jsEscape(k))}').then(()=>App.openLimitModal())" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;">✕</button>`:''}
         </div>
         ${exceeded?`<div style="font-size:10px;color:var(--danger);margin-top:4px;">⚠️ Aşım! ${Calc.fmt(cur)} / ${Calc.fmt(parseFloat(lim))}</div>`:''}
@@ -10982,7 +10988,9 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
       const gelirT = Calc._toplamGelirTum({ start: rStart, end: rEnd });
       const giderT = Calc._toplamGiderTum({ start: rStart, end: rEnd });
       const bakiye = gelirT - giderT;
-      const borcT = Calc.aktifBorcAlacak();
+      const alacakT_pdf = Calc.aktifBorcAlacak('alacak');
+      const borcT       = Calc.aktifBorcAlacak('borc');
+      const netBT_pdf   = alacakT_pdf - borcT;
       const gunFark = Math.max(1, dayjs(rEnd).diff(dayjs(rStart), 'day') + 1);
       const avgGun = giderT / gunFark;
       const tasarrufOrani = gelirT > 0 ? ((gelirT - giderT) / gelirT) * 100 : 0;
@@ -11045,7 +11053,7 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
       // ─── 2. SATIR: İŞLEM / GÜNLÜK ORT / BORÇ / EN YÜKSEK KAT ───
       _kart(doc, M,             y, cw, ch, { label: 'İşlem',        value: String(gelirlerFiltre.length + giderlerFiltre.length), accent: [37,99,235] }, hasUni, FONT);
       _kart(doc, M + cw + 3,    y, cw, ch, { label: 'Günlük Ort.',  value: Calc.fmt(avgGun),        accent: [217,119,6]   }, hasUni, FONT);
-      _kart(doc, M + (cw+3)*2,  y, cw, ch, { label: 'Aktif Borç',   value: Calc.fmt(borcT),         accent: [146,64,14]   }, hasUni, FONT);
+       _kart(doc, M + (cw+3)*2,  y, cw, ch, { label: 'Net B/A',      value: Calc.fmt(netBT_pdf),      accent: netBT_pdf >= 0 ? [5,150,105] : [146,64,14] }, hasUni, FONT);
       _kart(doc, M + (cw+3)*3,  y, cw, ch, { label: 'En Yüksek Kat', value: sortedKat.length ? String(sortedKat[0][0]).substring(0, 12) : '—', accent: [8,145,178] }, hasUni, FONT);
       y += ch + 12;
 
@@ -11787,15 +11795,16 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     const pr = priorityMap[n.priority] || priorityMap.normal;
 
     /* Detay metnini markdown benzeri biçimden HTML'e çevir */
-    const detailsHTML = (n.details || '').split('\n').map(line => {
+    /* Detay metnini markdown benzeri biçimden HTML'e çevir — XSS korumalı */
+    const detailsHTML = (n.details || '').split('\n').map(rawLine => {
+      const line = UI.escHtml(rawLine);   /* 🔒 önce kaçır */
       if (line.trim() === '') return '<div style="height:8px;"></div>';
-      if (/^\*\*(.+?)\*\*/.test(line)) {
-        return `<div style="font-size:12.5px;color:var(--text);line-height:1.6;margin-bottom:4px;">${line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</div>`;
-      }
+      /* **bold** işaretlerini kaçırılmış metin üzerinde işle */
+      const withBold = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       if (/^[•\-]\s/.test(line)) {
-        return `<div style="font-size:12px;color:var(--text2);line-height:1.6;padding-left:14px;margin-bottom:3px;">${line}</div>`;
+        return `<div style="font-size:12px;color:var(--text2);line-height:1.6;padding-left:14px;margin-bottom:3px;">${withBold}</div>`;
       }
-      return `<div style="font-size:12.5px;color:var(--text);line-height:1.6;margin-bottom:4px;">${line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</div>`;
+      return `<div style="font-size:12.5px;color:var(--text);line-height:1.6;margin-bottom:4px;">${withBold}</div>`;
     }).join('');
 
     const actionBtn = n.action && n.action.target
