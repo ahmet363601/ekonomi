@@ -12851,10 +12851,51 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
      ═══════════════════════════════════════════════════════════════ */
 
   _gorevFilter: 'aktif',   // 'aktif' | 'bugun' | 'hafta' | 'geciken' | 'tamamlanan' | 'arsiv'
+    /* 🆕 Görev sayfalama + arama + filtre + sıralama state */
+  _gorevPage: 1,
+  _gorevPerPage: 12,
+  _gorevSearch: '',
+  _gorevPriorityFilter: 'all',
+  _gorevSortMode: 'smart',
+  _gorevSearchTimer: null,
 
   setGorevFilter(f) {
+    if (this._gorevFilter === f) return;
     this._gorevFilter = f;
+    this._gorevPage = 1;       // 🆕 sekmeye geçince sayfayı sıfırla
     this.renderGorevler();
+  },
+
+  /* 🆕 Arama — 250ms debounce (yazarken kasmasın) */
+  _setGorevSearch(q) {
+    this._gorevSearch = String(q || '');
+    this._gorevPage = 1;
+    clearTimeout(this._gorevSearchTimer);
+    this._gorevSearchTimer = setTimeout(() => this._refreshGorevList(), 250);
+  },
+
+  /* 🆕 Öncelik filtresi */
+  _setGorevPriority(p) {
+    if (this._gorevPriorityFilter === p) return;
+    this._gorevPriorityFilter = p;
+    this._gorevPage = 1;
+    document.querySelectorAll('#gorevPriFilter .chip').forEach(c => {
+      c.classList.toggle('active', c.dataset.pri === p);
+    });
+    this._refreshGorevList();
+  },
+
+  /* 🆕 Sıralama modu */
+  _setGorevSort(s) {
+    this._gorevSortMode = s;
+    this._gorevPage = 1;
+    this._refreshGorevList();
+  },
+
+  /* 🆕 Sayfa değiştir */
+  _setGorevPage(p) {
+    this._gorevPage = Math.max(1, Math.floor(p) || 1);
+    this._refreshGorevList();
   },
 
   async renderGorevler() {
@@ -12994,13 +13035,150 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
       <div id="taskList">${listHTML}</div>
     </div>`;
   },
+  /* 🆕 Sekmeye göre temel listeyi döndür */
+  _getGorevBaseList() {
+    const tumu = state.gorevler;
+    switch (this._gorevFilter) {
+      case 'aktif':
+        return tumu.filter(g => !g.tamamlandi && !g.arsivlendi);
+      case 'bugun':
+        return tumu.filter(g => !g.tamamlandi && !g.arsivlendi && g.tarih && TaskDate.diffDays(g.tarih) === 0);
+      case 'hafta':
+        return tumu.filter(g => {
+          if (g.tamamlandi || g.arsivlendi || !g.tarih) return false;
+          const d = TaskDate.diffDays(g.tarih);
+          return d !== null && d >= 0 && d <= 7;
+        });
+      case 'geciken':
+        return tumu.filter(g => !g.tamamlandi && !g.arsivlendi && g.tarih && TaskDate.diffDays(g.tarih) < 0);
+      case 'tamamlanan':
+        return tumu.filter(g => g.tamamlandi && !g.arsivlendi);
+      case 'arsiv':
+        return tumu.filter(g => g.arsivlendi);
+      default:
+        return tumu.filter(g => !g.tamamlandi && !g.arsivlendi);
+    }
+  },
 
+  /* 🆕 Öncelik + arama + sıralama uygula */
+  _applyGorevFilters(baseList) {
+    let list = baseList.slice();
+
+    // Öncelik filtresi
+    if (this._gorevPriorityFilter !== 'all') {
+      list = list.filter(g => (g.oncelik || 'normal') === this._gorevPriorityFilter);
+    }
+
+    // Arama (başlık + açıklama, case-insensitive)
+    const q = this._gorevSearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter(g => {
+        const hay = ((g.baslik || '') + ' ' + (g.aciklama || '')).toLowerCase();
+        return hay.includes(q);
+      });
+    }
+
+    // Sıralama
+    const mode = this._gorevSortMode;
+    if (mode === 'smart') {
+      list.sort((a, b) => this._gorevSortFn(a, b));
+    } else if (mode === 'date') {
+      list.sort((a, b) => {
+        const ad = a.tarih || '9999-99-99';
+        const bd = b.tarih || '9999-99-99';
+        return ad.localeCompare(bd);
+      });
+    } else if (mode === 'priority') {
+      const order = { kritik: 0, yuksek: 1, normal: 2, dusuk: 3 };
+      list.sort((a, b) => (order[a.oncelik] ?? 2) - (order[b.oncelik] ?? 2));
+    } else if (mode === 'created') {
+      list.sort((a, b) => (b.olusturulma || '').localeCompare(a.olusturulma || ''));
+    }
+
+    return list;
+  },
+
+  /* 🆕 Sadece listeyi ve sayfalamayı yenile (arama focus'u korunur) */
+  _refreshGorevList() {
+    const base = this._getGorevBaseList();
+    const filtered = this._applyGorevFilters(base);
+    const totalPages = Math.max(1, Math.ceil(filtered.length / this._gorevPerPage));
+    const pg = Math.min(Math.max(1, this._gorevPage), totalPages);
+    this._gorevPage = pg;
+
+    const start = (pg - 1) * this._gorevPerPage;
+    const items = filtered.slice(start, start + this._gorevPerPage);
+
+    const listEl = document.getElementById('taskList');
+    if (listEl) {
+      if (items.length) {
+        listEl.innerHTML = items.map(g => this._renderTaskCard(g)).join('');
+      } else {
+        // Akıllı boş durum — neden boş?
+        let icon = 'fa-clipboard-check', title = 'Görev yok', desc = '';
+        if (this._gorevSearch.trim()) {
+          icon = 'fa-search';
+          title = 'Sonuç bulunamadı';
+          desc = `"${UI.escHtml(this._gorevSearch.trim())}" için bir sonuç yok.`;
+        } else if (this._gorevPriorityFilter !== 'all') {
+          icon = 'fa-filter';
+          title = 'Bu öncelikte görev yok';
+          desc = 'Farklı bir öncelik filtresi deneyin.';
+        } else {
+          const emp = {
+            aktif:      { icon: 'fa-clipboard-check', title: 'Aktif görev yok',    desc: 'Yukarıdan hızlıca yeni bir görev ekleyin.' },
+            bugun:      { icon: 'fa-sun',             title: 'Bugün görev yok',    desc: 'Bugüne ait bir görev bulunmuyor.' },
+            hafta:      { icon: 'fa-calendar-week',   title: 'Bu hafta görev yok', desc: 'Önümüzdeki 7 gün için planlanmış görev yok.' },
+            geciken:    { icon: 'fa-thumbs-up',       title: 'Geciken görev yok',  desc: 'Harika! Tüm görevler zamanında.' },
+            tamamlanan: { icon: 'fa-check-circle',    title: 'Tamamlanan yok',     desc: 'Görev tamamladıkça burada görünür.' },
+            arsiv:      { icon: 'fa-box-archive',     title: 'Arşiv boş',          desc: 'Tamamlanan görevleri arşivledikçe burada birikir.' }
+          }[this._gorevFilter] || { icon: 'fa-clipboard-check', title: 'Görev yok', desc: '' };
+          icon = emp.icon; title = emp.title; desc = emp.desc;
+        }
+        listEl.innerHTML = `<div class="task-empty">
+          <i class="fas ${icon} task-empty-icon"></i>
+          <div class="task-empty-title">${title}</div>
+          <div class="task-empty-desc">${desc}</div>
+        </div>`;
+      }
+    }
+
+    // Sayfalama
+    const pagEl = document.getElementById('taskListPagination');
+    if (pagEl) {
+      if (totalPages <= 1) {
+        pagEl.style.display = 'none';
+      } else {
+        pagEl.style.display = 'flex';
+        pagEl.innerHTML = `
+          <button class="pg-btn" ${pg <= 1 ? 'disabled' : ''} onclick="App._setGorevPage(${pg - 1})">
+            <i class="fas fa-chevron-left"></i>
+          </button>
+          <span class="pg-info" title="Toplam ${filtered.length} görev">${pg} / ${totalPages}</span>
+          <button class="pg-btn" ${pg >= totalPages ? 'disabled' : ''} onclick="App._setGorevPage(${pg + 1})">
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        `;
+      }
+    }
+  },
   _gorevSortFn(a, b) {
+    // Tamamlanan sekmesi → tamamlanma tarihine göre (en yeni üstte)
+    if (this._gorevFilter === 'tamamlanan') {
+      return (b.tamamlanmaTarihi || '').localeCompare(a.tamamlanmaTarihi || '');
+    }
+    // Arşiv sekmesi → arşiv tarihine göre (en yeni üstte)
+    if (this._gorevFilter === 'arsiv') {
+      return (b.arsivTarihi || '').localeCompare(a.arsivTarihi || '');
+    }
+
+    // Diğer sekmeler: akıllı sıra (vade → öncelik → oluşturma)
     const priOrder = { kritik: 0, yuksek: 1, normal: 2, dusuk: 3 };
     const aTarih = a.tarih ? TaskDate.diffDays(a.tarih) : 9999;
     const bTarih = b.tarih ? TaskDate.diffDays(b.tarih) : 9999;
 
     if (aTarih !== bTarih) {
+      // Gecikenler en üstte
       if (aTarih < 0 && bTarih >= 0) return -1;
       if (bTarih < 0 && aTarih >= 0) return 1;
       return aTarih - bTarih;
