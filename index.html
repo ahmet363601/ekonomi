@@ -9978,84 +9978,29 @@ if (overdue) {
           </div>
         </div>
       </div>
-        ` : `
-          <div style="padding:8px 12px;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;margin-bottom:10px;font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px;">
-            <i class="fas fa-info-circle"></i>
-            Arşiv penceresi: ${winInfo.start} → ${winInfo.end}
-          </div>
-        `}
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-          <i class="fas fa-calendar-check" style="color:var(--primary);font-size:16px;"></i>
-          <span style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;">Aktif Maaş Dönemi</span>
-        </div>
 
-        <div style="font-family:'Plus Jakarta Sans';font-size:20px;font-weight:900;color:var(--text);margin-bottom:4px;">
-          ${SalaryMonth.shortLabel(currentKey)}
-        </div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">
-          ${currentRange.start} → ${currentRange.end}
-        </div>
-
-        <div style="padding:12px;background:${countdownBg};border-radius:10px;margin-bottom:10px;border:1px solid ${countdownColor}40;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <i class="fas ${countdownIcon}" style="color:${countdownColor};font-size:18px;"></i>
-            <div style="flex:1;">
-              <div style="font-size:13px;font-weight:800;color:${countdownColor};">${countdownText}</div>
-              <div style="font-size:10.5px;color:var(--text3);margin-top:2px;">
-                Sonraki arşiv: ${dayjs(nextDate).format('DD MMMM YYYY')}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:4px;">
-          <span>Dönem ilerlemesi</span>
-          <span>%${pct}</span>
-        </div>
-        <div class="progress-track" style="margin:0 0 12px 0;">
-          <div class="progress-bar" style="width:${pct}%;background:${countdownColor};"></div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-          <div style="text-align:center;padding:8px;background:var(--accent-light);border-radius:8px;">
-            <div style="font-size:9px;color:var(--accent);text-transform:uppercase;font-weight:700;margin-bottom:2px;">Gelir</div>
-            <div style="font-family:'Plus Jakarta Sans';font-size:11px;font-weight:800;color:var(--accent);">${Calc.fmt(curGelir)}</div>
-          </div>
-          <div style="text-align:center;padding:8px;background:var(--danger-light);border-radius:8px;">
-            <div style="font-size:9px;color:var(--danger);text-transform:uppercase;font-weight:700;margin-bottom:2px;">Gider</div>
-            <div style="font-family:'Plus Jakarta Sans';font-size:11px;font-weight:800;color:var(--danger);">${Calc.fmt(curGider)}</div>
-          </div>
-          <div style="text-align:center;padding:8px;background:var(--surface2);border-radius:8px;">
-            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:2px;">Net</div>
-            <div style="font-family:'Plus Jakarta Sans';font-size:11px;font-weight:800;color:${curNet>=0?'var(--accent)':'var(--danger)'};">${Calc.fmt(curNet)}</div>
-          </div>
-        </div>
-      </div>
-
-  async _manualArchiveInternal(targetKey) {
-
-        /* 2. Aktif dönem son 5 gün içindeyse → belirgin buton */
-        if (daysLeft <= 5 && daysLeft > 0 && (curGelir > 0 || curGider > 0)) {
-          const isLastDay = daysLeft === 1;
-          return `<button class="btn ${isLastDay ? 'btn-danger' : 'btn-amber'} btn-full" onclick="App.manualArchive('${currentKey}')" style="margin-bottom:10px;">
-            <i class="fas fa-${isLastDay ? 'exclamation-triangle' : 'archive'}"></i>
-            ${isLastDay
-              ? `Yarın Arşiv Günü — ${SalaryMonth.shortLabel(currentKey)} Arşivle`
-              : `${SalaryMonth.shortLabel(currentKey)} Arşivle — ${daysLeft} gün kaldı`}
+      <!-- ═══ ARŞİV AKSİYON ═══ -->
+      ${(() => {
+        const currentHasData = curGelir > 0 || curGider > 0;
+        if (!prevArchived && prevHasData) {
+          return `<button class="btn ${overdue ? 'btn-danger' : 'btn-primary'} btn-full"
+                          onclick="App.manualArchive('${prevKey}')"
+                          style="margin-bottom:10px;">
+            <i class="fas fa-archive"></i>
+            ${SalaryMonth.shortLabel(prevKey)} Dönemini Arşivle
           </button>`;
         }
-
-        /* 3. Aktif dönem için küçük "erken arşivle" seçeneği (her zaman) */
-        /* 3. Aktif dönem için "erken arşivle" — veri olsa da olmasa da göster */
-        const currentHasData = curGelir > 0 || curGider > 0;
-        return `<button class="btn btn-ghost btn-full"
-                        ${currentHasData ? `onclick="App.manualArchive('${currentKey}')"` : 'disabled'}
-                        style="margin-bottom:10px;font-size:12px;border-style:dashed;${!currentHasData ? 'opacity:.5;cursor:not-allowed;' : ''}">
-          <i class="fas fa-archive"></i>
-          ${currentHasData
-            ? `${SalaryMonth.shortLabel(currentKey)} Dönemini Erken Arşivle`
-            : `${SalaryMonth.shortLabel(currentKey)} — bu dönemde kayıt yok`}
-          ${currentHasData ? `<span style="color:var(--text3);font-weight:500;">(${daysLeft} gün kaldı)</span>` : ''}
+        if (currentHasData) {
+          return `<button class="btn btn-ghost btn-full"
+                          onclick="App.manualArchive('${currentKey}')"
+                          style="margin-bottom:10px;font-size:12px;border-style:dashed;">
+            <i class="fas fa-archive"></i>
+            ${SalaryMonth.shortLabel(currentKey)} Dönemini Arşivle (erken)
+          </button>`;
+        }
+        return `<button class="btn btn-ghost btn-full" disabled
+                        style="margin-bottom:10px;font-size:12px;opacity:.5;cursor:not-allowed;">
+          <i class="fas fa-inbox"></i> Bu dönemde kayıt yok
         </button>`;
       })()}
 
