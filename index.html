@@ -4010,7 +4010,7 @@ async function saveAllData() {
     await Promise.all([
       saveGelirler(), saveGiderler(), saveBorclar(),
       saveKategoriler(), saveLimitler(), saveAyarlar(),
-      saveArchives(), saveLogs(), saveBackups(), saveAraclar(),saveNotifications(), saveGorevler(), saveNotifications()
+      saveArchives(), saveLogs(), saveBackups(), saveAraclar(), saveGorevler(), saveNotifications()
     ]);
   } catch (e) {
     console.error('[saveAllData] Kayıt hatası:', e);
@@ -11737,7 +11737,8 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     state.backups = [];
     state.limitler = {};
     state.araclar = [];
-    state.notifications = [];      // ← 🆕 EKLE
+    state.notifications = [];
+    state.gorevler = [];           // ← 🆕 EKLENDİ
     state.kategoriler = DEFAULT_KATEGORILER();
     localStorage.setItem('kat_version', String(KAT_VERSION));
     state.ayarlar = {
@@ -12667,8 +12668,8 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
         if (target === 'vehicle') {
           if (payload) { setTimeout(() => App.showBakimGecmisi(payload), 200); }
           else App.openVehicleModal();
-                  } else if (target === 'gorevler') this.loadPage('gorevler');
-        } else if (target === 'borcalacak') this.loadPage('borcalacak');
+        } else if (target === 'gorevler') this.loadPage('gorevler');
+        else if (target === 'borcalacak') this.loadPage('borcalacak');
         else if (target === 'arsiv') this.loadPage('arsiv');
         else if (target === 'rapor') this.loadPage('rapor');
         else if (target === 'dashboard') this.loadPage('dashboard');
@@ -12733,33 +12734,14 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     });
   },
 
-  _performGlobalSearch() {
-    const q = (document.getElementById('globalSearchInput')?.value || '').toLowerCase().trim();
-    const results = document.getElementById('globalSearchResults');
-    if (!results) return;
+ 
 
-    if (q.length < 2) {
-      results.innerHTML = '<div class="empty-state" style="padding:30px;"><i class="fas fa-keyboard"></i><p>En az 2 karakter yazın</p></div>';
-      return;
-    }
 
-    const matches = [];
 
-    state.gelirler.forEach(g => {
-      const hay = ((g.kategori || '') + ' ' + (g.aciklama || '') + ' ' + (g.tarih || '')).toLowerCase();
-      if (hay.includes(q)) {
-        matches.push({ tip: 'gelir', item: g, label: g.kategori || '', sub: Calc.fmt(g.miktar) + ' - ' + (g.tarih || '') });
-      }
-    });
-
-    state.giderler.forEach(g => {
-      const hay = ((g.kategori || '') + ' ' + (g.aciklama || '') + ' ' + (g.tarih || '')).toLowerCase();
-      if (hay.includes(q)) {
-        matches.push({ tip: 'gider', item: g, label: g.kategori || '', sub: Calc.fmt(g.miktar) + ' - ' + (g.tarih || '') });
-      },
-        /* ═══════════════════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════════════
      🎯 GÖREVLER SAYFASI
      ═══════════════════════════════════════════════════════════════ */
+
   _gorevFilter: 'aktif',   // 'aktif' | 'bugun' | 'hafta' | 'geciken' | 'tamamlanan' | 'arsiv'
 
   setGorevFilter(f) {
@@ -12767,7 +12749,6 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     this.renderGorevler();
   },
 
-  /* Ana sayfa render */
   async renderGorevler() {
     const tumu = state.gorevler;
     const aktif = tumu.filter(g => !g.tamamlandi && !g.arsivlendi);
@@ -12780,7 +12761,6 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     const tamamlanan = tumu.filter(g => g.tamamlandi && !g.arsivlendi);
     const arsiv = tumu.filter(g => g.arsivlendi);
 
-    /* Filtre */
     let gosterilecek;
     switch (this._gorevFilter) {
       case 'bugun':       gosterilecek = bugun; break;
@@ -12850,7 +12830,6 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
       </div>
     `;
 
-    /* Toplu işlem barı (tamamlanan veya arşiv sekmesinde) */
     let bulkBarHTML = '';
     if (this._gorevFilter === 'tamamlanan' && tamamlanan.length > 0) {
       bulkBarHTML = `
@@ -12877,7 +12856,6 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
       `;
     }
 
-    /* Görev listesi */
     const emptyMessages = {
       aktif:      { icon: 'fa-clipboard-check',   title: 'Aktif görev yok',     desc: 'Yukarıdan hızlıca yeni bir görev ekleyin.' },
       bugun:      { icon: 'fa-sun',               title: 'Bugün görev yok',     desc: 'Bugüne ait bir görev bulunmuyor. Rahat bir gün!' },
@@ -12905,35 +12883,29 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     </div>`;
   },
 
-  /* Aktif görev sıralama: gecikmiş > bugün > yakın tarih > öncelik > oluşturulma */
   _gorevSortFn(a, b) {
     const priOrder = { kritik: 0, yuksek: 1, normal: 2, dusuk: 3 };
     const aTarih = a.tarih ? TaskDate.diffDays(a.tarih) : 9999;
     const bTarih = b.tarih ? TaskDate.diffDays(b.tarih) : 9999;
 
-    /* Gecikmiş/geçmiş önce */
     if (aTarih !== bTarih) {
       if (aTarih < 0 && bTarih >= 0) return -1;
       if (bTarih < 0 && aTarih >= 0) return 1;
       return aTarih - bTarih;
     }
 
-    /* Sonra öncelik */
     const aPri = priOrder[a.oncelik] ?? 2;
     const bPri = priOrder[b.oncelik] ?? 2;
     if (aPri !== bPri) return aPri - bPri;
 
-    /* Son olarak en yeni */
     return (b.olusturulma || '').localeCompare(a.olusturulma || '');
   },
 
-  /* Tek görev kartı render */
   _renderTaskCard(g) {
     const cat = GOREV_KATEGORI[g.kategori] || GOREV_KATEGORI.diger;
     const pri = GOREV_ONCELIK[g.oncelik] || GOREV_ONCELIK.normal;
     const rel = TaskDate.relative(g.tarih);
 
-    /* Alt görev progress */
     let altHTML = '';
     if (Array.isArray(g.altGorevler) && g.altGorevler.length > 0) {
       const total = g.altGorevler.length;
@@ -12992,7 +12964,6 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     `;
   },
 
-  /* Checkbox tıklama */
   async _toggleTaskComplete(id) {
     const g = state.gorevler.find(x => x.id == id);
     if (!g) return;
@@ -13003,7 +12974,6 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     await this.renderGorevler();
   },
 
-  /* Hızlı ekle */
   async _quickAddTask() {
     const inp = document.getElementById('quickTaskInput');
     if (!inp) return;
@@ -13017,7 +12987,6 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     showToast('🎯 Görev eklendi');
   },
 
-  /* Sil onayı */
   async _deleteTask(id) {
     const g = state.gorevler.find(x => x.id == id);
     if (!g) return;
@@ -13038,7 +13007,6 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     showToast('🗑️ Görev silindi');
   },
 
-  /* Toplu arşiv */
   async _bulkArsivle() {
     const n = await CRUD.gorevTopluArsivle();
     if (n > 0) {
@@ -13048,7 +13016,6 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     }
   },
 
-  /* Arşivden toplu sil */
   async _bulkDeleteArsiv() {
     const arsiv = state.gorevler.filter(g => g.arsivlendi);
     if (!arsiv.length) return;
@@ -13068,7 +13035,6 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     showToast(`🗑️ ${n} görev silindi`);
   },
 
-  /* Nav badge güncelle: geciken + bugün sayısı */
   _updateTaskBadge() {
     const badge = document.getElementById('taskNavBadge');
     if (!badge) return;
@@ -13085,9 +13051,6 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     }
   },
 
-  /* ═══════════════════════════════════════════════════════════
-     GÖREV FORMU (Yeni + Düzenle)
-     ═══════════════════════════════════════════════════════════ */
   async openGorevForm(id = null) {
     const eski = id ? state.gorevler.find(g => g.id == id) : null;
     this._taskFormTemp = {
@@ -13259,9 +13222,6 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     this._taskFormRenderSubs();
   },
 
-  /* ═══════════════════════════════════════════════════════════
-     GÖREV DETAY MODAL
-     ═══════════════════════════════════════════════════════════ */
   async openGorevDetay(id) {
     const g = state.gorevler.find(x => x.id == id);
     if (!g) return;
@@ -13326,17 +13286,13 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
       </div>`,
       showConfirmButton: false,
       showCloseButton: true,
-      width: Math.min(500, window.innerWidth - 24),
-      customClass: { popup: 'task-detail-popup' },
-      didOpen: () => {
-        const actions = document.querySelector('.task-detail-actions');
-      }
+      width: Math.min(500, window.innerWidth - 24)
     });
   },
 
   async _toggleSubtask(taskId, subId) {
     await CRUD.gorevAltGorevToggle(taskId, subId);
-    await this.openGorevDetay(taskId);  // yenile
+    await this.openGorevDetay(taskId);
     await this.renderGorevler();
   },
 
@@ -13358,85 +13314,6 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
   async _detailDelete(id) {
     Swal.close();
     setTimeout(() => this._deleteTask(id), 200);
-  }
-    });
-
-    state.borcalacaklar.forEach(b => {
-      const hay = ((b.kisiAdi || '') + ' ' + (b.aciklama || '')).toLowerCase();
-      if (hay.includes(q)) {
-        matches.push({ tip: b.tip, item: b, label: b.kisiAdi || '', sub: Calc.formatBirim(b) + ' - ' + (b.odendiMi ? 'Odendi' : 'Aktif') });
-      }
-    });
-
-    state.kategoriler.gelir.forEach(k => {
-      if (k.toLowerCase().includes(q)) {
-        matches.push({ tip: 'kategori', item: { k: k, t: 'gelir' }, label: k, sub: 'Gelir kategorisi' });
-      }
-    });
-    state.kategoriler.gider.forEach(k => {
-      if (k.toLowerCase().includes(q)) {
-        matches.push({ tip: 'kategori', item: { k: k, t: 'gider' }, label: k, sub: 'Gider kategorisi' });
-      }
-    });
-
-    const archiveKeys = Object.keys(state.archives);
-    for (let i = 0; i < archiveKeys.length; i++) {
-      const key = archiveKeys[i];
-      const hay = (key + ' ' + SalaryMonth.shortLabel(key)).toLowerCase();
-      if (hay.includes(q)) {
-        const a = state.archives[key];
-        const gCnt = Array.isArray(a.gelirler) ? a.gelirler.length : 0;
-        const gdCnt = Array.isArray(a.giderler) ? a.giderler.length : 0;
-        matches.push({ tip: 'arsiv', item: { key: key }, label: SalaryMonth.shortLabel(key), sub: 'Arsiv - ' + gCnt + ' gelir / ' + gdCnt + ' gider' });
-      }
-    }
-
-    state.logs.forEach(l => {
-      const hay = ((l.label || '') + ' ' + (l.details || '') + ' ' + (l.action || '')).toLowerCase();
-      if (hay.includes(q)) {
-        matches.push({ tip: 'log', item: l, label: l.label || l.action || '', sub: l.details || '' });
-      }
-    });
-
-    if (matches.length === 0) {
-      results.innerHTML = '<div class="empty-state" style="padding:30px;"><i class="fas fa-inbox"></i><p>Sonuc bulunamadi</p></div>';
-      return;
-    }
-
-    const tipBadge = { gelir: 'success', gider: 'danger', alacak: 'success', borc: 'amber', kategori: 'blue', arsiv: 'cyan', log: 'blue' };
-
-    const shown = matches.slice(0, 50);
-    let html = '<div style="font-size:11px;color:var(--text3);padding:5px 0 8px;font-weight:600;">';
-    html += shown.length + ' sonuc';
-    if (matches.length > 50) html += ' (ilk 50 gosteriliyor)';
-    html += '</div>';
-
-    for (let i = 0; i < shown.length; i++) {
-      const m = shown[i];
-      let onclick = 'Swal.close()';
-
-      if (m.tip === 'gelir' || m.tip === 'gider' || m.tip === 'alacak' || m.tip === 'borc') {
-        onclick = 'Swal.close(); setTimeout(function(){ App.showTransactionDetail(' + m.item.id + ', ' + JSON.stringify(m.tip) + '); }, 200)';
-      } else if (m.tip === 'arsiv') {
-        onclick = 'Swal.close(); setTimeout(function(){ App.showArchiveDetail(' + JSON.stringify(m.item.key) + '); }, 200)';
-      } else if (m.tip === 'log') {
-        onclick = 'Swal.close(); setTimeout(function(){ App.showLogDetail(' + m.item.id + '); }, 200)';
-      } else if (m.tip === 'kategori') {
-        onclick = 'Swal.close(); setTimeout(function(){ App._islemTip=' + JSON.stringify(m.item.t) + '; App.loadPage("islemler"); }, 200)';
-      }
-
-      const safeOnclick = onclick.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-
-      html += '<div onclick="' + safeOnclick + '" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:5px;background:var(--surface2);cursor:pointer;">';
-      html += '<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:2px;">';
-      html += '<strong style="font-size:13px;color:var(--text);">' + UI.escHtml(m.label) + '</strong>';
-      html += '<span class="badge badge-' + (tipBadge[m.tip] || 'blue') + '" style="font-size:9px;padding:2px 6px;">' + UI.escHtml(m.tip) + '</span>';
-      html += '</div>';
-      html += '<div style="font-size:11px;color:var(--text3);">' + UI.escHtml(m.sub) + '</div>';
-      html += '</div>';
-    }
-
-    results.innerHTML = html;
   }
 };
 
