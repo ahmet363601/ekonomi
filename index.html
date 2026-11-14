@@ -1789,6 +1789,215 @@ input[type="month"].form-input,
   .fuel-section { background: var(--surface2); }
   .fuel-grand-total { background: linear-gradient(135deg, #B45309, #78350F); }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   ARAÇ FORMU — Modern & Mobil Uyumlu
+   ═══════════════════════════════════════════════════════════════ */
+.vehicle-form-popup {
+  max-width: min(560px, calc(100vw - 20px)) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+.vehicle-form-popup .swal2-title {
+  padding: 18px 20px 14px !important;
+  margin: 0 !important;
+  border-bottom: 1px solid var(--border) !important;
+  font-size: 17px !important;
+  font-weight: 800 !important;
+}
+.vehicle-form-popup .swal2-html-container {
+  margin: 0 !important;
+  padding: 0 !important;
+  max-height: 62vh !important;
+  overflow-y: auto !important;
+}
+.vehicle-form-popup .swal2-actions {
+  padding: 12px 16px !important;
+  margin: 0 !important;
+  border-top: 1px solid var(--border) !important;
+  background: var(--surface) !important;
+  gap: 10px !important;
+}
+
+/* Form wrapper */
+.vform {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Bölüm kartları */
+.vform-section {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.vform-section-warning {
+  background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+  border-color: #FCD34D;
+}
+.vform-section-info {
+  background: linear-gradient(135deg, #EFF6FF 0%, #F0F9FF 100%);
+  border-color: #BFDBFE;
+}
+
+/* Bölüm başlığı */
+.vform-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text2);
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--border);
+}
+.vform-section-title i {
+  font-size: 13px;
+  color: var(--primary);
+  width: 16px;
+  text-align: center;
+}
+.vform-section-warning .vform-section-title i { color: #B45309; }
+.vform-section-info .vform-section-title i { color: var(--info); }
+
+/* Satır (yan yana 2 input) */
+.vform-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 400px) {
+  .vform-row { grid-template-columns: 1fr; gap: 10px; }
+}
+
+/* Alan */
+.vform-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.vform-field + .vform-field:not(.vform-row .vform-field) {
+  margin-top: 10px;
+}
+
+/* Label */
+.vform-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text2);
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+}
+.vform-section-warning .vform-label { color: #78350F; }
+.vform-section-info .vform-label { color: #1E40AF; }
+
+/* Input */
+.vform-input {
+  width: 100% !important;
+  padding: 11px 13px !important;
+  border: 1.5px solid var(--border) !important;
+  border-radius: 10px !important;
+  font-size: 16px !important;   /* iOS auto-zoom engeli */
+  color: var(--text) !important;
+  background: var(--surface) !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+  transition: all 0.15s ease !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  height: auto !important;
+  line-height: 1.4 !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+.vform-input::placeholder {
+  color: var(--text3) !important;
+  font-size: 13px !important;
+  opacity: 0.8 !important;
+}
+.vform-input:focus {
+  outline: none !important;
+  border-color: var(--primary) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 0 0 3px var(--primary-light) !important;
+}
+.vform-section-warning .vform-input {
+  border-color: #FCD34D !important;
+  background: #FFFEF9 !important;
+}
+.vform-section-warning .vform-input:focus {
+  border-color: #B45309 !important;
+  box-shadow: 0 0 0 3px rgba(180,83,9,.15) !important;
+}
+.vform-section-info .vform-input {
+  border-color: #BFDBFE !important;
+  background: #FDFEFF !important;
+}
+.vform-section-info .vform-input:focus {
+  border-color: var(--info) !important;
+  box-shadow: 0 0 0 3px rgba(3,105,161,.12) !important;
+}
+
+/* iOS date input düzeltmesi */
+.vform-input[type="date"] {
+  -webkit-appearance: auto !important;
+  appearance: auto !important;
+  min-height: 44px !important;
+}
+
+/* Hint kutusu */
+.vform-hint {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.7);
+  border-radius: 8px;
+  font-size: 10.5px;
+  color: #78350F;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.4;
+}
+.vform-hint i {
+  font-size: 11px;
+  color: #B45309;
+  flex-shrink: 0;
+}
+.vform-hint strong { color: #92400E; }
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .vform-section-warning {
+    background: linear-gradient(135deg, rgba(180,83,9,.15) 0%, rgba(180,83,9,.08) 100%);
+    border-color: rgba(180,83,9,.45);
+  }
+  .vform-section-warning .vform-section-title i,
+  .vform-section-warning .vform-label,
+  .vform-hint { color: #FCD34D; }
+  .vform-section-warning .vform-input {
+    background: var(--surface2) !important;
+    border-color: rgba(180,83,9,.45) !important;
+    color: var(--text) !important;
+  }
+  .vform-hint { background: rgba(0,0,0,.35); }
+  .vform-hint strong { color: #FCD34D; }
+
+  .vform-section-info {
+    background: linear-gradient(135deg, rgba(59,130,246,.15) 0%, rgba(59,130,246,.08) 100%);
+    border-color: rgba(59,130,246,.4);
+  }
+  .vform-section-info .vform-label { color: #93C5FD; }
+  .vform-section-info .vform-input {
+    background: var(--surface2) !important;
+    border-color: rgba(59,130,246,.4) !important;
+    color: var(--text) !important;
+  }
+}
 </style>
 
 </head>
@@ -8164,58 +8373,129 @@ async _vehicleForm(existing) {
   const currentKm = _getLastFuelKm();
 
   const { value } = await Swal.fire({
-    title: existing ? '✏️ Aracı Düzenle' : '🚗 Yeni Araç',
-    html: `<div style="text-align:left;max-height:70vh;overflow-y:auto;padding-right:4px;">
-      <label style="font-size:12px;font-weight:600;">Plaka</label>
-      <input id="vPlaka" class="swal2-input" value="${UI.escHtml(v.plaka || '')}" placeholder="34 ABC 123">
+    title: existing ? '✏️ Aracı Düzenle' : '🚗 Yeni Araç Ekle',
+    html: `<div class="vform">
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-        <div><label style="font-size:12px;font-weight:600;">Marka</label>
-          <input id="vMarka" class="swal2-input" value="${UI.escHtml(v.marka || '')}"></div>
-        <div><label style="font-size:12px;font-weight:600;">Model</label>
-          <input id="vModel" class="swal2-input" value="${UI.escHtml(v.model || '')}"></div>
+      <!-- ═══ ARAÇ BİLGİLERİ ═══ -->
+      <div class="vform-section">
+        <div class="vform-section-title">
+          <i class="fas fa-car"></i> Araç Bilgileri
+        </div>
+
+        <div class="vform-field">
+          <label class="vform-label">Plaka</label>
+          <input id="vPlaka" class="vform-input" type="text"
+                 value="${UI.escHtml(v.plaka || '')}"
+                 placeholder="34 ABC 123"
+                 style="text-transform:uppercase;letter-spacing:1px;font-weight:700;">
+        </div>
+
+        <div class="vform-row">
+          <div class="vform-field">
+            <label class="vform-label">Marka</label>
+            <input id="vMarka" class="vform-input" type="text"
+                   value="${UI.escHtml(v.marka || '')}"
+                   placeholder="Toyota">
+          </div>
+          <div class="vform-field">
+            <label class="vform-label">Model</label>
+            <input id="vModel" class="vform-input" type="text"
+                   value="${UI.escHtml(v.model || '')}"
+                   placeholder="Corolla">
+          </div>
+        </div>
+
+        <div class="vform-field" style="margin-top:10px;">
+          <label class="vform-label">Yıl</label>
+          <input id="vYil" class="vform-input" type="number"
+                 value="${v.yil || ''}"
+                 placeholder="2020"
+                 min="1980" max="2100">
+        </div>
       </div>
 
-      <label style="font-size:12px;font-weight:600;">Yıl</label>
-      <input id="vYil" type="number" class="swal2-input" value="${v.yil || ''}" min="1980" max="2100">
+      <!-- ═══ YAĞ BAKIM TAKİBİ ═══ -->
+      <div class="vform-section vform-section-warning">
+        <div class="vform-section-title">
+          <i class="fas fa-oil-can"></i> Yağ Bakım Takibi (KM)
+        </div>
 
-      <div style="background:#FEF3C7;padding:12px;border-radius:10px;margin:10px 0;border:1px solid #FCD34D;">
-        <div style="font-size:12px;font-weight:800;color:#92400E;margin-bottom:8px;">🛢️ Yağ Bakım Takibi (KM)</div>
-        <label style="font-size:11px;color:#78350F;font-weight:600;">Son Yağ Bakım KM</label>
-        <input id="vYagBakimKm" type="number" class="swal2-input" value="${v.yagBakimKm || ''}" min="0" step="1"
-               placeholder="${currentKm > 0 ? `Son yakıt: ${currentKm.toLocaleString('tr-TR')} km` : 'örn. 50000'}">
-        <label style="font-size:11px;color:#78350F;font-weight:600;">Bakım Aralığı (km)</label>
-        <input id="vYagBakimAralikKm" type="number" class="swal2-input" value="${v.yagBakimAralikKm || 10000}" min="1000" step="1000">
-        ${currentKm > 0 ? `<div style="font-size:10px;color:#B45309;margin-top:6px;"><i class="fas fa-info-circle"></i> Şu anki KM (yakıt kayıtlarından): <strong>${currentKm.toLocaleString('tr-TR')} km</strong></div>` : `<div style="font-size:10px;color:#B45309;margin-top:6px;"><i class="fas fa-info-circle"></i> İlk yakıt kaydı eklenince otomatik takip başlar.</div>`}
+        <div class="vform-row">
+          <div class="vform-field">
+            <label class="vform-label">Son Bakım KM</label>
+            <input id="vYagBakimKm" class="vform-input" type="number"
+                   value="${v.yagBakimKm || ''}"
+                   placeholder="${currentKm > 0 ? currentKm.toLocaleString('tr-TR') : '50.000'}"
+                   min="0" step="1" inputmode="numeric">
+          </div>
+          <div class="vform-field">
+            <label class="vform-label">Aralık (km)</label>
+            <input id="vYagBakimAralikKm" class="vform-input" type="number"
+                   value="${v.yagBakimAralikKm || 10000}"
+                   placeholder="10.000"
+                   min="1000" step="1000" inputmode="numeric">
+          </div>
+        </div>
+
+        <div class="vform-hint">
+          <i class="fas fa-info-circle"></i>
+          <span>
+            ${currentKm > 0
+              ? `Şu anki KM (yakıttan): <strong>${currentKm.toLocaleString('tr-TR')} km</strong> — bir sonraki bakım: <strong>${(Number(v.yagBakimKm || 0) + (Number(v.yagBakimAralikKm) || 10000)).toLocaleString('tr-TR')} km</strong>`
+              : 'İlk yakıt kaydı eklenince KM otomatik takip edilir. Bakımı yaptırdığınız KM\'yi buraya girin.'}
+          </span>
+        </div>
       </div>
 
-      <label style="font-size:12px;font-weight:600;">Muayene Bitiş</label>
-      <input id="vMuayene" type="date" class="swal2-input" value="${v.muayeneBitis || ''}">
-      <label style="font-size:12px;font-weight:600;">Trafik Sigortası Bitiş</label>
-      <input id="vSigorta" type="date" class="swal2-input" value="${v.sigorta || ''}">
-      <label style="font-size:12px;font-weight:600;">Kasko Bitiş</label>
-      <input id="vKasko" type="date" class="swal2-input" value="${v.kasko || ''}">
+      <!-- ═══ SİGORTA & MUAYENE ═══ -->
+      <div class="vform-section vform-section-info">
+        <div class="vform-section-title">
+          <i class="fas fa-shield-alt"></i> Sigorta & Muayene
+        </div>
+
+        <div class="vform-field">
+          <label class="vform-label">Muayene Bitiş</label>
+          <input id="vMuayene" class="vform-input" type="date"
+                 value="${v.muayeneBitis || ''}">
+        </div>
+
+        <div class="vform-field" style="margin-top:10px;">
+          <label class="vform-label">Trafik Sigortası Bitiş</label>
+          <input id="vSigorta" class="vform-input" type="date"
+                 value="${v.sigorta || ''}">
+        </div>
+
+        <div class="vform-field" style="margin-top:10px;">
+          <label class="vform-label">Kasko Bitiş</label>
+          <input id="vKasko" class="vform-input" type="date"
+                 value="${v.kasko || ''}">
+        </div>
+      </div>
+
     </div>`,
     showCancelButton: true,
-    confirmButtonText: 'Kaydet',
+    confirmButtonText: existing ? '💾 Güncelle' : '✅ Kaydet',
     cancelButtonText: 'İptal',
-    width: Math.min(500, window.innerWidth - 24),
+    width: Math.min(560, window.innerWidth - 20),
+    customClass: { popup: 'vehicle-form-popup' },
+    focusConfirm: false,
     preConfirm: () => {
       const plaka = (document.getElementById('vPlaka').value || '').trim().toUpperCase();
       if (!plaka) {
-        Swal.showValidationMessage('Plaka zorunlu');
+        Swal.showValidationMessage('⚠️ Plaka zorunlu');
+        document.getElementById('vPlaka')?.focus();
         return false;
       }
       return {
         plaka,
-        marka:          (document.getElementById('vMarka').value || '').trim(),
-        model:          (document.getElementById('vModel').value || '').trim(),
-        yil:            parseInt(document.getElementById('vYil').value) || null,
-        yagBakimKm:     parseInt(document.getElementById('vYagBakimKm').value) || null,
+        marka:            (document.getElementById('vMarka').value || '').trim(),
+        model:            (document.getElementById('vModel').value || '').trim(),
+        yil:              parseInt(document.getElementById('vYil').value) || null,
+        yagBakimKm:       parseInt(document.getElementById('vYagBakimKm').value) || null,
         yagBakimAralikKm: parseInt(document.getElementById('vYagBakimAralikKm').value) || 10000,
-        muayeneBitis:   document.getElementById('vMuayene').value || null,
-        sigorta:        document.getElementById('vSigorta').value || null,
-        kasko:          document.getElementById('vKasko').value || null
+        muayeneBitis:     document.getElementById('vMuayene').value || null,
+        sigorta:          document.getElementById('vSigorta').value || null,
+        kasko:            document.getElementById('vKasko').value || null
       };
     }
   });
@@ -8231,7 +8511,7 @@ async _vehicleForm(existing) {
     await addLog('arac_ekle', `${value.plaka} - ${value.marka} ${value.model}`);
   }
   await saveAraclar();
-  showToast('✅ Araç kaydedildi');
+  showToast(existing ? '✅ Araç güncellendi' : '✅ Araç eklendi');
   await this.openVehicleModal();
   if (this.currentPage === 'dashboard') await this.renderDashboard();
 },
