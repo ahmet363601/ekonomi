@@ -3544,30 +3544,34 @@ const SalaryMonth = {
       : d.subtract(1, 'month').format('YYYY-MM');
   },
   currentKey() { return this.keyOf(); },
-  previousKey() { return dayjs(this.currentKey() + '-15').subtract(1, 'month').format('YYYY-MM'); },
+  previousKey() {
+    return dayjs(this.currentKey() + '-01').subtract(1, 'month').format('YYYY-MM');
+  },
 
   /** Anahtar → { start, end } (YYYY-MM-DD) */
   range(key) {
-    const start = dayjs(key + '-15').format('YYYY-MM-DD');
+    const d = this.DAY_START;
+    const start = dayjs(key + '-01').date(d).format('YYYY-MM-DD');
     const end = dayjs(start).add(1, 'month').subtract(1, 'day').format('YYYY-MM-DD');
     return { start, end };
   },
-
   /** Uzun etiket: "Aralık 2026 (15 Ara – 14 Oca)" */
 label(key) {
   const { start, end } = this.range(key);
   const s = dayjs(start), e = dayjs(end);
-  /* Farklı yıl ise iki yılı da göster */
   const yearS = s.format('YYYY');
   const yearE = e.format('YYYY');
+  const fmtS = `${s.format('DD')} ${s.format('MMM')}`;
+  const fmtE = `${e.format('DD')} ${e.format('MMM')}`;
   if (yearS !== yearE) {
-    return `${s.format('MMMM YYYY')} · 15 ${s.format('MMM')} ${yearS} – 14 ${e.format('MMM')} ${yearE}`;
+    return `${s.format('MMMM YYYY')} · ${fmtS} ${yearS} – ${fmtE} ${yearE}`;
   }
-  return `${s.format('MMMM YYYY')} · 15 ${s.format('MMM')} – 14 ${e.format('MMM')}`;
+  return `${s.format('MMMM YYYY')} · ${fmtS} – ${fmtE}`;
 },
 
   /** Kısa etiket: "Aralık 2026" */
-  shortLabel(key) { return dayjs(key + '-15').format('MMMM YYYY'); },
+  /** Kısa etiket: "Aralık 2026" */
+  shortLabel(key) { return dayjs(key + '-01').format('MMMM YYYY'); },
 
   /** Yıl (arşiv gruplaması için): "2026" */
   yearOf(key) { return key.substring(0, 4); },
@@ -3614,14 +3618,17 @@ daysUntilArchive() {
     state.gelirler.forEach(g => { if (g.tarih) months.add(this.keyOf(g.tarih)); });
     state.giderler.forEach(g => { if (g.tarih) months.add(this.keyOf(g.tarih)); });
     const current = this.currentKey();
-      isOverdue() {
+    /* 🆕 Birleştirme sayesinde ana listede kalan her geçmiş dönem "bekleyen" sayılır */
+    return [...months].filter(k => k !== current).sort();
+  },
+
+  /** Arşiv gecikmiş mi (3 gün tolerans) */
+  isOverdue() {
     const prev = this.previousKey();
     if (state.archives[prev]) return false;
     if (!this.hasDataInRange(this.range(prev))) return false;
-    /* Önceki dönemin bitiş tarihi geçtiyse ve arşivlenmediyse gecikmiş */
     const prevEnd = this.range(prev).end;
-    return dayjs().format('YYYY-MM-DD') > prevEnd;
-  },
+    return dayjs().diff(dayjs(prevEnd), 'day') >= 3;
   },
 
   /** Arşiv gecikmiş mi */
@@ -4353,7 +4360,8 @@ const Vehicle = {
         seviye, renk, bg, emoji, bildirimMetni
       });
     });
-    return     /* 🆕 Diğer bakım türleri (lastik, balata, akü, periyodik) */
+
+    /* 🆕 Diğer bakım türleri (lastik, balata, akü, periyodik) */
     (state.araclar || []).forEach(v => {
       const db = v.digerBakimlar || {};
       Object.entries(db).forEach(([tip, cfg]) => {
@@ -4376,6 +4384,7 @@ const Vehicle = {
     });
 
     out.sort((a, b) => a.kalanKm - b.kalanKm);
+    return out;
   },
 
   /* ───── Bakım yapıldı — kayıt ekle + sayaç sıfırla ───── */
@@ -6083,7 +6092,7 @@ async renderDashboard() {
               </div>
               <div class="fuel-subtotal">
                 <span>Benzin Toplam:</span>
-                <strong id="fuelBenzinTL">TL 0,00 ₺</strong>
+                <strong id="fuelBenzinTL">0,00 ₺</strong>
               </div>
             </div>
 
@@ -6106,14 +6115,14 @@ async renderDashboard() {
               </div>
               <div class="fuel-subtotal">
                 <span>LPG Toplam:</span>
-                <strong id="fuelLpgTL">TL 0,00 ₺</strong>
+               <strong id="fuelLpgTL">0,00 ₺</strong>
               </div>
             </div>
 
             <!-- Genel Toplam -->
             <div class="fuel-grand-total">
               <span><i class="fas fa-calculator"></i> Genel Toplam</span>
-              <strong id="fuelGrandTotal">TL 0,00 ₺</strong>
+              <strong id="fuelGrandTotal">0,00 ₺</strong>
             </div>
 
             <!-- Preview -->
@@ -11427,7 +11436,8 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
         ayarlar:       {
           varsayilanRaporAraligi: state.ayarlar.varsayilanRaporAraligi,
           gramAltinFiyati:        state.ayarlar.gramAltinFiyati,
-          ceyrekAltinFiyati:      state.ayarlar.ceyrekAltinFiyati
+          ceyrekAltinFiyati:      state.ayarlar.ceyrekAltinFiyati,
+          maasGun:                state.ayarlar.maasGun || 15
         },
         archives:      state.archives,
         araclar:       state.araclar,
@@ -11514,13 +11524,14 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
             a && typeof a === 'object' && a.plaka
           ).map(a => ({ ...a, id: a.id || Date.now() + Math.random() }));
         }
-
         let newAyarlar = { ...state.ayarlar };
         if (data.ayarlar && typeof data.ayarlar === 'object') {
+          const mg = parseInt(data.ayarlar.maasGun, 10);
           newAyarlar = {
             varsayilanRaporAraligi: data.ayarlar.varsayilanRaporAraligi || 'ay',
             gramAltinFiyati:        Number(data.ayarlar.gramAltinFiyati) || 6400,
-            ceyrekAltinFiyati:      Number(data.ayarlar.ceyrekAltinFiyati) || 10500
+            ceyrekAltinFiyati:      Number(data.ayarlar.ceyrekAltinFiyati) || 10500,
+            maasGun:                (mg >= 1 && mg <= 28) ? mg : 15
           };
         }
 
@@ -11592,6 +11603,8 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
         state.logs          = [];
 
         await saveAllData();
+        /* 🆕 Kategori versiyonunu güncelle — import edilen eski kategoriler bir sonraki açılışta DEFAULT'a dönsün */
+        localStorage.setItem('kat_version', String(KAT_VERSION));
         await addLog('json_import', `${file.name} (${newGelirler.length + newGiderler.length} işlem)`);
         showToast('✅ Yedek başarıyla yüklendi!');
         await this.loadPage(this.currentPage);
