@@ -3252,7 +3252,20 @@ const CRUD = {
     };
 
     // 1) ÖNCE arşivi güvenceye al
-    await saveArchives();
+    // 1) ÖNCE arşivi güvenceye al — başarısızsa erken çık
+    try {
+      await saveArchives();
+    } catch (saveErr) {
+      console.error('[manualArchive] Arşiv kaydı başarısız:', saveErr);
+      Swal.fire({
+        icon: 'error',
+        title: 'Arşiv Kaydedilemedi',
+        html: `<p>Bu dönem arşive yazılamadı.</p>
+               <p style="font-size:12px;color:#94a3b8;margin-top:6px;">Veri kaybı yok. Sayfayı yenileyip tekrar deneyin.</p>`,
+        confirmButtonText: 'Tamam'
+      });
+      return false;
+    }
 
     // 2) SONRA ana listeden kaldır
     state.gelirler = state.gelirler.filter(g => !(g.tarih >= range.start && g.tarih <= range.end));
@@ -3262,9 +3275,15 @@ const CRUD = {
       return !(d >= range.start && d <= range.end);
     });
 
-    await saveGelirler();
-    await saveGiderler();
-    await saveLogs();
+    try {
+      await saveGelirler();
+      await saveGiderler();
+      await saveLogs();
+    } catch (listErr) {
+      console.error('[manualArchive] Ana liste kaydı başarısız:', listErr);
+      // Arşiv zaten kaydedildi; ana listede kalıntı var ama zararsız
+      // Bir sonraki açılışta pendingMonths filtreleyecek çünkü archive mevcut
+    }
 
     /* 🆕 Arşiv PDF'i üret ve arşive kaydet */
     try {
@@ -3317,18 +3336,16 @@ const CRUD = {
 
     Swal.fire({
       icon: 'success',
-      title: '✅ Arşivlendi',
-      html: `<div style="text-align:left;">
-        <div style="padding:12px;background:var(--surface2);border-radius:10px;margin-bottom:10px;">
-          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px;">Arşivlenen Dönem</div>
-          <div style="font-family:'Plus Jakarta Sans';font-size:15px;font-weight:800;">${SalaryMonth.shortLabel(monthKey)}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${range.start} → ${range.end}</div>
-        </div>
-        <p><strong>${aGelir.length}</strong> gelir · <strong>${aGider.length}</strong> gider · <strong>${aLoglar.length}</strong> log taşındı.</p>
-      </div>`,
-      timer: 3600,
-      showConfirmButton: false
-    });
+    // Sadece tek arşivlemede success göster (batch'te `_batchMode` ile susturulur)
+    if (!this._batchMode) {
+      Swal.fire({
+        icon: 'success',
+        title: '✅ Arşivlendi',
+        html: `...`,
+        timer: 3600,
+        showConfirmButton: false
+      });
+    }
     return true;
   },
 
@@ -8110,24 +8127,27 @@ openKategoriModal() {
       confirmButtonText: 'Kaydet',
       cancelButtonText: 'İptal',
       width: Math.min(500, window.innerWidth - 24),
-      preConfirm: () => ({
-        plaka:         (document.getElementById('vPlaka').value || '').trim().toUpperCase(),
-        marka:         (document.getElementById('vMarka').value || '').trim(),
-        model:         (document.getElementById('vModel').value || '').trim(),
-        yil:           parseInt(document.getElementById('vYil').value) || null,
-        muayeneBitis:  document.getElementById('vMuayene').value || null,
-        sigorta:       document.getElementById('vSigorta').value || null,
-        kasko:         document.getElementById('vKasko').value || null,
-        bakimTarih:    document.getElementById('vBakimTarih').value || null,
-        bakimAyAralik: parseInt(document.getElementById('vBakimAy').value) || 12
-      })
+      preConfirm: () => {
+        const plaka = (document.getElementById('vPlaka').value || '').trim().toUpperCase();
+        if (!plaka) {
+          Swal.showValidationMessage('Plaka zorunlu');
+          return false;   // Swal açık kalır
+        }
+        return {
+          plaka,
+          marka:         (document.getElementById('vMarka').value || '').trim(),
+          model:         (document.getElementById('vModel').value || '').trim(),
+          yil:           parseInt(document.getElementById('vYil').value) || null,
+          muayeneBitis:  document.getElementById('vMuayene').value || null,
+          sigorta:       document.getElementById('vSigorta').value || null,
+          kasko:         document.getElementById('vKasko').value || null,
+          bakimTarih:    document.getElementById('vBakimTarih').value || null,
+          bakimAyAralik: parseInt(document.getElementById('vBakimAy').value) || 12
+        };
+      }
     });
     if (!value) { this.openVehicleModal(); return; }
-    if (!value.plaka) {
-      showToast('⚠️ Plaka zorunlu');
-      this.openVehicleModal();
-      return;
-    }
+
     if (existing) {
       const idx = state.araclar.findIndex(a => a.id === existing.id);
       if (idx >= 0) state.araclar[idx] = { ...state.araclar[idx], ...value };
@@ -9274,11 +9294,42 @@ async function autoArchiveCheck() {
 
     if (!isConfirmed) return;
 
+    // Toplu işlem — loading modal tek seferlik
+    Swal.fire({
+      title: 'Arşivleniyor...',
+      html: `<p>${pending.length} dönem arşivleniyor</p>
+             <p style="font-size:11px;color:#94a3b8;margin-top:6px;">PDF raporları da oluşturuluyor</p>`,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    let basarili = 0;
+    let basarisiz = 0;
     for (const k of pending) {
-      await CRUD.manualArchive(k);
+      try {
+        const ok = await CRUD.manualArchive(k);
+        if (ok) basarili++;
+        else basarisiz++;
+      } catch (e) {
+        console.warn(`[autoArchive] ${k} başarısız:`, e);
+        basarisiz++;
+      }
     }
 
-    showToast(`✅ ${pending.length} dönem arşivlendi`);
+    Swal.close();
+
+    if (basarisiz > 0) {
+      Swal.fire({
+        icon: basarili > 0 ? 'warning' : 'error',
+        title: basarili > 0 ? 'Kısmen Arşivlendi' : 'Arşivlenemedi',
+        html: `<p><strong>${basarili}</strong> dönem arşivlendi, <strong>${basarisiz}</strong> dönem başarısız.</p>
+               <p style="font-size:12px;color:#94a3b8;margin-top:8px;">Başarısız olanları Arşiv sayfasından tek tek deneyebilirsiniz.</p>`,
+        confirmButtonText: 'Tamam'
+      });
+    } else {
+      showToast(`✅ ${basarili} dönem arşivlendi`);
+    }
 
     if (App.currentPage === 'dashboard') await App.renderDashboard();
     else if (App.currentPage === 'arsiv') await App.renderArsiv();
@@ -9831,14 +9882,25 @@ document.addEventListener('click', () => { requestPersistentStorage(); }, { once
   // ⚠️ Bu kısım artık asla yüklemeyi bloklamaz
   setTimeout(async () => {
     try {
-      // Arka planda altın kurlarını güncelle (hata olursa sessiz)
+      // 1) Altın kurlarını sessizce güncelle (UI yok)
       GoldRate.fetchAndUpdate(false).catch(e => console.warn('[init] gold:', e));
 
+      // 2) Migrasyon — sadece bir kez, kısa aralıkla
       await migrateOldData().catch(e => console.warn('[init] migrate:', e));
-      await new Promise(r => setTimeout(r, 1500));
-      await autoArchiveCheck().catch(e => console.warn('[init] autoArchive:', e));
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 2000));
 
+      // 3) Arşiv kontrolü — SADECE gecikmiş ve 24 saatte bir kez uyar
+      const lastArchivePrompt = localStorage.getItem('last_archive_prompt');
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      const shouldPrompt = !lastArchivePrompt || (Date.now() - Number(lastArchivePrompt)) > oneDayMs;
+
+      if (shouldPrompt && SalaryMonth.isOverdue()) {
+        await autoArchiveCheck().catch(e => console.warn('[init] autoArchive:', e));
+        localStorage.setItem('last_archive_prompt', String(Date.now()));
+      }
+      await new Promise(r => setTimeout(r, 2500));
+
+      // 4) iOS ipucu — sadece gerçek iOS cihazda ve daha önce gösterilmemişse
       if (isIOS && !localStorage.getItem('ios_install_hint_shown')) {
         await Swal.fire({
           icon: 'info', title: 'Verileriniz İçin Önemli',
@@ -9848,9 +9910,12 @@ document.addEventListener('click', () => { requestPersistentStorage(); }, { once
         });
         localStorage.setItem('ios_install_hint_shown', '1');
       }
+
+      // 5) Yedek hatırlatıcı — 30 saniye beklet, modal üst üste binmesin
+      await new Promise(r => setTimeout(r, 30000));
       await checkBackupReminder().catch(e => console.warn('[init] reminder:', e));
     } catch (e) { console.warn('[init] Arka plan görevleri:', e); }
-  }, 1000);
+  }, 1500);
 })();
 </script>
 </body>
