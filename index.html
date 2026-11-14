@@ -445,7 +445,7 @@ button, a, .chip, .nav-btn, .btn, .header-btn,
 .hero-card {
   background: linear-gradient(135deg, #0F2A5C 0%, #0A1F44 60%, #081B3E 100%);
   border-radius: var(--radius);
-  padding: 22px 20px 18px;
+  padding: 22px 20px 20px;
   color: #fff;
   box-shadow: 0 8px 24px rgba(15,42,92,.20), 0 2px 6px rgba(15,42,92,.10);
   margin-bottom: 14px;
@@ -1285,10 +1285,11 @@ input[type="month"].form-input,
     -webkit-backdrop-filter: none;
     background: rgba(255, 255, 255, .99);
   }
+  /* iOS'ta blur performansı düşürür — düz koyu katman kullan */
   .swal2-container {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-    background: rgba(11,21,39,.7) !important;
+    background: rgba(11, 21, 39, .72) !important;
   }
 }
 @media (prefers-color-scheme: dark) {
