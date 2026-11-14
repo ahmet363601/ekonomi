@@ -4029,22 +4029,14 @@ async function loadAllData() {
     const backs = await dbGetAll('backups');
     state.backups = backs.sort((a, b) => b.createdAt > a.createdAt ? 1 : -1);
 
-    try {
-      state.araclar = await dbGetAll('araclar');
-      try {
-        state.notifications = await dbGetAll('notifications');
-            /* 🆕 Görevleri yükle */
-    try {
-      state.gorevler = await dbGetAll('gorevler');
-    } catch (_) {
-      state.gorevler = [];
-    }
-      } catch (_) {
-        state.notifications = [];
-      }
-    } catch (_) {
-      state.araclar = [];
-    }
+      try { state.araclar = await dbGetAll('araclar'); }
+    catch (_) { state.araclar = []; }
+
+    try { state.notifications = await dbGetAll('notifications'); }
+    catch (_) { state.notifications = []; }
+
+    try { state.gorevler = await dbGetAll('gorevler'); }
+    catch (_) { state.gorevler = []; }
   } catch(e) {
     console.error('Veri yükleme:', e);
     throw e;
@@ -4488,7 +4480,7 @@ pendingMonths() {
   const current = this.currentKey();
   // Sadece geçmiş dönemler; gelecek (k > current) hariç
   return [...months].filter(k => k < current).sort();
-}
+},
 
   /** Arşiv gecikmiş mi (3 gün tolerans) */
   isOverdue() {
@@ -5277,7 +5269,7 @@ async bakimYap(vehicleId, detay) {
   await saveAraclar();
   await addLog('arac_bakim', `${v.plaka} yağ bakımı — ${km.toLocaleString('tr-TR')} km`);
   return kayit;
-}
+},
 
   /* ───── Bakım geçmişi ───── */
   getBakimGecmisi(vehicleId) {
@@ -8360,7 +8352,7 @@ async araOdeme(id) {
   }
   // ... log + backup
   return true;
-}
+},
 
   async tamOdendi(id) {
     const r = await Swal.fire({ icon:'question', title:'Tamamen ödendi mi?', showCancelButton:true, confirmButtonText:'Evet', cancelButtonText:'İptal' });
@@ -14268,7 +14260,7 @@ async exportToJSON() {
    saveFile — iOS/Android'de önce Web Share API, fallback <a download>
    Blob verilir → kullanıcıya kaydetme seçenekleri sunar.
    ═══════════════════════════════════════════════════════════════ */
-async function saveFile(blob, filename) {
+async saveFile(blob, filename) {
   // 1) Web Share API (iOS 15+, Android Chrome)
   try {
     if (navigator.canShare) {
@@ -14298,7 +14290,8 @@ async function saveFile(blob, filename) {
   } catch (e) {
     return { ok: false, error: e };
   }
-}
+},
+
   async _toggleTaskComplete(id) {
     const g = state.gorevler.find(x => x.id == id);
     if (!g) return;
