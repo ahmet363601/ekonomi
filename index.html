@@ -2902,6 +2902,11 @@ input[type="month"].form-input,
     <button class="nav-btn active" data-page="dashboard"   onclick="App.loadPage('dashboard')"><i class="fas fa-chart-pie"></i><span>Özet</span></button>
     <button class="nav-btn"        data-page="islemler"    onclick="App.loadPage('islemler')"><i class="fas fa-exchange-alt"></i><span>İşlemler</span></button>
     <button class="nav-btn"        data-page="borcalacak"  onclick="App.loadPage('borcalacak')"><i class="fas fa-handshake"></i><span>Borç/Alacak</span></button>
+    <button class="nav-btn"        data-page="gorevler"    onclick="App.loadPage('gorevler')" style="position:relative;">
+      <i class="fas fa-list-check"></i>
+      <span>Görevler</span>
+      <span class="nav-badge" id="taskNavBadge" style="display:none;"></span>
+    </button>
     <button class="nav-btn"        data-page="rapor"       onclick="App.loadPage('rapor')"><i class="fas fa-chart-bar"></i><span>Rapor</span></button>
     <button class="nav-btn"        data-page="arsiv"       onclick="App.loadPage('arsiv')"><i class="fas fa-archive"></i><span>Arşiv</span></button>
   </div>
