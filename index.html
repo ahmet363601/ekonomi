@@ -7555,18 +7555,32 @@ async renderDashboard() {
       }
     }
   },
-
   async showTransactionDetail(id, tip) {
     if (tip === 'alacak' || tip === 'borc') {
       return this._showBorcDetail(id);
     }
 
-    const item = (tip === 'gelir' ? state.gelirler : state.giderler).find(i => i.id == id);
-    if (!item) { showToast('⚠️ Kayıt bulunamadı'); return; }
+    /* 🆕 Arşivdeki kayıtları da bul */
+    const findItem = (list, arrKey) => {
+      const active = list.find(i => i.id == id);
+      if (active) return { item: active, isArchived: false, archiveKey: null };
+      for (const [k, a] of Object.entries(state.archives)) {
+        const found = (a[arrKey] || []).find(x => x.id == id);
+        if (found) return { item: found, isArchived: true, archiveKey: k };
+      }
+      return null;
+    };
+
+    const found = tip === 'gelir' ? findItem(state.gelirler, 'gelirler')
+                : tip === 'gider' ? findItem(state.giderler, 'giderler')
+                : null;
+    if (!found) { showToast('⚠️ Kayıt bulunamadı'); return; }
+
+    const { item, isArchived, archiveKey } = found;
     const isGelir = tip === 'gelir';
-    await Swal.fire({
-      title: (isGelir ? '📥 Gelir Detayı' : '📤 Gider Detayı'),
-      html: `<div style="text-align:left;">
+
+    /* Ortak detay HTML'i — aktif ve arşiv aynı içeriği görsün */
+    const buildDetailHTML = () => `<div style="text-align:left;">
         <div class="card-sm" style="text-align:center;margin-bottom:12px;">
           <div class="archive-stat-label">Kategori</div>
           <div style="font-family:'Plus Jakarta Sans';font-size:16px;font-weight:800;margin-top:4px;">${UI.escHtml(item.kategori)}</div>
@@ -7619,7 +7633,43 @@ async renderDashboard() {
           <div style="font-size:13px;margin-top:4px;">${UI.escHtml(item.aciklama)}</div></div>` : ''}
         <div class="card-sm"><div class="archive-stat-label">Oluşturulma</div>
           <div style="font-size:11px;margin-top:3px;">${dayjs(item.createdAt).format('DD MMMM YYYY HH:mm')}</div></div>
-      </div>`,
+      </div>`;
+
+    /* 🆕 ARŞİV BANNER */
+    const arsivBanner = isArchived ? `
+      <div style="padding:10px 12px;background:var(--warning-light);border:1px solid var(--warning);
+                  border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--warning);display:flex;gap:8px;align-items:flex-start;">
+        <i class="fas fa-archive" style="flex-shrink:0;margin-top:1px;"></i>
+        <div>
+          Bu kayıt <strong>${SalaryMonth.shortLabel(archiveKey)}</strong> arşivinde bulunuyor.
+          Değiştirmek için arşivi geri yükleyin.
+        </div>
+      </div>` : '';
+
+    if (isArchived) {
+      /* 🔒 ARŞİV KAYDI — sadece Kapat + Arşivi Aç */
+      await Swal.fire({
+        title: (isGelir ? '📥 Gelir Detayı' : '📤 Gider Detayı') + ' · Arşiv',
+        html: `<div style="text-align:left;">
+          ${arsivBanner}
+          ${buildDetailHTML()}
+        </div>`,
+        confirmButtonText: 'Kapat',
+        showDenyButton: true,
+        denyButtonText: '📦 Arşivi Aç',
+        denyButtonColor: 'var(--primary)',
+        showCancelButton: false,
+        width: Math.min(480, window.innerWidth - 24)
+      }).then(r => {
+        if (r.isDenied) App.showArchiveDetail(archiveKey);
+      });
+      return;
+    }
+
+    /* ✅ AKTİF KAYIT — mevcut davranış (Düzenle/Sil) */
+    await Swal.fire({
+      title: (isGelir ? '📥 Gelir Detayı' : '📤 Gider Detayı'),
+      html: buildDetailHTML(),
       showDenyButton: true,
       showCancelButton: true,
       confirmButtonText: 'Kapat',
@@ -7635,7 +7685,18 @@ async renderDashboard() {
   },
 
     async _showBorcDetail(id) {
-    const b = state.borcalacaklar.find(x => x.id == id);
+    /* 🆕 Aktif listede yoksa arşivde ara */
+    let b = state.borcalacaklar.find(x => x.id == id);
+    let isArchived = false;
+    let archiveKey = null;
+
+    if (!b) {
+      for (const [k, a] of Object.entries(state.archives)) {
+        const found = (a.borcalacaklar || []).find(x => x.id == id);
+        if (found) { b = found; isArchived = true; archiveKey = k; break; }
+      }
+    }
+
     if (!b) { showToast('⚠️ Kayıt bulunamadı'); return; }
 
     const birim      = b.birim || 'tl';
@@ -7667,10 +7728,21 @@ async renderDashboard() {
     const kalanGosterim = birim === 'tl'
       ? Calc.fmt(kalanTL)
       : `${kalanBirim.toLocaleString('tr-TR',{maximumFractionDigits:2})} ${birimKisa}<div style="font-size:10px;color:var(--text3);margin-top:2px;">≈ ${Calc.fmt(kalanTL)}</div>`;
+    /* 🆕 Arşiv banner */
+    const arsivBanner = isArchived ? `
+      <div style="padding:10px 12px;background:var(--warning-light);border:1px solid var(--warning);
+                  border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--warning);display:flex;gap:8px;align-items:flex-start;">
+        <i class="fas fa-archive" style="flex-shrink:0;margin-top:1px;"></i>
+        <div>
+          Bu kayıt <strong>${SalaryMonth.shortLabel(archiveKey)}</strong> arşivinde bulunuyor.
+          Değiştirmek için arşivi geri yükleyin.
+        </div>
+      </div>` : '';
 
     const result = await Swal.fire({
-      title: (isAl ? '🟢 Alacak Detayı' : '🔴 Borç Detayı'),
+      title: (isAl ? '🟢 Alacak Detayı' : '🔴 Borç Detayı') + (isArchived ? ' · Arşiv' : ''),
       html: `<div style="text-align:left;">
+        ${arsivBanner}
         <div class="archive-stat-card" style="text-align:center;margin-bottom:12px;padding:14px;">
           <div class="archive-stat-label">Kişi</div>
           <div style="font-family:'Plus Jakarta Sans';font-size:18px;font-weight:800;">${UI.escHtml(b.kisiAdi)}</div>
@@ -7713,23 +7785,23 @@ async renderDashboard() {
 
         ${payRows ? `<div style="font-size:12px;font-weight:700;margin:12px 0 6px;">Ödeme Geçmişi (${(b.payments || []).length})</div>${payRows}` : ''}
       </div>`,
-      showDenyButton: !b.odendiMi,
-      showCancelButton: true,
+      showDenyButton: isArchived ? true : !b.odendiMi,
+      showCancelButton: !isArchived,
       confirmButtonText: 'Kapat',
-      denyButtonText: '💸 Ara Ödeme',
+      denyButtonText: isArchived ? '📦 Arşivi Aç' : '💸 Ara Ödeme',
       cancelButtonText: '🗑️ Sil',
-      denyButtonColor: 'var(--warning)',
+      denyButtonColor: isArchived ? 'var(--primary)' : 'var(--warning)',
       cancelButtonColor: 'var(--danger)',
       width: Math.min(480, window.innerWidth - 24)
     });
 
     if (result.isDenied) {
-      await this.araOdeme(id);
-    } else if (result.dismiss === Swal.DismissReason.cancel) {
+      if (isArchived) App.showArchiveDetail(archiveKey);
+      else await this.araOdeme(id);
+    } else if (!isArchived && result.dismiss === Swal.DismissReason.cancel) {
       await this.silBorc(id);
     }
   },
-  
   async deleteArchive(key) {
     const archive = state.archives[key];
     if (!archive) { showToast('⚠️ Arşiv bulunamadı'); return; }
