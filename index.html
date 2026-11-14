@@ -4355,11 +4355,8 @@ document.getElementById('view').innerHTML = `<div class="page-in">
                   <span>Hedef: ${km.hedefKm.toLocaleString('tr-TR')} km</span>
                 </div>
                 <div style="display:flex;gap:6px;">
-                  <button onclick="event.stopPropagation();App.openBakimYapModal(${v.id})" style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;">
-                    <i class="fas fa-tools"></i> Bakım Yapıldı
-                  </button>
                   <button onclick="event.stopPropagation();App.showBakimGecmisi(${v.id})" style="flex:1;background:var(--surface);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;">
-                    <i class="fas fa-history"></i> Geçmiş (${(v.bakimGecmisi || []).length})
+                    <i class="fas fa-history"></i> Bakım Geçmişi (${(v.bakimGecmisi || []).length})
                   </button>
                 </div>
               </div>
@@ -8635,6 +8632,58 @@ const value = swalResult.value;
   if (this.currentPage === 'dashboard') await this.renderDashboard();
 },
   /* 🆕 Bakım Yapıldı Modal */
+  /* 🆕 Ayarlardan araç aksiyonu — tek araç varsa direkt, çoklu ise seçtir */
+  async pickVehicleForAction(action) {
+    Swal.close();
+    await new Promise(r => setTimeout(r, 150));
+
+    const vehicles = state.araclar || [];
+    if (vehicles.length === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Araç Yok',
+        text: 'Önce bir araç ekleyin (Araçları Yönet → Yeni Araç Ekle).',
+        confirmButtonText: 'Tamam'
+      });
+      return;
+    }
+
+    let selectedVehicle;
+    if (vehicles.length === 1) {
+      selectedVehicle = vehicles[0];
+    } else {
+      const options = {};
+      vehicles.forEach((v, idx) => {
+        const model = `${v.marka || ''} ${v.model || ''}`.trim();
+        options[idx] = `${v.plaka || '—'}${model ? ' · ' + model : ''}`;
+      });
+
+      const { value } = await Swal.fire({
+        title: 'Araç Seç',
+        input: 'select',
+        inputOptions: options,
+        inputPlaceholder: 'Bir araç seçin',
+        showCancelButton: true,
+        confirmButtonText: 'Devam',
+        cancelButtonText: 'İptal',
+        width: Math.min(420, window.innerWidth - 24)
+      });
+
+      if (value === undefined || value === null || value === '') return;
+      selectedVehicle = vehicles[parseInt(value, 10)];
+    }
+
+    if (!selectedVehicle) return;
+
+    if (action === 'bakim') {
+      await this.openBakimYapModal(selectedVehicle.id);
+    } else if (action === 'gecmis') {
+      await this.showBakimGecmisi(selectedVehicle.id);
+    }
+  },
+
+  /* 🆕 Bakım Yapıldı Modal */
+async openBakimYapModal(vehicleId) {
 async openBakimYapModal(vehicleId) {
   const v = state.araclar.find(a => a.id === vehicleId);
   if (!v) return;
@@ -8842,7 +8891,17 @@ async showBakimGecmisi(vehicleId) {
         <div style="margin-top:16px;padding:14px;background:var(--info-light);border-radius:12px;border:1px solid #BAE6FD;">
           <div style="font-size:12px;font-weight:700;color:var(--info);margin-bottom:8px;">🚗 Araç Hatırlatıcıları</div>
           <p style="font-size:11px;color:var(--text2);margin-bottom:10px;">Muayene, sigorta, kasko ve bakım tarihlerini takip edin.</p>
-          <button type="button" onclick="Swal.close(); setTimeout(() => App.openVehicleModal(), 150)" style="padding:8px 14px;background:var(--info);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;">Araçları Yönet</button>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button type="button" onclick="Swal.close(); setTimeout(() => App.openVehicleModal(), 150)" style="padding:8px 10px;background:var(--info);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;flex:1;min-width:100px;">
+              <i class="fas fa-cog"></i> Araçları Yönet
+            </button>
+            <button type="button" onclick="App.pickVehicleForAction('bakim')" style="padding:8px 10px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;flex:1;min-width:100px;">
+              <i class="fas fa-tools"></i> Bakım Yapıldı
+            </button>
+            <button type="button" onclick="App.pickVehicleForAction('gecmis')" style="padding:8px 10px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;flex:1;min-width:100px;">
+              <i class="fas fa-history"></i> Bakım Geçmişi
+            </button>
+          </div>
         </div>
 
         <div style="margin-top:16px;padding:14px;background:var(--primary-light);border-radius:12px;border:1px solid #BFDBFE;">
