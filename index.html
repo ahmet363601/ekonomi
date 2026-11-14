@@ -9478,7 +9478,6 @@ async function _loadPdfFonts(doc) {
       ];
       _pdfFontData = [];
       for (const f of sources) {
-        // ✅ TIMEOUT EKLE
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 5000);
         try {
@@ -9492,12 +9491,18 @@ async function _loadPdfFonts(doc) {
           throw fetchErr;
         }
       }
+      console.log('[PDF] ✅ Fontlar indirildi');
     }
-    // ... geri kalanı aynı
+    // ⬇️ BUNLAR EKSİK — geri ekle:
+    for (const f of _pdfFontData) {
+      doc.addFileToVFS(f.name, f.b64);
+      doc.addFont(f.name, f.alias, f.style);
+    }
+    return true;      // ⬅️ BU DA EKSİK
   } catch (e) {
     _pdfFontFailed = true;
-    _pdfFontData = null;   // ← yarım kalan veriyi temizle
-    console.warn('[PDF] ⚠️ Font yüklenemedi, ASCII fallback:', e);
+    _pdfFontData = null;
+    console.warn('[PDF] ⚠️ Font yüklenemedi:', e);
     return false;
   }
 }
