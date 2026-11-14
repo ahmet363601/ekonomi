@@ -12692,27 +12692,7 @@ async exportToJSON() {
             maasGun:                (mg >= 1 && mg <= 28) ? mg : 15
           };
         }
-        /* 🆕 GÖREVLER */
-        let newGorevler = [];
-        let gorevlerDosyadaVar = Array.isArray(data.gorevler);
-        if (gorevlerDosyadaVar) {
-          newGorevler = data.gorevler
-            .filter(g => g && typeof g === 'object' && g.baslik && String(g.baslik).trim())
-            .map(g => ({
-              id: g.id || (Date.now() + Math.random()),
-              baslik: String(g.baslik).trim(),
-              aciklama: typeof g.aciklama === 'string' ? g.aciklama : '',
-              oncelik: ['dusuk','normal','yuksek','kritik'].includes(g.oncelik) ? g.oncelik : 'normal',
-              tarih: g.tarih || null,
-              tamamlandi: !!g.tamamlandi,
-              tamamlanmaTarihi: g.tamamlanmaTarihi || null,
-              arsivlendi: !!g.arsivlendi,
-              arsivTarihi: g.arsivTarihi || null,
-              olusturulma: g.olusturulma || new Date().toISOString(),
-              guncellenme: g.guncellenme || new Date().toISOString(),
-              altGorevler: Array.isArray(g.altGorevler) ? g.altGorevler : []
-            }));
-        }
+
         // Onay iste
         const onay = await Swal.fire({
           icon: 'warning',
