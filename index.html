@@ -2014,14 +2014,17 @@ input[type="month"].form-input,
 .bakim-pulse-amber { animation: pulseAmber 2.2s ease-in-out infinite; }
 
 /* Bakım geçmişi kartları */
-.bakim-history-card {
+  .bakim-history-card {
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
   margin-bottom: 8px;
-  background: var(--surface2);
+  background: var(--surface);
   border-left: 3px solid var(--accent);
+  transition: transform .15s ease, box-shadow .15s ease;
+  box-shadow: 0 1px 2px rgba(15,42,92,.04);
 }
+.bakim-history-card:active { transform: scale(.98); }
 /* ═══════════════════════════════════════════════════════════════
    BİLDİRİM BADGE
    ═══════════════════════════════════════════════════════════════ */
@@ -3152,7 +3155,11 @@ function dbGetAll(storeName) {
 }
 
 
-
+const DEFAULT_KATEGORILER = () => ({
+  gelir: ['Ahmet Maaş','Fatma Maaş','Diğer'],
+  gider: ['Market Alışverişi','Araç Yakıt','Harçlık / Çocuk İhtiyaçları','Dışarıda Yemek / Kafe','Fatura Elektrik','Fatura Su','Fatura Doğalgaz','Fatura Mobil','Fatura Tv Net','Kira Ödemesi','Fuzul Ev Ödemesi','Aidat / Ortak Gider','Kredi / Borç Ödemesi','Birikim / Yatırım','Otopark / HGS / Ceza','Araç Bakım Onarım','Oto Yıkama / Kozmetik','Sağlık / İlaç','Okul / Kreş / Kurs','Kıyafet / Giyim','Ev Bakım / Hırdavat','Kişisel Bakım / Kuaför','Teknoloji / Dijital Abonelikler','Sigorta / Güvence','Çocuk Eğlence / Aktivite','Eğlence / Hobi','Hediye / Ziyaret','Tatil / Seyahat','Bağış / Zekat / Hayır','Diğer']
+});
+const KAT_VERSION = 2;
 
 /* ─────────────────────────────────────────────
    STATE
@@ -3162,41 +3169,7 @@ const state = {
   giderler: [],
   borcalacaklar: [],
   notifications: [],   // 🆕 BİLDİRİMLER
-  kategoriler: {
-    gelir: ['Ahmet Maaş', 'Fatma Maaş', 'Diğer'],
-    gider: [
-      'Market Alışverişi',
-      'Araç Yakıt',
-      'Harçlık / Çocuk İhtiyaçları',
-      'Dışarıda Yemek / Kafe',
-      'Fatura Elektrik',
-      'Fatura Su',
-      'Fatura Doğalgaz',
-      'Fatura Mobil',
-      'Fatura Tv Net',
-      'Kira Ödemesi',
-      'Fuzul Ev Ödemesi',
-      'Aidat / Ortak Gider',
-      'Kredi / Borç Ödemesi',
-      'Birikim / Yatırım',
-      'Otopark / HGS / Ceza',
-      'Araç Bakım Onarım',
-      'Oto Yıkama / Kozmetik',
-      'Sağlık / İlaç',
-      'Okul / Kreş / Kurs',
-      'Kıyafet / Giyim',
-      'Ev Bakım / Hırdavat',
-      'Kişisel Bakım / Kuaför',
-      'Teknoloji / Dijital Abonelikler',
-      'Sigorta / Güvence',
-      'Çocuk Eğlence / Aktivite',
-      'Eğlence / Hobi',
-      'Hediye / Ziyaret',
-      'Tatil / Seyahat',
-      'Bağış / Zekat / Hayır',
-      'Diğer'
-    ]
-  },
+  kategoriler: DEFAULT_KATEGORILER(),
   limitler: {},
   ayarlar: {
     varsayilanRaporAraligi: 'ay',
@@ -3218,8 +3191,17 @@ async function loadAllData() {
       birim: b.birim || 'tl'   // eski kayıtlar için varsayılan TL
     }));
 
-    const kats = await dbGetAll('kategoriler');
-    kats.forEach(k => { if (k.tip === 'gelir' || k.tip === 'gider') state.kategoriler[k.tip] = k.kategoriler; });
+    /* 🆕 Kategori versiyon kontrolü — eski kategorileri zorla güncelle */
+    const storedKatVer = Number(localStorage.getItem('kat_version') || 0);
+    if (storedKatVer < KAT_VERSION) {
+      state.kategoriler = DEFAULT_KATEGORILER();
+      await saveKategoriler();
+      localStorage.setItem('kat_version', String(KAT_VERSION));
+      console.log('[Migration] Kategoriler yeni varsayılana güncellendi (v' + KAT_VERSION + ')');
+    } else {
+      const kats = await dbGetAll('kategoriler');
+      kats.forEach(k => { if (k.tip === 'gelir' || k.tip === 'gider') state.kategoriler[k.tip] = k.kategoriler; });
+    }
 
     /* 🆕 Akaryakıt her zaman gider kategorilerinde bulunsun */
 /* 🔄 MİGRASYON: 'Akaryakıt' → 'Araç Yakıt' (tek seferlik) */
@@ -3369,7 +3351,8 @@ const saveAyarlar     = () => queueSave(() => saveStore('ayarlar', [{
   id: 'settings',
   varsayilanRaporAraligi: state.ayarlar.varsayilanRaporAraligi,
   gramAltinFiyati: Number(state.ayarlar.gramAltinFiyati) || 0,
-  ceyrekAltinFiyati: Number(state.ayarlar.ceyrekAltinFiyati) || 0
+  ceyrekAltinFiyati: Number(state.ayarlar.ceyrekAltinFiyati) || 0,
+  maasGun: Number(state.ayarlar.maasGun) || 15
 }]));
 const saveArchives    = () => queueSave(() => saveStore('archives', Object.entries(state.archives).map(([month, data]) => ({ month, data }))));
 const saveLogs        = () => queueSave(() => saveStore('logs', state.logs));
@@ -3524,7 +3507,34 @@ async function createAutoBackup() {
    SALARY MONTH — 15'inden 15'ine maaş dönemi
 ───────────────────────────────────────────── */
 const SalaryMonth = {
-  DAY_START: 15,
+  /* 🆕 Dönem günü artık ayarlardan okunabilir (varsayılan 15) */
+  get DAY_START() {
+    return Number(state?.ayarlar?.maasGun) || 15;
+  },
+  /* 🆕 Arşiv penceresi: 14. gün 22:00 → 15. gün 12:00 */
+  _archiveWindow() {
+    const now = dayjs();
+    const day = this.DAY_START;
+    const startDay = day === 1 ? now.date(1) : now.date(day - 1);
+    const start = startDay.hour(22).minute(0).second(0);
+    const end = now.date(day).hour(12).minute(0).second(0);
+    /* Pencere geçmişse gelecek aya kaydır */
+    if (now.isAfter(end)) {
+      const ns = start.add(1, 'month');
+      const ne = end.add(1, 'month');
+      return { start: ns, end: ne };
+    }
+    return { start, end };
+  },
+  isInArchiveWindow() {
+    const now = dayjs();
+    const w = this._archiveWindow();
+    return (now.isAfter(w.start) || now.isSame(w.start)) && (now.isBefore(w.end) || now.isSame(w.end));
+  },
+  archiveWindowInfo() {
+    const w = this._archiveWindow();
+    return { start: w.start.format('DD MMM HH:mm'), end: w.end.format('DD MMM HH:mm') };
+  },
 
   /** Tarih → maaş dönemi anahtarı (YYYY-MM) */
   keyOf(dateInput) {
@@ -3604,7 +3614,14 @@ daysUntilArchive() {
     state.gelirler.forEach(g => { if (g.tarih) months.add(this.keyOf(g.tarih)); });
     state.giderler.forEach(g => { if (g.tarih) months.add(this.keyOf(g.tarih)); });
     const current = this.currentKey();
-    return [...months].filter(k => k !== current && !state.archives[k]).sort();
+      isOverdue() {
+    const prev = this.previousKey();
+    if (state.archives[prev]) return false;
+    if (!this.hasDataInRange(this.range(prev))) return false;
+    /* Önceki dönemin bitiş tarihi geçtiyse ve arşivlenmediyse gecikmiş */
+    const prevEnd = this.range(prev).end;
+    return dayjs().format('YYYY-MM-DD') > prevEnd;
+  },
   },
 
   /** Arşiv gecikmiş mi */
@@ -3624,7 +3641,11 @@ daysUntilArchive() {
 const Calc = {
   fmt(n) {
     const num = Number(n) || 0;
-    return PARA + ' ' + num.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return num.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₺';
+  },
+  /* 🆕 Sadece sayı — bazı yerlerde prefix gerekir */
+  fmtRaw(n) {
+    return (Number(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   },
   toplamGelir(f = {}) {
     let d = state.gelirler;
@@ -4332,7 +4353,29 @@ const Vehicle = {
         seviye, renk, bg, emoji, bildirimMetni
       });
     });
-    return out.sort((a, b) => a.kalanKm - b.kalanKm);
+    return     /* 🆕 Diğer bakım türleri (lastik, balata, akü, periyodik) */
+    (state.araclar || []).forEach(v => {
+      const db = v.digerBakimlar || {};
+      Object.entries(db).forEach(([tip, cfg]) => {
+        if (!cfg.sonKm || !cfg.aralikKm) return;
+        const hedefKm = Number(cfg.sonKm) + Number(cfg.aralikKm);
+        const kalanKm = hedefKm - currentKm;
+        const ilerleme = Math.max(0, Math.min(100, ((currentKm - cfg.sonKm) / cfg.aralikKm) * 100));
+        let seviye, renk, bg, emoji;
+        if (kalanKm < 0)        { seviye = 'gecti';      renk = 'var(--danger)'; bg = 'var(--danger-light)';  emoji = '🔥'; }
+        else if (kalanKm <= 500){ seviye = 'acil';       renk = 'var(--danger)'; bg = 'var(--danger-light)';  emoji = '🚨'; }
+        else if (kalanKm <= 1000){seviye = 'yaklasiyor'; renk = 'var(--warning)';bg = 'var(--warning-light)'; emoji = '⚠️'; }
+        else                     { seviye = 'iyi';       renk = 'var(--accent)'; bg = 'var(--accent-light)';  emoji = '✅'; }
+        out.push({
+          vid: v.id, plaka: v.plaka || '', tip,
+          sonBakimKm: cfg.sonKm, hedefKm, currentKm, kalanKm, ilerleme, aralik: cfg.aralikKm,
+          seviye, renk, bg, emoji,
+          bildirimMetni: `${tip}: ${kalanKm.toLocaleString('tr-TR')} km`
+        });
+      });
+    });
+
+    out.sort((a, b) => a.kalanKm - b.kalanKm);
   },
 
   /* ───── Bakım yapıldı — kayıt ekle + sayaç sıfırla ───── */
@@ -4548,10 +4591,8 @@ const CRUD = {
   async manualArchive(monthKey) {
     if (!monthKey) monthKey = SalaryMonth.previousKey();
 
-    if (state.archives[monthKey]) {
-      Swal.fire({ icon: 'warning', title: 'Uyarı', text: `Bu dönem zaten arşivlenmiş!` });
-      return false;
-    }
+    /* 🆕 Mevcut arşiv varsa birleştir — yetim kayıt kalmaz */
+    const mevcutArsiv = state.archives[monthKey];
 
     const range  = SalaryMonth.range(monthKey);
     const aGelir = state.gelirler.filter(g => g.tarih >= range.start && g.tarih <= range.end);
@@ -4567,13 +4608,52 @@ const CRUD = {
       return d >= range.start && d <= range.end;
     });
 
+    /* 🆕 Bu dönemde kapanan borçlar + kategori dağılımı */
+    const aBorcalacaklar = state.borcalacaklar.filter(b => {
+      const closed = b.odemeTarihi ? dayjs(b.odemeTarihi).format('YYYY-MM-DD') : null;
+      const created = b.tarih;
+      return (closed && closed >= range.start && closed <= range.end) ||
+             (created && created >= range.start && created <= range.end);
+    });
+
+    const kategoriDagilim = aGiderler.reduce((m, g) => {
+      const k = g.kategori || 'Diğer';
+      m[k] = (m[k] || 0) + (Number(g.miktar) || 0);
+      return m;
+    }, {});
+
+    const birikimKategori = aGiderler.filter(g =>
+      /birikim|yatırım|tasarruf/i.test(g.kategori || '')
+    ).reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+
+    const borcOdemeKategori = aGiderler.filter(g =>
+      /kredi|borç/i.test(g.kategori || '')
+    ).reduce((s, g) => s + (Number(g.miktar) || 0), 0);
+    /* 🆕 Birleştirme — ID bazlı dedupe */
+    const _birlestir = (a, b) => {
+      const seen = new Set((a || []).map(x => x.id));
+      return [...(a || []), ...(b || []).filter(x => !seen.has(x.id))];
+    };
     state.archives[monthKey] = {
-      gelirler: aGelir,
-      giderler: aGider,
-      loglar:   aLoglar,
+      ...(mevcutArsiv || {}),
+      gelirler: _birlestir(mevcutArsiv?.gelirler, aGelir),
+      giderler: _birlestir(mevcutArsiv?.giderler, aGider),
+      borcalacaklar: _birlestir(mevcutArsiv?.borcalacaklar, aBorcalacaklar),
+      loglar:   _birlestir(mevcutArsiv?.loglar, aLoglar),
       salaryMonthRange: range,
       year: SalaryMonth.yearOf(monthKey),
-      archivedAt: new Date().toISOString(),
+      archivedAt: mevcutArsiv?.archivedAt || new Date().toISOString(),
+      /* 🆕 Zengin özet */
+      ozet: {
+        toplamGelir: aGelir.reduce((s, g) => s + (Number(g.miktar) || 0), 0),
+        toplamGider: aGider.reduce((s, g) => s + (Number(g.miktar) || 0), 0),
+        net: aGelir.reduce((s, g) => s + (Number(g.miktar) || 0), 0) - aGider.reduce((s, g) => s + (Number(g.miktar) || 0), 0),
+        birikim: birikimKategori,
+        borcOdeme: borcOdemeKategori,
+        kategoriDagilim,
+        borcSayisi: aBorcalacaklar.length,
+        not: state.archives[monthKey]?.ozet?.not || ''
+      },
       schemaVersion: 3
     };
 
@@ -4736,7 +4816,7 @@ const Charts = {
           tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${Calc.fmt(ctx.raw)}` } }
         },
         scales: {
-          y: { ticks: { callback: v => PARA + ' ' + v.toLocaleString('tr-TR'), font: { size: 10 } }, grid: { color: 'rgba(148,163,184,.12)' } },
+          y: { ticks: { callback: v => v.toLocaleString('tr-TR') + ' ₺', font: { size: 10 } }, grid: { color: 'rgba(148,163,184,.12)' } },
           x: { ticks: { font: { size: 10 } }, grid: { display: false } }
         }
       }
@@ -4784,7 +4864,7 @@ const Charts = {
         },
         scales: {
           y: {
-            ticks: { callback: v => v >= 1000 ? (v/1000).toFixed(0) + 'k TL' : 'TL ' + v, font: { size: 10 } },
+            ticks: { callback: v => v >= 1000 ? (v/1000).toFixed(0) + 'k ₺' : v.toLocaleString('tr-TR') + ' ₺', font: { size: 10 } },
             grid: { color: 'rgba(148,163,184,.12)' }
           },
           x: { ticks: { font: { size: 10 } }, grid: { display: false } }
@@ -5082,14 +5162,34 @@ const UI = {
 /* ─────────────────────────────────────────────
    TOAST
 ───────────────────────────────────────────── */
-function showToast(msg) {
+function showToast(msg, opts = {}) {
   const existing = document.querySelector('.toast');
   if (existing) existing.remove();
+
   const t = document.createElement('div');
-  t.className = 'toast';
+  t.className = 'toast' + (opts.actionLabel ? ' has-action' : '');
   t.setAttribute('role', 'status');
   t.setAttribute('aria-live', 'polite');
-  t.textContent = msg;
+
+  if (opts.actionLabel) {
+    const span = document.createElement('span');
+    span.textContent = msg;
+    t.appendChild(span);
+    const btn = document.createElement('button');
+    btn.className = 'toast-undo-btn';
+    btn.textContent = opts.actionLabel;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      try { opts.onAction && opts.onAction(); } catch (err) { console.warn(err); }
+      t.remove();
+    });
+    t.appendChild(btn);
+    /* Uzun süre kalsın */
+    t.style.animationDuration = '5s';
+  } else {
+    t.textContent = msg;
+  }
+
   document.body.appendChild(t);
   t.addEventListener('animationend', () => t.remove());
 }
@@ -5841,9 +5941,9 @@ async renderDashboard() {
     const btlEl = document.getElementById('fuelBenzinTL');
     const ltlEl = document.getElementById('fuelLpgTL');
     const gtEl  = document.getElementById('fuelGrandTotal');
-    if (btlEl) btlEl.textContent = 'TL ' + bTL.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    if (ltlEl) ltlEl.textContent = 'TL ' + lTL.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    if (gtEl)  gtEl.textContent  = 'TL ' + grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (btlEl) btlEl.textContent = Calc.fmt(bTL);
+    if (ltlEl) ltlEl.textContent = Calc.fmt(lTL);
+    if (gtEl)  gtEl.textContent  = Calc.fmt(grandTotal);
 
     const preview = document.getElementById('fuelPreview');
     if (!preview) return;
@@ -5983,7 +6083,7 @@ async renderDashboard() {
               </div>
               <div class="fuel-subtotal">
                 <span>Benzin Toplam:</span>
-                <strong id="fuelBenzinTL">TL 0,00</strong>
+                <strong id="fuelBenzinTL">TL 0,00 ₺</strong>
               </div>
             </div>
 
@@ -6006,14 +6106,14 @@ async renderDashboard() {
               </div>
               <div class="fuel-subtotal">
                 <span>LPG Toplam:</span>
-                <strong id="fuelLpgTL">TL 0,00</strong>
+                <strong id="fuelLpgTL">TL 0,00 ₺</strong>
               </div>
             </div>
 
             <!-- Genel Toplam -->
             <div class="fuel-grand-total">
               <span><i class="fas fa-calculator"></i> Genel Toplam</span>
-              <strong id="fuelGrandTotal">TL 0,00</strong>
+              <strong id="fuelGrandTotal">TL 0,00 ₺</strong>
             </div>
 
             <!-- Preview -->
@@ -6043,10 +6143,36 @@ async renderDashboard() {
             ${tabs.map(t => `<span class="chip${this._islemListTab===t?' active':''}" data-val="${t}" onclick="App.setIslemListTab('${t}')">${tabLabels[t]}</span>`).join('')}
           </div>
         </div>
-        <div class="search-box">
+        <!-- 🆕 Gelişmiş filtre çubuğu -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <select id="islemFiltreKat" class="form-select" style="font-size:12px;padding:8px 10px;" onchange="App.renderIslemList()">
+            <option value="">Tüm Kategoriler</option>
+            ${[...new Set([...state.kategoriler.gelir, ...state.kategoriler.gider])]
+              .sort()
+              .map(k => `<option value="${UI.escHtml(k)}">${UI.escHtml(k)}</option>`).join('')}
+          </select>
+          <select id="islemFiltreRange" class="form-select" style="font-size:12px;padding:8px 10px;" onchange="App.renderIslemList()">
+            <option value="tum">Tüm Zamanlar</option>
+            <option value="bugun">Bugün</option>
+            <option value="hafta">Son 7 Gün</option>
+            <option value="ay">Bu Dönem</option>
+            <option value="3ay">Son 3 Ay</option>
+            <option value="yil">Bu Yıl</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <input type="number" id="islemFiltreMin" class="form-input" style="font-size:12px;padding:8px 10px;" placeholder="Min ₺" inputmode="decimal" oninput="App.renderIslemList()">
+          <input type="number" id="islemFiltreMax" class="form-input" style="font-size:12px;padding:8px 10px;" placeholder="Max ₺" inputmode="decimal" oninput="App.renderIslemList()">
+        </div>
+        <div class="search-box" style="margin-bottom:8px;">
           <i class="fas fa-search"></i>
           <input type="text" id="islemSearch" class="form-input" placeholder="Kategori veya açıklamada ara…" oninput="App.renderIslemList()">
         </div>
+        <!-- 🆕 Arşiv araması toggle -->
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);margin-bottom:10px;cursor:pointer;">
+          <input type="checkbox" id="islemArsivDahil" onchange="App.renderIslemList()" style="width:16px;height:16px;">
+          <span>📦 Arşivlenen dönemlerde de ara</span>
+        </label>
         <div id="islemList"></div>
         <div class="pagination">
           <button class="pg-btn" id="isPrevPg" onclick="App.prevIslemPage()"><i class="fas fa-chevron-left"></i></button>
@@ -6089,15 +6215,51 @@ async renderDashboard() {
   nextIslemPage() { this._islemListPage++; this.renderIslemList(); },
 
   async renderIslemList() {
-    const q = (document.getElementById('islemSearch')?.value || '').toLowerCase();
+    const q = (document.getElementById('islemSearch')?.value || '').toLowerCase().trim();
+    const fKat = document.getElementById('islemFiltreKat')?.value || '';
+    const fRange = document.getElementById('islemFiltreRange')?.value || 'tum';
+    const fMin = parseFloat(document.getElementById('islemFiltreMin')?.value) || null;
+    const fMax = parseFloat(document.getElementById('islemFiltreMax')?.value) || null;
+    const arsivDahil = document.getElementById('islemArsivDahil')?.checked || false;
+
     let all = [];
-    if (this._islemListTab !== 'gider') all = all.concat(state.gelirler.map(g => ({ ...g, _tip:'gelir' })));
-    if (this._islemListTab !== 'gelir') all = all.concat(state.giderler.map(g => ({ ...g, _tip:'gider' })));
-    all.sort((a, b) => {
-  const dc = (b.tarih || '').localeCompare(a.tarih || '');
-  return dc !== 0 ? dc : (b.createdAt || '').localeCompare(a.createdAt || '');
-});
+    if (this._islemListTab !== 'gider') all = all.concat(state.gelirler.map(g => ({ ...g, _tip:'gelir', _arsivKey: null })));
+    if (this._islemListTab !== 'gelir') all = all.concat(state.giderler.map(g => ({ ...g, _tip:'gider', _arsivKey: null })));
+
+    /* 🆕 Arşivden de ekle */
+    if (arsivDahil) {
+      Object.entries(state.archives).forEach(([k, a]) => {
+        if (this._islemListTab !== 'gider') (a.gelirler || []).forEach(g => all.push({ ...g, _tip:'gelir', _arsivKey: k }));
+        if (this._islemListTab !== 'gelir') (a.giderler || []).forEach(g => all.push({ ...g, _tip:'gider', _arsivKey: k }));
+      });
+    }
+
+    /* 🆕 Tarih filtresi */
+    if (fRange !== 'tum') {
+      const now = dayjs();
+      let start, end;
+      if (fRange === 'bugun') { start = now.format('YYYY-MM-DD'); end = start; }
+      else if (fRange === 'hafta') { start = now.subtract(7, 'day').format('YYYY-MM-DD'); end = now.format('YYYY-MM-DD'); }
+      else if (fRange === 'ay') { const r = SalaryMonth.range(SalaryMonth.currentKey()); start = r.start; end = r.end; }
+      else if (fRange === '3ay') { start = now.subtract(3, 'month').format('YYYY-MM-DD'); end = now.format('YYYY-MM-DD'); }
+      else if (fRange === 'yil') { start = now.startOf('year').format('YYYY-MM-DD'); end = now.format('YYYY-MM-DD'); }
+      if (start) all = all.filter(i => i.tarih >= start && i.tarih <= end);
+    }
+
+    /* 🆕 Kategori filtresi */
+    if (fKat) all = all.filter(i => i.kategori === fKat);
+
+    /* 🆕 Tutar aralığı */
+    if (fMin !== null) all = all.filter(i => (Number(i.miktar) || 0) >= fMin);
+    if (fMax !== null) all = all.filter(i => (Number(i.miktar) || 0) <= fMax);
+
+    /* 🆕 Metin araması */
     if (q) all = all.filter(i => (i.kategori+' '+(i.aciklama||'')).toLowerCase().includes(q));
+
+    all.sort((a, b) => {
+      const dc = (b.tarih || '').localeCompare(a.tarih || '');
+      return dc !== 0 ? dc : (b.createdAt || '').localeCompare(a.createdAt || '');
+    });
 
     const { items, page, total, hasPrev, hasNext } = UI.paginate(all, this._islemListPage, 10);
     this._islemListPage = page;
@@ -6113,7 +6275,10 @@ async renderDashboard() {
               return `<div class="tx-icon" style="background:${meta.bg};color:${meta.color};"><i class="fas ${meta.icon}"></i></div>`;
             })()}
             <div class="tx-info">
-              <div class="tx-title">${UI.escHtml(i.kategori)}</div>
+              <div class="tx-title">
+                ${UI.escHtml(i.kategori)}
+                ${i._arsivKey ? `<span class="badge badge-cyan" style="font-size:8px;margin-left:4px;">${SalaryMonth.shortLabel(i._arsivKey)}</span>` : ''}
+              </div>
               <div class="tx-date">${dayjs(i.tarih).format('DD MMM YYYY')}${i.aciklama?' · '+UI.escHtml(i.aciklama.substring(0,20)):''}</div>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
@@ -6259,9 +6424,9 @@ async renderDashboard() {
     if (tarihEl) tarihEl.value = dayjs().format('YYYY-MM-DD');
     const fp = document.getElementById('fuelPreview');
     if (fp) { fp.innerHTML = ''; fp.classList.remove('visible'); }
-    const btlEl = document.getElementById('fuelBenzinTL'); if (btlEl) btlEl.textContent = 'TL 0,00';
-    const ltlEl = document.getElementById('fuelLpgTL');    if (ltlEl) ltlEl.textContent = 'TL 0,00';
-    const gtEl  = document.getElementById('fuelGrandTotal'); if (gtEl) gtEl.textContent = 'TL 0,00';
+    const btlEl = document.getElementById('fuelBenzinTL'); if (btlEl) btlEl.textContent = '0,00 ₺';
+    const ltlEl = document.getElementById('fuelLpgTL');    if (ltlEl) ltlEl.textContent = '0,00 ₺';
+    const gtEl  = document.getElementById('fuelGrandTotal'); if (gtEl) gtEl.textContent = '0,00 ₺';
 
     const label = isFuel ? '⛽ Akaryakıt' : (tip === 'gelir' ? '✅ Gelir' : '💸 Gider');
     showToast(`${label} kaydedildi: ${Calc.fmt(miktar)}`);
@@ -6431,10 +6596,25 @@ async renderDashboard() {
   },
 
   async deleteIslem(id, tip) {
+    /* 🆕 Soft delete — geri al için snapshot */
+    const kaynak = tip === 'gelir' ? state.gelirler : state.giderler;
+    const snapshot = { ...kaynak.find(i => i.id == id) };
+    if (!snapshot.id) return;
+
     const r = await Swal.fire({ icon:'warning', title:'Silmek istediğinize emin misiniz?', showCancelButton:true, confirmButtonColor:'#DC2626', confirmButtonText:'Evet, Sil', cancelButtonText:'İptal' });
     if (r.isConfirmed) {
       await CRUD.islemSil(id, tip);
-      showToast('🗑️ Silindi');
+      showToast('🗑️ Silindi', {
+        actionLabel: '↩️ Geri Al',
+        onAction: async () => {
+          if (tip === 'gelir') state.gelirler.push(snapshot);
+          else state.giderler.push(snapshot);
+          await (tip === 'gelir' ? saveGelirler() : saveGiderler());
+          await this.renderIslemList();
+          if (this.currentPage === 'dashboard') await this.renderRecentList();
+          showToast('✅ Geri alındı');
+        }
+      });
       await this.renderIslemList();
       if (this.currentPage === 'dashboard') await this.renderRecentList();
       if (this.currentPage === 'islemler') {
@@ -6994,10 +7174,22 @@ async araOdeme(id) {
   },
 
   async silBorc(id) {
+    const snapshot = { ...state.borcalacaklar.find(b => b.id == id) };
+    if (!snapshot.id) return;
+
     const r = await Swal.fire({ icon:'warning', title:'Silmek istiyor musunuz?', showCancelButton:true, confirmButtonColor:'#DC2626', confirmButtonText:'Sil', cancelButtonText:'İptal' });
     if (r.isConfirmed) {
       await CRUD.borcSil(id);
-      showToast('🗑️ Kayıt silindi');
+      showToast('🗑️ Kayıt silindi', {
+        actionLabel: '↩️ Geri Al',
+        onAction: async () => {
+          state.borcalacaklar.push(snapshot);
+          await saveBorclar();
+          await this.renderBorcList();
+          if (this.currentPage === 'dashboard') await this.renderRecentList();
+          showToast('✅ Geri alındı');
+        }
+      });
       await this.renderBorcList();
       if (this.currentPage === 'dashboard') await this.renderRecentList();
     }
@@ -8762,6 +8954,8 @@ requestAnimationFrame(() => {
     const nextDate = SalaryMonth.nextArchiveDate();
     const pct = SalaryMonth.progressPct(currentKey);
     const overdue = SalaryMonth.isOverdue();
+    const inWindow = SalaryMonth.isInArchiveWindow();
+    const winInfo = SalaryMonth.archiveWindowInfo();
     const prevKey = SalaryMonth.previousKey();
     const prevArchived = !!state.archives[prevKey];
     const prevHasData = SalaryMonth.hasDataInRange(SalaryMonth.range(prevKey));
@@ -8780,9 +8974,19 @@ requestAnimationFrame(() => {
     document.getElementById('view').innerHTML = `<div class="page-in">
 
       ${kumulatifHTML}
-
       <!-- ═══ AKTİF DÖNEM + SAYAÇ ═══ -->
       <div class="card" style="background:linear-gradient(135deg, #EFF6FF, #FFFFFF);border-left:4px solid ${countdownColor};">
+        ${inWindow ? `
+          <div style="padding:8px 12px;background:var(--accent-light);border:1px solid var(--accent);border-radius:8px;margin-bottom:10px;font-size:11.5px;color:var(--accent);font-weight:700;display:flex;align-items:center;gap:6px;">
+            <i class="fas fa-clock"></i>
+            🎯 Arşiv penceresi açık! (${winInfo.start} → ${winInfo.end})
+          </div>
+        ` : `
+          <div style="padding:8px 12px;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;margin-bottom:10px;font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px;">
+            <i class="fas fa-info-circle"></i>
+            Arşiv penceresi: ${winInfo.start} → ${winInfo.end}
+          </div>
+        `}
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
           <i class="fas fa-calendar-check" style="color:var(--primary);font-size:16px;"></i>
           <span style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;">Aktif Maaş Dönemi</span>
@@ -9161,6 +9365,8 @@ requestAnimationFrame(() => {
             ⚠️ <strong>Aktif dönemi</strong> erken arşivliyorsunuz. Sonraki günlerde eklenen işlemler ana listede kalır.
           </div>` : ''}
         <p style="font-size:12px;color:var(--text3);margin-top:12px;">Borç/Alacak kayıtları etkilenmeyecek.</p>
+        <label style="display:block;font-size:12px;font-weight:600;margin-top:14px;margin-bottom:5px;">📝 Dönem Notu (opsiyonel)</label>
+        <textarea id="archNote" class="swal2-textarea" placeholder="Bu dönem olağanüstü bir harcama oldu mu? (örn. araba tamiri, tatil, sağlık...)" style="height:70px;"></textarea>
       </div>`,
       icon: 'question',
       showCancelButton: true,
@@ -9170,7 +9376,14 @@ requestAnimationFrame(() => {
     });
     if (!isConfirmed) return;
 
+    /* 🆕 Not kaydet */
+    const archNote = document.getElementById('archNote')?.value?.trim() || '';
     const ok = await CRUD.manualArchive(targetKey);
+    if (ok && archNote && state.archives[targetKey]) {
+      if (!state.archives[targetKey].ozet) state.archives[targetKey].ozet = {};
+      state.archives[targetKey].ozet.not = archNote;
+      await saveArchives();
+    }
     if (ok) {
       /* Yeni yılı accordion'da otomatik aç */
       const newYear = SalaryMonth.yearOf(targetKey);
@@ -9287,6 +9500,11 @@ requestAnimationFrame(() => {
     const aGiderler = Array.isArray(a.giderler) ? a.giderler : [];
     const aBorclar  = Array.isArray(a.borcalacaklar) ? a.borcalacaklar : [];
     const aLoglar   = Array.isArray(a.loglar) ? a.loglar : [];
+    const ozet = a.ozet || {};
+    const kategoriDagilim = ozet.kategoriDagilim || {};
+    const topKategoriler = Object.entries(kategoriDagilim)
+      .sort((x, y) => y[1] - x[1])
+      .slice(0, 5);
 
     const gelir  = aGelirler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
     const gider  = aGiderler.reduce((s, g) => s + (Number(g.miktar) || 0), 0);
@@ -9319,6 +9537,35 @@ requestAnimationFrame(() => {
           <div class="archive-stat-card"><div class="archive-stat-label">Gider</div><div class="archive-stat-value red">${Calc.fmt(gider)}</div></div>
           <div class="archive-stat-card"><div class="archive-stat-label">Net</div><div class="archive-stat-value ${net>=0?'green':'red'}">${Calc.fmt(net)}</div></div>
         </div>
+                 ${(ozet.birikim || ozet.borcOdeme) ? `
+          <div class="archive-detail-stats" style="grid-template-columns:1fr 1fr;">
+            <div class="archive-stat-card">
+              <div class="archive-stat-label">💎 Birikim</div>
+              <div class="archive-stat-value" style="font-size:13px;color:var(--accent);">${Calc.fmt(ozet.birikim || 0)}</div>
+            </div>
+            <div class="archive-stat-card">
+              <div class="archive-stat-label">💳 Borç Ödemesi</div>
+              <div class="archive-stat-value" style="font-size:13px;color:var(--warning);">${Calc.fmt(ozet.borcOdeme || 0)}</div>
+            </div>
+          </div>
+        ` : ''}
+        ${topKategoriler.length > 0 ? `
+          <div class="card-sm" style="margin-bottom:10px;">
+            <div class="archive-stat-label">🏷️ Kategori Dağılımı (Top 5)</div>
+            ${topKategoriler.map(([k, v]) => `
+              <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--border);font-size:11.5px;">
+                <span>${UI.escHtml(k)}</span>
+                <strong style="color:var(--danger);">${Calc.fmt(v)}</strong>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+        ${aBorclar.length > 0 ? `
+          <div class="card-sm" style="margin-bottom:10px;border-left:3px solid var(--warning);">
+            <div class="archive-stat-label">🤝 Dönemde Kapanan Borç/Alacak</div>
+            <div style="font-size:12px;font-weight:800;margin-top:3px;">${aBorclar.length} kayıt</div>
+          </div>
+        ` : ''}
         <div class="archive-detail-stats" style="grid-template-columns:1fr 1fr;">
           <div class="archive-stat-card"><div class="archive-stat-label">Gelir Kayıt</div><div class="archive-stat-value green">${aGelirler.length}</div></div>
           <div class="archive-stat-card"><div class="archive-stat-label">Gider Kayıt</div><div class="archive-stat-value red">${aGiderler.length}</div></div>
@@ -9328,6 +9575,12 @@ requestAnimationFrame(() => {
           <div style="font-family:'Plus Jakarta Sans';font-size:16px;font-weight:800;margin-top:4px;">${UI.escHtml(topKat[0])}</div>
           <div style="font-size:13px;color:var(--danger);font-weight:700;">${Calc.fmt(topKat[1])}</div>
         </div>` : ''}
+        ${a.ozet?.not ? `
+          <div class="card-sm" style="margin-bottom:10px;border-left:3px solid var(--info);">
+            <div class="archive-stat-label">📝 Dönem Notu</div>
+            <div style="font-size:12px;margin-top:4px;line-height:1.5;color:var(--text);">${UI.escHtml(a.ozet.not)}</div>
+          </div>
+        ` : ''}
         <div class="card-sm" style="margin-bottom:12px;">
           <div class="archive-stat-label">Arşivlenme Tarihi</div>
           <div style="font-size:12px;margin-top:3px;">${a.archivedAt ? dayjs(a.archivedAt).format('DD MMMM YYYY HH:mm') : '-'}</div>
@@ -9801,6 +10054,29 @@ const swalResult = await Swal.fire({
         </div>
       </div>
 
+      <!-- ═══ DİĞER BAKIMLAR ═══ -->
+      <div class="vform-section">
+        <div class="vform-section-title">
+          <i class="fas fa-tools"></i> Diğer Bakımlar (opsiyonel)
+        </div>
+        ${['Lastik', 'Balata', 'Akü', 'Periyodik'].map(t => `
+          <div class="vform-row" style="margin-bottom:6px;">
+            <div class="vform-field">
+              <label class="vform-label">${t} - Son KM</label>
+              <input id="vBakim${t}Km" class="vform-input" type="number"
+                     value="${v.digerBakimlar?.[t]?.sonKm || ''}"
+                     placeholder="0" min="0" step="1" inputmode="numeric">
+            </div>
+            <div class="vform-field">
+              <label class="vform-label">${t} - Aralık (km)</label>
+              <input id="vBakim${t}Aralik" class="vform-input" type="number"
+                     value="${v.digerBakimlar?.[t]?.aralikKm || 10000}"
+                     placeholder="10000" min="1000" step="1000" inputmode="numeric">
+            </div>
+          </div>
+        `).join('')}
+      </div>
+
       <!-- ═══ SİGORTA & MUAYENE ═══ -->
       <div class="vform-section vform-section-info">
         <div class="vform-section-title">
@@ -9843,6 +10119,19 @@ const swalResult = await Swal.fire({
         document.getElementById('vPlaka')?.focus();
         return false;
       }
+      /* 🆕 Diğer bakım türleri */
+      const digerBakimlar = {};
+      ['Lastik', 'Balata', 'Akü', 'Periyodik'].forEach(t => {
+        const kmEl   = document.getElementById('vBakim' + t + 'Km');
+        const arEl   = document.getElementById('vBakim' + t + 'Aralik');
+        if (kmEl && kmEl.value) {
+          digerBakimlar[t] = {
+            sonKm:    parseInt(kmEl.value) || null,
+            aralikKm: parseInt(arEl?.value) || 10000
+          };
+        }
+      });
+
       return {
         plaka,
         marka:            (document.getElementById('vMarka').value || '').trim(),
@@ -9850,6 +10139,7 @@ const swalResult = await Swal.fire({
         yil:              parseInt(document.getElementById('vYil').value) || null,
         yagBakimKm:       parseInt(document.getElementById('vYagBakimKm').value) || null,
         yagBakimAralikKm: parseInt(document.getElementById('vYagBakimAralikKm').value) || 10000,
+        digerBakimlar,
         muayeneBitis:     document.getElementById('vMuayene').value || null,
         sigorta:          document.getElementById('vSigorta').value || null,
         kasko:            document.getElementById('vKasko').value || null
@@ -9992,48 +10282,120 @@ async openBakimYapModal(vehicleId) {
 },
 
 /* 🆕 Bakım Geçmişi Görüntüle */
+_bakimPage: 1,
+_bakimPageSize: 5,
+
 async showBakimGecmisi(vehicleId) {
   const v = state.araclar.find(a => a.id === vehicleId);
   if (!v) return;
   const gecmis = Vehicle.getBakimGecmisi(vehicleId);
-  const totalMaliyet = gecmis.reduce((s, r) => s + (Number(r.maliyet) || 0), 0);
+  this._bakimPage = 1;
+  this._bakimVehicleId = vehicleId;
 
-  await Swal.fire({
-    title: `📜 ${UI.escHtml(v.plaka)} — Bakım Geçmişi`,
-    html: `<div style="text-align:left;max-height:70vh;overflow-y:auto;">
-      ${gecmis.length === 0
-        ? '<div class="empty-state" style="padding:30px;"><i class="fas fa-clipboard-list"></i><p>Henüz bakım kaydı yok</p></div>'
-        : `
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-            <div class="archive-stat-card" style="text-align:center;">
-              <div class="archive-stat-label">Toplam Kayıt</div>
-              <div class="archive-stat-value blue">${gecmis.length}</div>
-            </div>
-            <div class="archive-stat-card" style="text-align:center;">
-              <div class="archive-stat-label">Toplam Maliyet</div>
-              <div class="archive-stat-value red">${Calc.fmt(totalMaliyet)}</div>
-            </div>
-          </div>
-          ${gecmis.map(r => `
-            <div class="bakim-history-card">
+  const toplamMaliyet = gecmis.reduce((s, r) => s + (Number(r.maliyet) || 0), 0);
+  const ortalamaMaliyet = gecmis.length > 0 ? toplamMaliyet / gecmis.length : 0;
+  const sonBakim = gecmis[0];
+  const ilkBakim = gecmis[gecmis.length - 1];
+  const toplamGun = (sonBakim && ilkBakim && ilkBakim !== sonBakim)
+    ? dayjs(sonBakim.tarih).diff(dayjs(ilkBakim.tarih), 'day')
+    : 0;
+  const toplamKm = (sonBakim && ilkBakim) ? (sonBakim.km - ilkBakim.km) : 0;
+  const ortalamaAralik = gecmis.length >= 2
+    ? Math.round(toplamGun / (gecmis.length - 1))
+    : 0;
+
+  const totalPages = Math.max(1, Math.ceil(gecmis.length / this._bakimPageSize));
+  const pageItems = gecmis.slice(
+    (this._bakimPage - 1) * this._bakimPageSize,
+    this._bakimPage * this._bakimPageSize
+  );
+
+  const renderHTML = () => {
+    const start = (this._bakimPage - 1) * this._bakimPageSize;
+    const pageData = gecmis.slice(start, start + this._bakimPageSize);
+    const cardsHTML = pageData.length === 0
+      ? '<div class="empty-state" style="padding:30px;"><i class="fas fa-clipboard-list"></i><p>Henüz bakım kaydı yok</p></div>'
+      : pageData.map((r, idx) => {
+          const gercek = start + idx + 1;
+          return `
+            <div class="bakim-history-card" style="position:relative;padding-left:36px;">
+              <div style="position:absolute;left:10px;top:12px;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;">
+                ${gecmis.length - start - idx}
+              </div>
               <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
                 <strong style="font-size:13px;color:var(--text);">${dayjs(r.tarih).format('DD MMMM YYYY')}</strong>
                 <span style="font-size:12px;color:var(--danger);font-weight:800;">${Calc.fmt(r.maliyet)}</span>
               </div>
-              <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">
-                <i class="fas fa-tachometer-alt"></i> ${r.km.toLocaleString('tr-TR')} km
-                ${r.yer ? ` · <i class="fas fa-map-marker-alt"></i> ${UI.escHtml(r.yer)}` : ''}
+              <div style="font-size:11px;color:var(--text3);margin-bottom:6px;display:flex;gap:10px;flex-wrap:wrap;">
+                <span><i class="fas fa-tachometer-alt"></i> ${(r.km || 0).toLocaleString('tr-TR')} km</span>
+                ${r.yer ? `<span><i class="fas fa-map-marker-alt"></i> ${UI.escHtml(r.yer)}</span>` : ''}
               </div>
               ${r.degisiklikler ? `<div style="padding:6px 8px;background:var(--surface);border-radius:6px;font-size:11px;margin-bottom:4px;"><strong>Değişen:</strong> ${UI.escHtml(r.degisiklikler)}</div>` : ''}
               ${r.notlar ? `<div style="font-size:10.5px;color:var(--text3);font-style:italic;margin-top:4px;">📝 ${UI.escHtml(r.notlar)}</div>` : ''}
-              ${r.sonrakiBakimKm ? `<div style="font-size:10px;color:var(--text3);margin-top:4px;padding-top:4px;border-top:1px dashed var(--border);">Sonraki bakım hedefi: <strong>${Number(r.sonrakiBakimKm).toLocaleString('tr-TR')} km</strong></div>` : ''}
+              ${r.sonrakiBakimKm ? `<div style="font-size:10px;color:var(--text3);margin-top:4px;padding-top:4px;border-top:1px dashed var(--border);">Sonraki hedef: <strong>${Number(r.sonrakiBakimKm).toLocaleString('tr-TR')} km</strong></div>` : ''}
             </div>
-          `).join('')}
-        `
-      }
-    </div>`,
+          `;
+        }).join('');
+
+    const pagesHTML = totalPages > 1 ? `
+      <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+        <button ${this._bakimPage === 1 ? 'disabled' : ''} onclick="App._bakimPagePrev();" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;${this._bakimPage === 1 ? 'opacity:.4;cursor:not-allowed;' : ''}"><i class="fas fa-chevron-left"></i></button>
+        <span style="font-size:11px;font-weight:700;color:var(--text3);">${this._bakimPage} / ${totalPages}</span>
+        <button ${this._bakimPage === totalPages ? 'disabled' : ''} onclick="App._bakimPageNext();" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;${this._bakimPage === totalPages ? 'opacity:.4;cursor:not-allowed;' : ''}"><i class="fas fa-chevron-right"></i></button>
+      </div>
+    ` : '';
+
+    return `<div style="text-align:left;max-height:70vh;overflow-y:auto;">
+      <!-- iOS-tarzı Özet Kartları -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+        <div class="archive-stat-card" style="text-align:center;">
+          <div class="archive-stat-label">Toplam Kayıt</div>
+          <div class="archive-stat-value blue" style="font-size:18px;">${gecmis.length}</div>
+        </div>
+        <div class="archive-stat-card" style="text-align:center;">
+          <div class="archive-stat-label">Toplam Maliyet</div>
+          <div class="archive-stat-value red" style="font-size:15px;">${Calc.fmt(toplamMaliyet)}</div>
+        </div>
+        <div class="archive-stat-card" style="text-align:center;">
+          <div class="archive-stat-label">Ort. Maliyet</div>
+          <div class="archive-stat-value amber" style="font-size:13px;">${Calc.fmt(ortalamaMaliyet)}</div>
+        </div>
+        <div class="archive-stat-card" style="text-align:center;">
+          <div class="archive-stat-label">Ort. Aralık</div>
+          <div class="archive-stat-value cyan" style="font-size:13px;">${ortalamaAralik > 0 ? ortalamaAralik + ' gün' : '—'}</div>
+        </div>
+      </div>
+
+      ${toplamKm > 0 ? `
+        <div style="padding:8px 12px;background:var(--primary-light);border-radius:8px;margin-bottom:12px;font-size:11px;color:var(--primary);display:flex;justify-content:space-between;">
+          <span>İlk → Son bakım</span>
+          <strong>${toplamKm.toLocaleString('tr-TR')} km · ${toplamGun} gün</strong>
+        </div>
+      ` : ''}
+
+      ${cardsHTML}
+      ${pagesHTML}
+    </div>`;
+  };
+
+  this._bakimRender = () => {
+    const el = document.getElementById('bakimHistoryBody');
+    if (el) el.innerHTML = renderHTML();
+  };
+
+  this._bakimPagePrev = () => {
+    if (this._bakimPage > 1) { this._bakimPage--; this._bakimRender(); }
+  };
+  this._bakimPageNext = () => {
+    if (this._bakimPage < totalPages) { this._bakimPage++; this._bakimRender(); }
+  };
+
+  await Swal.fire({
+    title: `📜 ${UI.escHtml(v.plaka)} — Bakım Geçmişi`,
+    html: `<div id="bakimHistoryBody">${renderHTML()}</div>`,
     confirmButtonText: 'Kapat',
-    width: Math.min(520, window.innerWidth - 20)
+    width: Math.min(540, window.innerWidth - 20),
+    customClass: { popup: 'vehicle-form-popup' }
   });
 },
     async _editVehicle(id) {
@@ -10248,6 +10610,21 @@ async openAboutModal() {
         <div class="settings-group-body">
           <div class="settings-row">
             <div class="settings-row-icon settings-icon-blue">
+              <i class="fas fa-calendar-day"></i>
+            </div>
+            <div class="settings-row-body">
+              <div class="settings-row-label">Dönem Başlangıç Günü</div>
+              <div class="settings-row-sub">Maaş gününüz (1-28)</div>
+            </div>
+            <div class="settings-input-inline">
+              <input type="number" id="sMaasGun" class="settings-input-sm"
+                     min="1" max="28" step="1"
+                     value="${state.ayarlar.maasGun || 15}" inputmode="numeric">
+              <span class="settings-input-suffix-sm">.gün</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-icon settings-icon-blue">
               <i class="fas fa-chart-line"></i>
             </div>
             <div class="settings-row-body">
@@ -10415,10 +10792,17 @@ async openAboutModal() {
         return false;
       }
 
+      const maasGunEl = document.getElementById('sMaasGun');
+      const maasGun = parseInt(maasGunEl?.value) || 15;
+      if (maasGun < 1 || maasGun > 28) {
+        Swal.showValidationMessage('Maaş günü 1 ile 28 arasında olmalı');
+        return false;
+      }
       return {
         varsayilanRaporAraligi: raEl?.value || 'ay',
         gramAltinFiyati:   gram,
-        ceyrekAltinFiyati: ceyrek
+        ceyrekAltinFiyati: ceyrek,
+        maasGun:           maasGun
       };
     }
   });
@@ -10592,14 +10976,13 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     state.limitler = {};
     state.araclar = [];
     // YANLIŞ olan satırı sil, tek bir tane bırak:
-    state.kategoriler = {
-      gelir: ['Maaş','Serbest Çalışma','Yatırım','Hediye','Kira Geliri','Diğer'],
-      gider: ['Market','Fatura','Eğlence','Ulaşım','Sağlık','Eğitim','Yemek','Alışveriş','Akaryakıt','Diğer']
-    };
+    state.kategoriler = DEFAULT_KATEGORILER();
+    localStorage.setItem('kat_version', String(KAT_VERSION));
     state.ayarlar = {
       varsayilanRaporAraligi: 'ay',
       gramAltinFiyati: 6400,
-      ceyrekAltinFiyati: 10500
+      ceyrekAltinFiyati: 10500,
+      maasGun: 15   /* 🆕 dönem başlangıç günü (1-28 arası) */
     };
     localStorage.removeItem('butcem_migrate_done');
 
@@ -11095,8 +11478,7 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
             gelir: Array.isArray(data.kategoriler.gelir) ? data.kategoriler.gelir : state.kategoriler.gelir,
             gider: Array.isArray(data.kategoriler.gider) ? data.kategoriler.gider : state.kategoriler.gider
           };
-          if (!newKategoriler.gider.includes('Akaryakıt')) newKategoriler.gider.push('Akaryakıt');
-        }
+          /* 🆕 Eski 'Akaryakıt' eklenmiyor — migration zaten hallediyor */        }
 
         let newLimitler = {};
         if (data.limitler && typeof data.limitler === 'object' && !Array.isArray(data.limitler)) {
