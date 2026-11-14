@@ -12734,9 +12734,9 @@ async exportToJSON() {
               </div>
               <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
                 <span>Araçlar:</span><strong>${newAraclar.length}</strong>
-                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
-                <span>Görevler:</span><strong>${gorevlerDosyadaVar ? newGorevler.length : '— (dosyada yok)'}</strong>
               </div>
+              <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
+                <span>Görevler:</span><strong>${gorevlerDosyadaVar ? newGorevler.length : '— (dosyada yok)'}</strong>
               </div>
             </div>
             <p style="font-size:12px;color:#DC2626;font-weight:600;">⚠️ Mevcut verileriniz TAMAMEN DEĞİŞTİRİLECEK!</p>
@@ -13523,8 +13523,23 @@ async exportToJSON() {
     `;
 
     /* ═══ HIZLI EKLE ═══ */
+    /* ═══ HIZLI EKLE ═══ */
     const quickAddHTML = `
-        /* ═══ GÖREV JSON YEDEK ═══ */
+      <div class="task-quick-add">
+        <input type="text" id="quickTaskInput" class="task-quick-input"
+               placeholder="Hızlı görev ekle… (Enter)" maxlength="120"
+               onkeydown="if(event.key==='Enter'){App._quickAddTask();}">
+        <button class="task-quick-btn" onclick="App._quickAddTask()" title="Ekle">
+          <i class="fas fa-plus"></i>
+        </button>
+        <button class="task-quick-btn" onclick="App.openGorevForm()" title="Detaylı Ekle"
+                style="background:var(--surface);color:var(--primary);border:1px solid var(--primary);">
+          <i class="fas fa-sliders"></i>
+        </button>
+      </div>
+    `;
+
+    /* ═══ GÖREV JSON YEDEK ═══ */
     const gorevYedekHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;">
         <button class="btn btn-ghost btn-sm" onclick="App.exportGorevlerJSON()"
@@ -13538,19 +13553,6 @@ async exportToJSON() {
           <input type="file" accept=".json" style="display:none;"
                  onchange="App.importGorevlerJSON(this.files[0]); this.value='';">
         </label>
-      </div>
-    `;
-      <div class="task-quick-add">
-        <input type="text" id="quickTaskInput" class="task-quick-input"
-               placeholder="Hızlı görev ekle… (Enter)" maxlength="120"
-               onkeydown="if(event.key==='Enter'){App._quickAddTask();}">
-        <button class="task-quick-btn" onclick="App._quickAddTask()" title="Ekle">
-          <i class="fas fa-plus"></i>
-        </button>
-        <button class="task-quick-btn" onclick="App.openGorevForm()" title="Detaylı Ekle"
-                style="background:var(--surface);color:var(--primary);border:1px solid var(--primary);">
-          <i class="fas fa-sliders"></i>
-        </button>
       </div>
     `;
 
