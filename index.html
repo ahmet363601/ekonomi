@@ -3203,16 +3203,9 @@ async function loadAllData() {
       birim: b.birim || 'tl'
     }));
 
-
-       Aksi halde migrasyon saveArchives() çağırıp boş {} yazar → tüm arşivler silinir. */
-    /* state.archives yukarıda yüklendi (migrasyondan önce) */
-
-    /* 🔴 KRİTİK: Arşivleri yakıt migrasyonundan ÖNCE yükle.
-       Aksi halde migrasyon saveArchives() çağırıp boş {} yazar → tüm arşivler silinir. */
+    /* 🔴 KRİTİK: Arşivleri yakıt migrasyonundan ÖNCE yükle. */
     const archs = await dbGetAll('archives');
     state.archives = archs.reduce((acc, a) => { acc[a.month] = a.data; return acc; }, {});
-
-    /* 🆕 Kategori versiyon kontrolü */
 
     /* 🆕 Kategori versiyon kontrolü */
     const storedKatVer = Number(localStorage.getItem('kat_version') || 0);
@@ -3226,47 +3219,45 @@ async function loadAllData() {
       kats.forEach(k => { if (k.tip === 'gelir' || k.tip === 'gider') state.kategoriler[k.tip] = k.kategoriler; });
     }
 
-    /* 🆕 Akaryakıt her zaman gider kategorilerinde bulunsun */
-/* 🔄 MİGRASYON: 'Akaryakıt' → 'Araç Yakıt' (tek seferlik) */
-const FUEL_OLD = 'Akaryakıt';
-const FUEL_NEW = 'Araç Yakıt';
-let _fuelMigrationNeeded = false;
+    /* 🔄 MİGRASYON: 'Akaryakıt' → 'Araç Yakıt' (tek seferlik) */
+    const FUEL_OLD = 'Akaryakıt';
+    const FUEL_NEW = 'Araç Yakıt';
+    let _fuelMigrationNeeded = false;
 
-const _migrateFuelKat = (item) => {
-  if (item && item.kategori === FUEL_OLD) {
-    item.kategori = FUEL_NEW;
-    _fuelMigrationNeeded = true;
-  }
-};
+    const _migrateFuelKat = (item) => {
+      if (item && item.kategori === FUEL_OLD) {
+        item.kategori = FUEL_NEW;
+        _fuelMigrationNeeded = true;
+      }
+    };
 
-state.gelirler.forEach(_migrateFuelKat);
-state.giderler.forEach(_migrateFuelKat);
-state.borcalacaklar.forEach(_migrateFuelKat);
-Object.values(state.archives).forEach(a => {
-  (a.gelirler || []).forEach(_migrateFuelKat);
-  (a.giderler || []).forEach(_migrateFuelKat);
-});
+    state.gelirler.forEach(_migrateFuelKat);
+    state.giderler.forEach(_migrateFuelKat);
+    state.borcalacaklar.forEach(_migrateFuelKat);
+    Object.values(state.archives).forEach(a => {
+      (a.gelirler || []).forEach(_migrateFuelKat);
+      (a.giderler || []).forEach(_migrateFuelKat);
+    });
 
-/* Kategori listesini düzenle */
-if (state.kategoriler.gider.includes(FUEL_OLD) && !state.kategoriler.gider.includes(FUEL_NEW)) {
-  state.kategoriler.gider = state.kategoriler.gider.map(k => k === FUEL_OLD ? FUEL_NEW : k);
-  _fuelMigrationNeeded = true;
-}
-if (!state.kategoriler.gider.includes(FUEL_NEW)) {
-  state.kategoriler.gider.push(FUEL_NEW);
-  _fuelMigrationNeeded = true;
-}
+    if (state.kategoriler.gider.includes(FUEL_OLD) && !state.kategoriler.gider.includes(FUEL_NEW)) {
+      state.kategoriler.gider = state.kategoriler.gider.map(k => k === FUEL_OLD ? FUEL_NEW : k);
+      _fuelMigrationNeeded = true;
+    }
+    if (!state.kategoriler.gider.includes(FUEL_NEW)) {
+      state.kategoriler.gider.push(FUEL_NEW);
+      _fuelMigrationNeeded = true;
+    }
 
-if (_fuelMigrationNeeded) {
-  try {
-    await saveGelirler();
-    await saveGiderler();
-    await saveBorclar();
-    await saveArchives();
-    await saveKategoriler();
-    console.log('[Migration] Akaryakıt → Araç Yakıt tamamlandı');
-  } catch (e) { console.warn('[Migration]', e); }
-}
+    if (_fuelMigrationNeeded) {
+      try {
+        await saveGelirler();
+        await saveGiderler();
+        await saveBorclar();
+        await saveArchives();
+        await saveKategoriler();
+        console.log('[Migration] Akaryakıt → Araç Yakıt tamamlandı');
+      } catch (e) { console.warn('[Migration]', e); }
+    }
 
     const limits = await dbGetAll('limitler');
     state.limitler = limits.reduce((acc, l) => { acc[l.kategori] = l.limit; return acc; }, {});
@@ -3285,17 +3276,16 @@ if (_fuelMigrationNeeded) {
 
     try {
       state.araclar = await dbGetAll('araclar');
-            try {
+      try {
         state.notifications = await dbGetAll('notifications');
       } catch (_) {
         state.notifications = [];
       }
     } catch (_) {
-      state.araclar = [];  // eski DB → yeni store henüz yok
+      state.araclar = [];
     }
   } catch(e) {
     console.error('Veri yükleme:', e);
-    // ✅ Hatayı yut değil, init'e ilet → kullanıcı "Veri yüklenemedi" görsün
     throw e;
   }
 }
