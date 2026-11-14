@@ -2061,6 +2061,358 @@ input[type="month"].form-input,
   .header-actions .header-btn { width: 32px; height: 32px; font-size: 12px; }
   .notif-badge { min-width: 14px; height: 14px; font-size: 8px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   ⚙️ AYARLAR MODALI — Premium Redesign
+   ═══════════════════════════════════════════════════════════════ */
+.swal2-popup.settings-popup {
+  padding: 0 !important;
+  overflow: hidden !important;
+  max-width: min(560px, calc(100vw - 20px)) !important;
+  border-radius: 20px !important;
+}
+.settings-popup .swal2-title { display: none !important; }
+.settings-popup .swal2-html-container {
+  margin: 0 !important;
+  padding: 0 !important;
+  max-height: 68vh !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior: contain !important;
+}
+.settings-popup .swal2-actions {
+  padding: 14px 16px !important;
+  margin: 0 !important;
+  border-top: 1px solid var(--border) !important;
+  background: var(--surface) !important;
+  gap: 10px !important;
+  width: 100% !important;
+  flex-wrap: nowrap !important;
+}
+.settings-popup .swal2-close {
+  top: 12px !important;
+  right: 12px !important;
+  color: #fff !important;
+  background: rgba(0,0,0,.35) !important;
+  border-radius: 50% !important;
+  width: 32px !important;
+  height: 32px !important;
+  z-index: 10 !important;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition: background .15s ease !important;
+}
+.settings-popup .swal2-close:hover {
+  background: rgba(0,0,0,.6) !important;
+  color: #fff !important;
+}
+
+.settings-body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── HERO ─── */
+.settings-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 16px 18px;
+  background: linear-gradient(135deg, #0F2A5C 0%, #0A1F44 60%, #081B3E 100%);
+  color: #fff;
+}
+.settings-hero-icon {
+  width: 48px; height: 48px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.15);
+  border: 1px solid rgba(255,255,255,.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+}
+.settings-hero-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -.3px;
+  line-height: 1.2;
+}
+.settings-hero-sub {
+  font-size: 11px;
+  opacity: .75;
+  margin-top: 3px;
+  letter-spacing: .3px;
+}
+
+/* ─── SECTIONS ─── */
+.settings-section {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.settings-section:last-child { border-bottom: none; }
+
+.settings-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.settings-section-icon {
+  width: 32px; height: 32px;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.settings-icon-blue    { background: var(--primary-light); color: var(--primary); }
+.settings-icon-amber   { background: var(--warning-light); color: var(--warning); }
+.settings-icon-info    { background: var(--info-light);    color: var(--info); }
+.settings-icon-primary { background: var(--primary-light); color: var(--primary); }
+.settings-icon-danger  { background: var(--danger-light);  color: var(--danger); }
+
+.settings-section-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -.2px;
+  flex: 1;
+}
+
+/* ─── MINI BTN (bölüm başlığında) ─── */
+.settings-mini-btn {
+  padding: 5px 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all .15s ease;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.settings-mini-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+.settings-mini-btn:active { transform: scale(.94); }
+.settings-mini-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ─── FIELDS ─── */
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.settings-field + .settings-field { margin-top: 10px; }
+.settings-field-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+.settings-input {
+  width: 100% !important;
+  padding: 11px 13px !important;
+  border: 1.5px solid var(--border) !important;
+  border-radius: 10px !important;
+  background: var(--surface2) !important;
+  color: var(--text) !important;
+  font-size: 16px !important;   /* iOS zoom engeli */
+  font-family: 'IBM Plex Sans', sans-serif !important;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  height: auto !important;
+  line-height: 1.4 !important;
+}
+.settings-input:focus {
+  outline: none !important;
+  border-color: var(--primary) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 0 0 3px var(--primary-light) !important;
+}
+select.settings-input {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237B8A9E' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+  padding-right: 36px !important;
+}
+
+/* ─── 2-COL GRID ─── */
+.settings-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 420px) {
+  .settings-grid-2 { grid-template-columns: 1fr; }
+}
+
+/* ─── HINT ─── */
+.settings-hint {
+  margin-top: 10px;
+  padding: 8px 11px;
+  background: var(--surface2);
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--text3);
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.5;
+}
+.settings-hint i {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--primary);
+}
+.settings-hint-danger {
+  background: var(--danger-light);
+  color: var(--danger);
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+.settings-hint-danger i { color: var(--danger); }
+
+/* ─── ARAÇ AKSİYON GRID ─── */
+.settings-btn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+@media (max-width: 480px) {
+  .settings-btn-grid { grid-template-columns: 1fr; }
+}
+.settings-action-btn {
+  padding: 12px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text2);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all .15s ease;
+  text-align: center;
+  min-height: 68px;
+  font-family: inherit;
+}
+.settings-action-btn i { font-size: 16px; }
+.settings-action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15,42,92,.08);
+}
+.settings-action-btn:active { transform: scale(.97); }
+.settings-action-info    { color: var(--info);    border-color: var(--info);    background: var(--surface); }
+.settings-action-info:hover    { background: var(--info-light); }
+.settings-action-success { color: var(--accent);  border-color: var(--accent);  background: var(--surface); }
+.settings-action-success:hover { background: var(--accent-light); }
+.settings-action-primary { color: var(--primary); border-color: var(--primary); background: var(--surface); }
+.settings-action-primary:hover { background: var(--primary-light); }
+
+/* ─── ROW CARD (install) ─── */
+.settings-row-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface2);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.settings-row-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.settings-row-sub {
+  font-size: 11px;
+  color: var(--text3);
+  line-height: 1.4;
+}
+
+.settings-primary-btn {
+  padding: 9px 14px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all .15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.settings-primary-btn:hover {
+  background: var(--primary-dark);
+  box-shadow: 0 4px 12px rgba(15,42,92,.25);
+}
+.settings-primary-btn:active { transform: scale(.96); }
+
+/* ─── DANGER ─── */
+.settings-danger-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all .15s ease;
+  letter-spacing: -.1px;
+  font-family: inherit;
+}
+.settings-danger-btn:hover {
+  background: var(--danger-dark);
+  box-shadow: 0 4px 12px rgba(185,28,28,.25);
+}
+.settings-danger-btn:active { transform: scale(.97); }
+
+/* ─── DARK MODE ─── */
+@media (prefers-color-scheme: dark) {
+  .settings-popup .swal2-actions { background: var(--surface) !important; }
+  .settings-hint { background: var(--surface3); }
+  .settings-row-card { background: var(--surface3); }
+}
+
+/* ─── SMALL SCREENS ─── */
+@media (max-width: 380px) {
+  .settings-popup .swal2-html-container { max-height: 64vh !important; }
+  .settings-hero { padding: 16px 14px 14px; }
+  .settings-hero-icon { width: 42px; height: 42px; font-size: 20px; }
+  .settings-hero-title { font-size: 16px; }
+  .settings-section { padding: 14px; }
+}
 </style>
 
 </head>
@@ -9345,71 +9697,192 @@ async showBakimGecmisi(vehicleId) {
       showToast('⚠️ Kurlar çekilemedi — elle girin');
     }
   },
-  async openSettingsModal() {
-    const { value } = await Swal.fire({
-      title: '⚙️ Ayarlar',
-      html: `<div style="text-align:left;">
-        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:5px;">Varsayılan Rapor Aralığı</label>
-        <select id="sRa" class="swal2-select">
-          ${[['bugun','Bugün'],['hafta','Bu Hafta'],['ay','Bu Ay'],['3ay','Son 3 Ay']].map(([v,l])=>`<option value="${v}"${v===state.ayarlar.varsayilanRaporAraligi?' selected':''}>${l}</option>`).join('')}
-        </select>
+async openSettingsModal() {
+  const { value } = await Swal.fire({
+    title: '',
+    html: `<div class="settings-body">
 
-        <div style="margin-top:16px;padding:14px;background:var(--warning-light);border-radius:12px;border:1px solid #FDE68A;">
-          <div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:10px;">🪙 Altın Fiyatları</div>
-          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Gram Altın (TL)</label>
-          <input type="number" id="sGramAltin" class="swal2-input" step="0.01" min="0" value="${state.ayarlar.gramAltinFiyati||0}" style="margin:0 0 10px 0;width:100%;">
-          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Çeyrek Altın (TL)</label>
-          <input type="number" id="sCeyrekAltin" class="swal2-input" step="0.01" min="0" value="${state.ayarlar.ceyrekAltinFiyati||0}" style="margin:0;width:100%;">
-          <p style="font-size:10.5px;color:#92400e;margin-top:8px;">
-            <i class="fas fa-info-circle"></i> Değişiklik yaptığınızda tüm borç/alacak TL karşılıkları otomatik güncellenir.
-          </p>
+      <!-- ═══ HERO ═══ -->
+      <div class="settings-hero">
+        <div class="settings-hero-icon">⚙️</div>
+        <div style="flex:1;min-width:0;">
+          <div class="settings-hero-title">EBHA Mani</div>
+          <div class="settings-hero-sub">v6.0 · Kişisel Finans Asistanı</div>
         </div>
+      </div>
 
-        <div style="margin-top:16px;padding:14px;background:var(--info-light);border-radius:12px;border:1px solid #BAE6FD;">
-          <div style="font-size:12px;font-weight:700;color:var(--info);margin-bottom:8px;">🚗 Araç Hatırlatıcıları</div>
-          <p style="font-size:11px;color:var(--text2);margin-bottom:10px;">Muayene, sigorta, kasko ve bakım tarihlerini takip edin.</p>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button type="button" onclick="Swal.close(); setTimeout(() => App.openVehicleModal(), 150)" style="padding:8px 10px;background:var(--info);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;flex:1;min-width:100px;">
-              <i class="fas fa-cog"></i> Araçları Yönet
-            </button>
-            <button type="button" onclick="App.pickVehicleForAction('bakim')" style="padding:8px 10px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;flex:1;min-width:100px;">
-              <i class="fas fa-tools"></i> Bakım Yapıldı
-            </button>
-            <button type="button" onclick="App.pickVehicleForAction('gecmis')" style="padding:8px 10px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;flex:1;min-width:100px;">
-              <i class="fas fa-history"></i> Bakım Geçmişi
-            </button>
+      <!-- ═══ 1. GENEL ═══ -->
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <div class="settings-section-icon settings-icon-blue">
+            <i class="fas fa-sliders-h"></i>
+          </div>
+          <div class="settings-section-label">Genel</div>
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Varsayılan Rapor Aralığı</label>
+          <select id="sRa" class="settings-input">
+            ${[['bugun','Bugün'],['hafta','Bu Hafta'],['ay','Bu Ay'],['3ay','Son 3 Ay']]
+              .map(([v,l]) => `<option value="${v}"${v===state.ayarlar.varsayilanRaporAraligi?' selected':''}>${l}</option>`)
+              .join('')}
+          </select>
+        </div>
+      </div>
+
+      <!-- ═══ 2. ALTIN FİYATLARI ═══ -->
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <div class="settings-section-icon settings-icon-amber">
+            <i class="fas fa-coins"></i>
+          </div>
+          <div class="settings-section-label">Altın Fiyatları</div>
+          <button type="button" id="settingsGoldRefreshBtn" class="settings-mini-btn" onclick="App._refreshGoldInSettings()">
+            <i class="fas fa-sync-alt"></i> API
+          </button>
+        </div>
+        <div class="settings-grid-2">
+          <div class="settings-field">
+            <label class="settings-field-label">Gram Altın (TL)</label>
+            <input type="number" id="sGramAltin" class="settings-input" step="0.01" min="0"
+                   value="${state.ayarlar.gramAltinFiyati || 0}" inputmode="decimal">
+          </div>
+          <div class="settings-field">
+            <label class="settings-field-label">Çeyrek Altın (TL)</label>
+            <input type="number" id="sCeyrekAltin" class="settings-input" step="0.01" min="0"
+                   value="${state.ayarlar.ceyrekAltinFiyati || 0}" inputmode="decimal">
           </div>
         </div>
+        <div class="settings-hint">
+          <i class="fas fa-info-circle"></i>
+          <span>Değişiklik sonrası tüm borç/alacak TL karşılıkları otomatik güncellenir.</span>
+        </div>
+      </div>
 
-        <div style="margin-top:16px;padding:14px;background:var(--primary-light);border-radius:12px;border:1px solid #BFDBFE;">
-          <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;">📲 Uygulamayı Yükle</div>
-          <p style="font-size:11px;color:var(--text2);margin-bottom:10px;">Ana ekrana ekleyip çevrimdışı kullanın.</p>
-          <button type="button" onclick="App.promptInstall()" style="padding:8px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;">Ana Ekrana Ekle</button>
+      <!-- ═══ 3. ARAÇ HATIRLATICILARI ═══ -->
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <div class="settings-section-icon settings-icon-info">
+            <i class="fas fa-car"></i>
+          </div>
+          <div class="settings-section-label">Araç Hatırlatıcıları</div>
         </div>
-        <div style="margin-top:16px;padding:14px;background:var(--danger-light);border-radius:12px;border:1px solid #FCA5A5;">
-          <div style="font-size:12px;font-weight:700;color:var(--danger);margin-bottom:8px;">⚠️ Tehlikeli Bölge</div>
-          <p style="font-size:11px;color:var(--text2);margin-bottom:10px;">Tüm veriler kalıcı olarak silinir. Bu işlem geri alınamaz!</p>
-          <button type="button" onclick="App.resetAll()" style="padding:8px 14px;background:var(--danger);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;">Tüm Verileri Sıfırla</button>
+        <div class="settings-btn-grid">
+          <button type="button" class="settings-action-btn settings-action-info"
+                  onclick="Swal.close(); setTimeout(() => App.openVehicleModal(), 150)">
+            <i class="fas fa-cog"></i>
+            <span>Araçları Yönet</span>
+          </button>
+          <button type="button" class="settings-action-btn settings-action-success"
+                  onclick="App.pickVehicleForAction('bakim')">
+            <i class="fas fa-tools"></i>
+            <span>Bakım Yapıldı</span>
+          </button>
+          <button type="button" class="settings-action-btn settings-action-primary"
+                  onclick="App.pickVehicleForAction('gecmis')">
+            <i class="fas fa-history"></i>
+            <span>Bakım Geçmişi</span>
+          </button>
         </div>
-      </div>`,
-      confirmButtonText: 'Kaydet',
-      showCancelButton: true,
-      cancelButtonText: 'İptal',
-      width: Math.min(520, window.innerWidth - 24),
-      preConfirm: () => ({
-        varsayilanRaporAraligi: document.getElementById('sRa').value,
-        gramAltinFiyati: parseFloat(document.getElementById('sGramAltin').value) || 0,
-        ceyrekAltinFiyati: parseFloat(document.getElementById('sCeyrekAltin').value) || 0
-      })
-    });
-    if (value) {
-      state.ayarlar = { ...state.ayarlar, ...value };
-      await saveAllData();
-      showToast('✅ Ayarlar kaydedildi');
-      await this.loadPage(this.currentPage);
+      </div>
+
+      <!-- ═══ 4. UYGULAMA ═══ -->
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <div class="settings-section-icon settings-icon-primary">
+            <i class="fas fa-mobile-alt"></i>
+          </div>
+          <div class="settings-section-label">Uygulama</div>
+        </div>
+        <div class="settings-row-card">
+          <div style="flex:1;min-width:0;">
+            <div class="settings-row-title">Ana Ekrana Ekle</div>
+            <div class="settings-row-sub">Çevrimdışı kullanım için uygulamayı yükle</div>
+          </div>
+          <button type="button" class="settings-primary-btn" onclick="App.promptInstall()">
+            <i class="fas fa-download"></i> Yükle
+          </button>
+        </div>
+      </div>
+
+      <!-- ═══ 5. TEHLİKELİ BÖLGE ═══ -->
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <div class="settings-section-icon settings-icon-danger">
+            <i class="fas fa-exclamation-triangle"></i>
+          </div>
+          <div class="settings-section-label" style="color:var(--danger);">Tehlikeli Bölge</div>
+        </div>
+        <div class="settings-hint settings-hint-danger">
+          <i class="fas fa-exclamation-triangle"></i>
+          <span>Tüm veriler (gelir, gider, borç, arşiv, log, yedek) <strong>kalıcı olarak</strong> silinir. Bu işlem <strong>geri alınamaz</strong>.</span>
+        </div>
+        <button type="button" class="settings-danger-btn" onclick="App.resetAll()">
+          <i class="fas fa-trash"></i> Tüm Verileri Sıfırla
+        </button>
+      </div>
+
+    </div>`,
+    width: Math.min(560, window.innerWidth - 20),
+    showCancelButton: true,
+    confirmButtonText: '💾 Kaydet',
+    cancelButtonText: 'İptal',
+    customClass: { popup: 'settings-popup' },
+    focusConfirm: false,
+    preConfirm: () => {
+      const gramEl   = document.getElementById('sGramAltin');
+      const ceyrekEl = document.getElementById('sCeyrekAltin');
+      const raEl     = document.getElementById('sRa');
+
+      const gram   = parseFloat(gramEl?.value) || 0;
+      const ceyrek = parseFloat(ceyrekEl?.value) || 0;
+
+      /* Basit doğrulama */
+      if (gram < 0 || ceyrek < 0) {
+        Swal.showValidationMessage('Fiyatlar negatif olamaz');
+        return false;
+      }
+
+      return {
+        varsayilanRaporAraligi: raEl?.value || 'ay',
+        gramAltinFiyati:   gram,
+        ceyrekAltinFiyati: ceyrek
+      };
     }
-  },
+  });
 
+  if (value) {
+    state.ayarlar = { ...state.ayarlar, ...value };
+    await saveAllData();
+    showToast('✅ Ayarlar kaydedildi');
+    await this.loadPage(this.currentPage);
+  }
+},
+
+/* 🆕 Ayarlar modalındaki API butonu için — gold-only modalındaki
+   _refreshGoldInModal'ı DEĞİL, settings'e özel hafif bir versiyon kullanıyoruz. */
+async _refreshGoldInSettings() {
+  const btn = document.getElementById('settingsGoldRefreshBtn');
+  const orig = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+
+  try {
+    const r = await GoldRate.fetchAndUpdate(true);
+    if (r.ok) {
+      const gramEl   = document.getElementById('sGramAltin');
+      const ceyrekEl = document.getElementById('sCeyrekAltin');
+      if (gramEl)   gramEl.value   = r.gram.toFixed(2);
+      if (ceyrekEl) ceyrekEl.value = r.ceyrek.toFixed(2);
+      showToast('✅ Kurlar güncellendi');
+    } else {
+      showToast('⚠️ Kurlar çekilemedi — elle girin');
+    }
+  } catch (e) {
+    console.warn('[Settings] gold refresh:', e);
+    showToast('⚠️ Kurlar çekilemedi');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+  }
+},
   async resetAll() {
   const r = await Swal.fire({
     icon: 'warning',
