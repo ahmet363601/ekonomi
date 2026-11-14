@@ -2869,6 +2869,606 @@ input[type="month"].form-input,
 .about-copy strong{color:var(--text2);font-weight:700}
 .about-copy .about-copy-heart{color:var(--danger);display:inline-block;padding:0 3px}
 @media (prefers-color-scheme:dark){.about-card{background:var(--surface)}.about-seal{background:linear-gradient(135deg,rgba(180,83,9,.18) 0%,rgba(180,83,9,.10) 60%,rgba(180,83,9,.18) 100%);border-color:rgba(180,83,9,.45);box-shadow:0 8px 24px rgba(0,0,0,.35),inset 0 0 0 4px rgba(0,0,0,.15)}.about-seal::before,.about-seal::after{color:rgba(252,211,77,.45)}.about-seal-icon{border-color:rgba(252,211,77,.65)}.about-seal-name{color:#FCD34D}.about-seal-title{color:#FBBF24}.about-seal-date{color:rgba(252,211,77,.6);border-top-color:rgba(252,211,77,.25)}}
+
+/* ═══════════════════════════════════════════════════════════════
+   🎯 GÖREV SİSTEMİ — To-Do Advanced
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── 6 butonlu nav için küçük ayar ─── */
+#bottom-nav .nav-inner { gap: 0; padding: 6px 2px; }
+.nav-btn { padding: 6px 4px; }
+.nav-btn span { font-size: 9.5px; }
+@media (max-width: 400px) {
+  .nav-btn span { font-size: 9px; }
+  .nav-btn i { font-size: 17px; }
+}
+
+/* ─── NAV BADGE (Görevler için) ─── */
+.nav-badge {
+  position: absolute;
+  top: 2px;
+  left: calc(50% + 4px);
+  background: #DC2626;
+  color: #fff;
+  font-size: 8.5px;
+  font-weight: 800;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--surface);
+  line-height: 1;
+  box-shadow: 0 2px 4px rgba(220,38,38,.35);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* ─── GÖREV İSTATİSTİK KARTLARI ─── */
+.task-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.task-stat-card {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  position: relative;
+  overflow: hidden;
+}
+.task-stat-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+}
+.task-stat-card.sc-aktif::before    { background: var(--primary); }
+.task-stat-card.sc-bugun::before    { background: var(--info); }
+.task-stat-card.sc-geciken::before  { background: var(--danger); }
+.task-stat-card.sc-tamam::before    { background: var(--accent); }
+
+.task-stat-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  margin-bottom: 4px;
+}
+.task-stat-value {
+  font-family: 'Inter', 'Plus Jakarta Sans', sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -.5px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.task-stat-card.sc-aktif   .task-stat-value { color: var(--primary); }
+.task-stat-card.sc-bugun   .task-stat-value { color: var(--info); }
+.task-stat-card.sc-geciken .task-stat-value { color: var(--danger); }
+.task-stat-card.sc-tamam   .task-stat-value { color: var(--accent); }
+
+/* ─── HIZLI EKLE BAR ─── */
+.task-quick-add {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 10px;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  align-items: stretch;
+}
+.task-quick-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 16px;
+  font-family: inherit;
+  min-width: 0;
+  transition: all .15s ease;
+}
+.task-quick-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+.task-quick-btn {
+  width: 42px;
+  border-radius: 9px;
+  border: none;
+  background: var(--primary);
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s ease;
+  flex-shrink: 0;
+}
+.task-quick-btn:active { transform: scale(.94); }
+.task-quick-btn:hover  { background: var(--primary-dark); }
+
+/* ─── FILTRE TABS ─── */
+.task-filter-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 12px;
+  scrollbar-width: none;
+}
+.task-filter-tabs::-webkit-scrollbar { display: none; }
+.task-filter-tab {
+  padding: 7px 13px;
+  border-radius: 30px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--text2);
+  transition: all .15s ease;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.task-filter-tab.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.task-filter-tab .count-badge {
+  font-size: 9.5px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: rgba(0,0,0,.12);
+  font-weight: 800;
+  min-width: 16px;
+  text-align: center;
+}
+.task-filter-tab.active .count-badge {
+  background: rgba(255,255,255,.25);
+}
+
+/* ─── GÖREV KARTI ─── */
+.task-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  position: relative;
+  transition: all .2s ease;
+  border-left: 4px solid transparent;
+  cursor: pointer;
+}
+.task-card:hover {
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border-strong);
+}
+.task-card.priority-kritik  { border-left-color: var(--danger); }
+.task-card.priority-yuksek  { border-left-color: var(--warning); }
+.task-card.priority-normal  { border-left-color: var(--info); }
+.task-card.priority-dusuk   { border-left-color: var(--text3); }
+.task-card.done {
+  opacity: .68;
+  background: var(--surface2);
+}
+.task-card.done .task-title { text-decoration: line-through; color: var(--text3); }
+.task-card.geciken {
+  background: linear-gradient(90deg, rgba(185,28,28,.04), transparent 40%);
+}
+
+/* Checkbox */
+.task-checkbox {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all .2s cubic-bezier(.34,1.4,.64,1);
+  color: transparent;
+  font-size: 12px;
+  margin-top: 1px;
+}
+.task-checkbox:hover {
+  border-color: var(--accent);
+  transform: scale(1.08);
+}
+.task-checkbox.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  animation: task-check-pop .35s cubic-bezier(.34,1.6,.64,1);
+}
+@keyframes task-check-pop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+/* İçerik */
+.task-body { flex: 1; min-width: 0; }
+.task-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.35;
+  margin-bottom: 6px;
+  word-wrap: break-word;
+}
+.task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  font-size: 10.5px;
+  color: var(--text3);
+  margin-bottom: 4px;
+}
+.task-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.task-meta-item.cat {
+  color: var(--text2);
+  font-weight: 600;
+}
+.task-meta-item.tarih-geciken { color: var(--danger); font-weight: 700; }
+.task-meta-item.tarih-bugun    { color: var(--warning); font-weight: 700; }
+
+.task-priority-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  padding: 2px 7px;
+  border-radius: 30px;
+}
+.task-priority-badge.kritik { background: var(--danger-light);  color: var(--danger); animation: pulseRed 2s ease-in-out infinite; }
+.task-priority-badge.yuksek { background: var(--warning-light); color: var(--warning); }
+.task-priority-badge.normal { background: var(--info-light);    color: var(--info); }
+.task-priority-badge.dusuk  { background: var(--surface3);      color: var(--text3); }
+
+/* Alt görev progress */
+.task-subtask-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text3);
+  margin-top: 4px;
+}
+.task-subtask-mini-track {
+  height: 3px;
+  flex: 1;
+  max-width: 80px;
+  background: var(--surface3);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.task-subtask-mini-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+  transition: width .3s ease;
+}
+
+/* Action butonu */
+.task-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: flex-start;
+}
+.task-action-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition: all .15s ease;
+}
+.task-action-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+.task-action-btn.del:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-light);
+}
+
+/* ─── TOPLU İŞLEM BARI ─── */
+.task-bulk-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  margin-bottom: 10px;
+  font-size: 11.5px;
+  color: var(--text2);
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.task-bulk-bar strong { color: var(--text); }
+.task-bulk-actions { display: flex; gap: 6px; }
+.task-bulk-btn {
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all .15s ease;
+}
+.task-bulk-btn.archive { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+.task-bulk-btn.delete  { background: var(--danger-light); color: var(--danger); border-color: var(--danger); }
+.task-bulk-btn:active  { transform: scale(.94); }
+
+/* ─── BOŞ DURUM ─── */
+.task-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text3);
+}
+.task-empty-icon {
+  font-size: 42px;
+  opacity: .35;
+  margin-bottom: 12px;
+  display: block;
+}
+.task-empty-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text2);
+  margin-bottom: 5px;
+}
+.task-empty-desc { font-size: 11.5px; }
+
+/* ─── FORM: KATEGORİ CHIP'LERİ ─── */
+.task-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.task-cat-chip {
+  padding: 9px 6px;
+  border-radius: 9px;
+  border: 1.5px solid var(--border);
+  background: var(--surface2);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--text2);
+  transition: all .15s ease;
+  text-align: center;
+}
+.task-cat-chip i { font-size: 16px; }
+.task-cat-chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  transform: scale(1.04);
+}
+
+/* ─── FORM: ÖNCELİK CHIP'LERİ ─── */
+.task-pri-chips {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.task-pri-chip {
+  flex: 1;
+  padding: 8px 8px;
+  border-radius: 9px;
+  border: 1.5px solid var(--border);
+  background: var(--surface2);
+  cursor: pointer;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text2);
+  transition: all .15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.task-pri-chip[data-pri="dusuk"].active  { background: var(--surface3);      border-color: var(--text3);    color: var(--text); }
+.task-pri-chip[data-pri="normal"].active { background: var(--info);          border-color: var(--info);     color: #fff; }
+.task-pri-chip[data-pri="yuksek"].active { background: var(--warning);       border-color: var(--warning);  color: #fff; }
+.task-pri-chip[data-pri="kritik"].active { background: var(--danger);        border-color: var(--danger);   color: #fff; }
+
+/* ─── FORM: ALT GÖREVLER ─── */
+.task-subtasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.task-subtask-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--surface2);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.task-subtask-check {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  font-size: 10px;
+  flex-shrink: 0;
+  transition: all .15s ease;
+}
+.task-subtask-check.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.task-subtask-text {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--text);
+  word-wrap: break-word;
+}
+.task-subtask-text.done {
+  text-decoration: line-through;
+  color: var(--text3);
+}
+.task-subtask-del {
+  color: var(--text3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 11px;
+  transition: color .15s;
+}
+.task-subtask-del:hover { color: var(--danger); }
+
+/* ─── FORM: ALT GÖREV EKLEME ─── */
+.task-subtask-add-row {
+  display: flex;
+  gap: 6px;
+}
+.task-subtask-add-row input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 16px;
+  color: var(--text);
+  min-width: 0;
+}
+.task-subtask-add-row button {
+  padding: 0 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* ─── DETAY MODAL ─── */
+.task-detail-header {
+  padding: 16px;
+  background: linear-gradient(135deg, #0F2A5C 0%, #1E3A7A 100%);
+  color: #fff;
+  border-radius: 12px 12px 0 0;
+  margin: -16px -16px 16px;
+  position: relative;
+  overflow: hidden;
+}
+.task-detail-header::before {
+  content: '';
+  position: absolute;
+  top: -30%; right: -20%;
+  width: 160px; height: 160px;
+  background: radial-gradient(circle, rgba(255,255,255,.10) 0%, transparent 70%);
+  border-radius: 50%;
+}
+.task-detail-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -.3px;
+  line-height: 1.3;
+  margin-bottom: 8px;
+  position: relative;
+  z-index: 1;
+}
+.task-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  opacity: .9;
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── FILTRE BAR ─── */
+.task-filter-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.task-filter-chip {
+  padding: 5px 10px;
+  border-radius: 30px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text2);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.task-filter-chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
 </style>
 
 </head>
@@ -2978,7 +3578,7 @@ try {
    CONSTANTS
 ───────────────────────────────────────────── */
 const DB_NAME    = 'ButcemProDB';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
   const PARA       = 'TL';
 
 /* iOS tespiti — PWA kurulum yönlendirmesi ve ITP uyarısı için */
@@ -3187,6 +3787,7 @@ const state = {
   giderler: [],
   borcalacaklar: [],
   notifications: [],   // 🆕 BİLDİRİMLER
+    gorevler: [],          // 🆕 GÖREVLER
   kategoriler: DEFAULT_KATEGORILER(),
   limitler: {},
   ayarlar: {
@@ -3284,6 +3885,12 @@ async function loadAllData() {
       state.araclar = await dbGetAll('araclar');
       try {
         state.notifications = await dbGetAll('notifications');
+            /* 🆕 Görevleri yükle */
+    try {
+      state.gorevler = await dbGetAll('gorevler');
+    } catch (_) {
+      state.gorevler = [];
+    }
       } catch (_) {
         state.notifications = [];
       }
@@ -3378,6 +3985,7 @@ const saveKategoriler = () => queueSave(() => saveStore('kategoriler', [
   { tip: 'gider', kategoriler: state.kategoriler.gider }
 ]));
 const saveAraclar = () => queueSave(() => saveStore('araclar', state.araclar));
+const saveGorevler = () => queueSave(() => saveStore('gorevler', state.gorevler));
 
 /* 🛡️ Bildirimler kritik olmayan veri — hata verirse uygulamayı kilitlemesin.
    Ana queueSave yerine sessiz fallback kullanıyoruz. */
@@ -3402,13 +4010,64 @@ async function saveAllData() {
     await Promise.all([
       saveGelirler(), saveGiderler(), saveBorclar(),
       saveKategoriler(), saveLimitler(), saveAyarlar(),
-      saveArchives(), saveLogs(), saveBackups(), saveAraclar(),saveNotifications()
+      saveArchives(), saveLogs(), saveBackups(), saveAraclar(),saveNotifications(), saveGorevler(), saveNotifications()
     ]);
   } catch (e) {
     console.error('[saveAllData] Kayıt hatası:', e);
     throw e;
   }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   🎯 GÖREV META SABİTLERİ — Kategori, Öncelik
+   ═══════════════════════════════════════════════════════════════ */
+const GOREV_KATEGORI = {
+  finans:    { icon: 'fa-coins',          color: '#059669', bg: '#ECFDF5', label: 'Finans' },
+  kisisel:   { icon: 'fa-user',           color: '#7C3AED', bg: '#F3E8FF', label: 'Kişisel' },
+  is:        { icon: 'fa-briefcase',      color: '#0F2A5C', bg: '#EEF2F9', label: 'İş' },
+  alisveris: { icon: 'fa-shopping-cart',  color: '#D97706', bg: '#FEF3C7', label: 'Alışveriş' },
+  saglik:    { icon: 'fa-heart-pulse',    color: '#DC2626', bg: '#FEF2F2', label: 'Sağlık' },
+  egitim:    { icon: 'fa-graduation-cap', color: '#0369A1', bg: '#F0F9FF', label: 'Eğitim' },
+  ev:        { icon: 'fa-home',           color: '#0891B2', bg: '#ECFEFF', label: 'Ev' },
+  diger:     { icon: 'fa-tag',            color: '#64748B', bg: '#F1F5F9', label: 'Diğer' }
+};
+
+const GOREV_ONCELIK = {
+  dusuk:  { label: 'Düşük',  color: 'var(--text3)',   bg: 'var(--surface3)',     icon: 'fa-flag', cls: 'dusuk' },
+  normal: { label: 'Normal', color: 'var(--info)',    bg: 'var(--info-light)',   icon: 'fa-flag', cls: 'normal' },
+  yuksek: { label: 'Yüksek', color: 'var(--warning)', bg: 'var(--warning-light)',icon: 'fa-flag', cls: 'yuksek' },
+  kritik: { label: 'Kritik', color: 'var(--danger)',  bg: 'var(--danger-light)', icon: 'fa-flag', cls: 'kritik' }
+};
+
+/* Görev tarih yardımcıları */
+const TaskDate = {
+  /** Bugünün tarihi YYYY-MM-DD */
+  today() { return dayjs().format('YYYY-MM-DD'); },
+
+  /** Tarih farkı (gün cinsinden, bugüne göre) */
+  diffDays(dateStr) {
+    if (!dateStr) return null;
+    return dayjs(dateStr).startOf('day').diff(dayjs().startOf('day'), 'day');
+  },
+
+  /** Göreceli etiket: "Bugün", "Yarın", "3 gün kaldı", "2 gün gecikti" */
+  relative(dateStr) {
+    const d = this.diffDays(dateStr);
+    if (d === null) return null;
+    if (d < 0) return { text: `${Math.abs(d)} gün gecikti`, cls: 'tarih-geciken', icon: 'fa-exclamation-circle' };
+    if (d === 0) return { text: 'Bugün', cls: 'tarih-bugun', icon: 'fa-bell' };
+    if (d === 1) return { text: 'Yarın', cls: '', icon: 'fa-clock' };
+    if (d <= 7) return { text: `${d} gün kaldı`, cls: '', icon: 'fa-clock' };
+    return { text: dayjs(dateStr).format('DD MMM YYYY'), cls: '', icon: 'fa-calendar' };
+  },
+
+  /** Kısa format */
+  short(dateStr) {
+    if (!dateStr) return '';
+    return dayjs(dateStr).format('DD MMM');
+  }
+};
 /* ─────────────────────────────────────────────
    LOGLAMA
 ───────────────────────────────────────────── */
@@ -3445,6 +4104,12 @@ const LOG_ACTIONS = {
   init:             { cat:'sistem',   sev:'info',    icon:'fa-power-off',            label:'Uygulama Başlatıldı' },
   sayfa:            { cat:'sistem',   sev:'info',    icon:'fa-eye',                  label:'Sayfa Görüntülendi' },
   arac_bakim: { cat:'arac', sev:'info', icon:'fa-tools', label:'Bakım Yapıldı' },
+  gorev_ekle:      { cat:'gorev', sev:'success', icon:'fa-plus-circle',   label:'Görev Eklendi' },
+  gorev_guncelle:  { cat:'gorev', sev:'info',    icon:'fa-pen',           label:'Görev Güncellendi' },
+  gorev_tamamla:   { cat:'gorev', sev:'success', icon:'fa-check-circle',  label:'Görev Tamamlandı' },
+  gorev_geri_al:   { cat:'gorev', sev:'warning', icon:'fa-undo',          label:'Görev Geri Alındı' },
+  gorev_sil:       { cat:'gorev', sev:'danger',  icon:'fa-trash',         label:'Görev Silindi' },
+  gorev_arsivle:   { cat:'gorev', sev:'info',    icon:'fa-box-archive',   label:'Görev Arşivlendi' },
 };
 
 const LOG_META = {
@@ -3456,7 +4121,8 @@ const LOG_META = {
   veri:     { color:'var(--danger)',  bg:'var(--danger-light)',  label:'Veri' },
   sistem:   { color:'var(--text3)',   bg:'var(--surface2)',      label:'Sistem' },
   arac:     { color:'#0891B2',        bg:'#ECFEFF',              label:'Araç' },
-  diger:    { color:'var(--text2)',   bg:'var(--surface2)',      label:'Diğer' }
+  diger:    { color:'var(--text2)',   bg:'var(--surface2)',      label:'Diğer' },
+  gorev:    { color:'#7C3AED',        bg:'#F3E8FF',              label:'Görev' },
 };
 
 
@@ -4797,6 +5463,122 @@ const CRUD = {
     if (tip === 'gelir')  return state.gelirler.find(i => i.id == id);
     if (tip === 'gider')  return state.giderler.find(i => i.id == id);
     return state.borcalacaklar.find(i => i.id == id);
+  },
+    /* ═══════════════════════════════════════════════════════════════
+     🎯 GÖREV CRUD METODLARI
+     ═══════════════════════════════════════════════════════════════ */
+  async gorevEkle(data) {
+    const item = {
+      id: Date.now() + Math.random(),
+      baslik: (data.baslik || '').trim(),
+      aciklama: (data.aciklama || '').trim(),
+      kategori: data.kategori || 'diger',
+      oncelik: data.oncelik || 'normal',
+      tarih: data.tarih || null,
+      hatirlatma: data.hatirlatma || null,
+      altGorevler: Array.isArray(data.altGorevler) ? data.altGorevler : [],
+      notlar: (data.notlar || '').trim(),
+      tamamlandi: false,
+      tamamlanmaTarihi: null,
+      arsivlendi: false,
+      arsivTarihi: null,
+      olusturulma: new Date().toISOString(),
+      guncellenme: new Date().toISOString()
+    };
+    if (!item.baslik) return null;
+    state.gorevler.push(item);
+    await saveGorevler();
+    await addLog('gorev_ekle', item.baslik, { entityId: item.id, kategori: item.kategori, oncelik: item.oncelik });
+    return item;
+  },
+
+  async gorevGuncelle(id, data) {
+    const idx = state.gorevler.findIndex(g => g.id == id);
+    if (idx === -1) return false;
+    const eski = { ...state.gorevler[idx] };
+    state.gorevler[idx] = {
+      ...state.gorevler[idx],
+      ...data,
+      guncellenme: new Date().toISOString()
+    };
+    await saveGorevler();
+    await addLog('gorev_guncelle', state.gorevler[idx].baslik, { entityId: id });
+    return true;
+  },
+
+  async gorevTamamla(id, tamam = true) {
+    const item = state.gorevler.find(g => g.id == id);
+    if (!item) return false;
+    item.tamamlandi = tamam;
+    item.tamamlanmaTarihi = tamam ? new Date().toISOString() : null;
+    item.guncellenme = new Date().toISOString();
+    await saveGorevler();
+    await addLog(tamam ? 'gorev_tamamla' : 'gorev_geri_al', item.baslik, { entityId: id });
+    return true;
+  },
+
+  async gorevSil(id) {
+    const item = state.gorevler.find(g => g.id == id);
+    if (!item) return false;
+    state.gorevler = state.gorevler.filter(g => g.id != id);
+    await saveGorevler();
+    await addLog('gorev_sil', item.baslik, { entityId: id });
+    return true;
+  },
+
+  async gorevArsivle(id) {
+    const item = state.gorevler.find(g => g.id == id);
+    if (!item) return false;
+    item.arsivlendi = true;
+    item.arsivTarihi = new Date().toISOString();
+    item.guncellenme = new Date().toISOString();
+    await saveGorevler();
+    await addLog('gorev_arsivle', item.baslik, { entityId: id });
+    return true;
+  },
+
+  async gorevArsivdenCikar(id) {
+    const item = state.gorevler.find(g => g.id == id);
+    if (!item) return false;
+    item.arsivlendi = false;
+    item.arsivTarihi = null;
+    item.guncellenme = new Date().toISOString();
+    await saveGorevler();
+    return true;
+  },
+
+  async gorevAltGorevToggle(taskId, subId) {
+    const task = state.gorevler.find(g => g.id == taskId);
+    if (!task || !Array.isArray(task.altGorevler)) return false;
+    const sub = task.altGorevler.find(s => s.id == subId);
+    if (!sub) return false;
+    sub.tamamlandi = !sub.tamamlandi;
+    task.guncellenme = new Date().toISOString();
+    await saveGorevler();
+    return true;
+  },
+
+  async gorevTopluArsivle() {
+    const tamamlanan = state.gorevler.filter(g => g.tamamlandi && !g.arsivlendi);
+    if (!tamamlanan.length) return 0;
+    const simdi = new Date().toISOString();
+    tamamlanan.forEach(g => {
+      g.arsivlendi = true;
+      g.arsivTarihi = simdi;
+    });
+    await saveGorevler();
+    await addLog('gorev_arsivle', `${tamamlanan.length} görev arşivlendi`);
+    return tamamlanan.length;
+  },
+
+  async gorevTopluSil(ids) {
+    if (!Array.isArray(ids) || !ids.length) return 0;
+    const set = new Set(ids.map(String));
+    const onceki = state.gorevler.length;
+    state.gorevler = state.gorevler.filter(g => !set.has(String(g.id)));
+    const silinen = onceki - state.gorevler.length;
+    await saveGorevler();
+    return silinen;
   }
 };
 
@@ -5262,7 +6044,8 @@ const NotifTypes = {
   backup:       { icon: 'fa-database',           color: 'var(--primary)', label: 'Yedek' },
   anomaly:      { icon: 'fa-chart-line',         color: 'var(--warning)', label: 'Anomali' },
   debt_due:     { icon: 'fa-handshake',          color: 'var(--warning)', label: 'Vade' },
-  info:         { icon: 'fa-info-circle',        color: 'var(--primary)', label: 'Bilgi' }
+  info:         { icon: 'fa-info-circle',        color: 'var(--primary)', label: 'Bilgi' },
+  gorev_due: { icon: 'fa-list-check', color: 'var(--warning)', label: 'Görev' },
 };
 
 const Notifications = {
@@ -5506,7 +6289,34 @@ const Notifications = {
           });
         }
     } catch (e) { console.warn('[Notif] debt:', e); }
-
+        /* 4.5️⃣ VADESİ YAKLAŞAN / GECİKEN GÖREVLER */
+    try {
+      const acilGorevler = state.gorevler.filter(g => {
+        if (g.tamamlandi || g.arsivlendi || !g.tarih) return false;
+        const d = TaskDate.diffDays(g.tarih);
+        return d !== null && d <= 1;
+      });
+      for (const g of acilGorevler) {
+        const d = TaskDate.diffDays(g.tarih);
+        const durum = d < 0 ? `${Math.abs(d)} gün gecikti` : d === 0 ? 'Bugün son gün' : 'Yarın son gün';
+        const pr = d < 0 ? 'high' : 'normal';
+        await Notifications.add({
+          type: 'gorev_due',
+          title: `Görev · ${g.baslik.substring(0, 30)}`,
+          description: `${durum} — ${GOREV_KATEGORI[g.kategori]?.label || 'Görev'}`,
+          details: `**${g.baslik}**\n\n**Durum:** ${durum}\n\n` +
+                   `**Ne yapmalısınız?**\n` +
+                   `• Görevler sayfasından tamamlayın\n` +
+                   `• Veya tarihini güncelleyin\n` +
+                   `• Alt görevleri varsa onları da kontrol edin`,
+          priority: pr,
+          source: 'gorev',
+          sourceId: g.id,
+          dedupKey: `gorev_${g.id}_${g.tarih}`,
+          action: { type: 'goto', target: 'gorevler' }
+        });
+      }
+    } catch (e) { console.warn('[Notif] gorev:', e); }
     /* 5️⃣ ARŞİV GECİKMESİ */
     try {
       if (SalaryMonth.isOverdue()) {
@@ -5549,7 +6359,7 @@ const App = {
   /* ── PAGE LOADER ── */
   async loadPage(name) {
   this.currentPage = name;
-  const titles = { dashboard: 'Dashboard', islemler: 'İşlemler', borcalacak: 'Borç & Alacak', rapor: 'Rapor', arsiv: 'Arşiv' };
+  const titles = { dashboard: 'Dashboard', islemler: 'İşlemler', borcalacak: 'Borç & Alacak', gorevler: 'Görevler', rapor: 'Rapor', arsiv: 'Arşiv' };
   document.getElementById('page-title').textContent = titles[name] || name;
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === name));
   document.getElementById('view').innerHTML = '<div class="spinner-wrap"><div class="spinner"></div></div>';
@@ -5558,6 +6368,7 @@ const App = {
     if (name === 'dashboard')       await this.renderDashboard();
     else if (name === 'islemler')   await this.renderIslemler();
     else if (name === 'borcalacak') await this.renderBorcalacak();
+    else if (name === 'gorevler')   await this.renderGorevler();
     else if (name === 'rapor')      await this.renderRapor();
     else if (name === 'arsiv')      await this.renderArsiv();
     /* Sayfa gezinmesi artık loglanmıyor — gürültü kaynağıydı.
@@ -10906,7 +11717,7 @@ async openAboutModal() {
   });
   if (!r.isConfirmed) return;
 
-const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','ayarlar','archives','logs','backups','araclar','notifications'];
+const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','ayarlar','archives','logs','backups','araclar','notifications','gorevler'];  
     try {
     // Her store'u atomik olarak temizle (queueSave sırasına uy)
     for (const s of stores) {
@@ -11856,6 +12667,7 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
         if (target === 'vehicle') {
           if (payload) { setTimeout(() => App.showBakimGecmisi(payload), 200); }
           else App.openVehicleModal();
+                  } else if (target === 'gorevler') this.loadPage('gorevler');
         } else if (target === 'borcalacak') this.loadPage('borcalacak');
         else if (target === 'arsiv') this.loadPage('arsiv');
         else if (target === 'rapor') this.loadPage('rapor');
@@ -11944,7 +12756,609 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
       const hay = ((g.kategori || '') + ' ' + (g.aciklama || '') + ' ' + (g.tarih || '')).toLowerCase();
       if (hay.includes(q)) {
         matches.push({ tip: 'gider', item: g, label: g.kategori || '', sub: Calc.fmt(g.miktar) + ' - ' + (g.tarih || '') });
+      },
+        /* ═══════════════════════════════════════════════════════════════
+     🎯 GÖREVLER SAYFASI
+     ═══════════════════════════════════════════════════════════════ */
+  _gorevFilter: 'aktif',   // 'aktif' | 'bugun' | 'hafta' | 'geciken' | 'tamamlanan' | 'arsiv'
+
+  setGorevFilter(f) {
+    this._gorevFilter = f;
+    this.renderGorevler();
+  },
+
+  /* Ana sayfa render */
+  async renderGorevler() {
+    const tumu = state.gorevler;
+    const aktif = tumu.filter(g => !g.tamamlandi && !g.arsivlendi);
+    const bugun = aktif.filter(g => g.tarih && TaskDate.diffDays(g.tarih) === 0);
+    const geciken = aktif.filter(g => g.tarih && TaskDate.diffDays(g.tarih) < 0);
+    const hafta = aktif.filter(g => {
+      const d = g.tarih ? TaskDate.diffDays(g.tarih) : null;
+      return d !== null && d >= 0 && d <= 7;
+    });
+    const tamamlanan = tumu.filter(g => g.tamamlandi && !g.arsivlendi);
+    const arsiv = tumu.filter(g => g.arsivlendi);
+
+    /* Filtre */
+    let gosterilecek;
+    switch (this._gorevFilter) {
+      case 'bugun':       gosterilecek = bugun; break;
+      case 'hafta':       gosterilecek = hafta; break;
+      case 'geciken':     gosterilecek = geciken; break;
+      case 'tamamlanan':  gosterilecek = tamamlanan.slice().sort((a,b) => (b.tamamlanmaTarihi || '').localeCompare(a.tamamlanmaTarihi || '')); break;
+      case 'arsiv':       gosterilecek = arsiv.slice().sort((a,b) => (b.arsivTarihi || '').localeCompare(a.arsivTarihi || '')); break;
+      case 'aktif':
+      default:            gosterilecek = aktif.slice().sort((a, b) => this._gorevSortFn(a, b)); break;
+    }
+
+    const statHTML = `
+      <div class="task-stats">
+        <div class="task-stat-card sc-aktif">
+          <div class="task-stat-label">Aktif</div>
+          <div class="task-stat-value">${aktif.length}</div>
+        </div>
+        <div class="task-stat-card sc-bugun">
+          <div class="task-stat-label">Bugün</div>
+          <div class="task-stat-value">${bugun.length}</div>
+        </div>
+        <div class="task-stat-card ${geciken.length > 0 ? 'sc-geciken' : ''}">
+          <div class="task-stat-label">Geciken</div>
+          <div class="task-stat-value" style="color:${geciken.length > 0 ? 'var(--danger)' : 'var(--text)'};">${geciken.length}</div>
+        </div>
+        <div class="task-stat-card sc-tamam">
+          <div class="task-stat-label">Tamamlanan</div>
+          <div class="task-stat-value">${tamamlanan.length}</div>
+        </div>
+      </div>
+    `;
+
+    const quickAddHTML = `
+      <div class="task-quick-add">
+        <input type="text" id="quickTaskInput" class="task-quick-input"
+               placeholder="Hızlı görev ekle… (Enter)" maxlength="120"
+               onkeydown="if(event.key==='Enter'){App._quickAddTask();}">
+        <button class="task-quick-btn" onclick="App._quickAddTask()" title="Ekle">
+          <i class="fas fa-plus"></i>
+        </button>
+        <button class="task-quick-btn" onclick="App.openGorevForm()" title="Detaylı Ekle"
+                style="background:var(--surface);color:var(--primary);border:1px solid var(--primary);">
+          <i class="fas fa-sliders"></i>
+        </button>
+      </div>
+    `;
+
+    const tabs = [
+      { key: 'aktif', label: 'Aktif', icon: 'fa-list-check', count: aktif.length },
+      { key: 'bugun', label: 'Bugün', icon: 'fa-sun', count: bugun.length },
+      { key: 'hafta', label: 'Bu Hafta', icon: 'fa-calendar-week', count: hafta.length },
+      { key: 'geciken', label: 'Geciken', icon: 'fa-exclamation-triangle', count: geciken.length },
+      { key: 'tamamlanan', label: 'Tamamlanan', icon: 'fa-check-circle', count: tamamlanan.length },
+      { key: 'arsiv', label: 'Arşiv', icon: 'fa-box-archive', count: arsiv.length }
+    ];
+
+    const tabsHTML = `
+      <div class="task-filter-tabs">
+        ${tabs.map(t => `
+          <button class="task-filter-tab${this._gorevFilter===t.key?' active':''}"
+                  onclick="App.setGorevFilter('${t.key}')">
+            <i class="fas ${t.icon}" style="font-size:10px;"></i>
+            ${t.label}
+            ${t.count > 0 ? `<span class="count-badge">${t.count}</span>` : ''}
+          </button>
+        `).join('')}
+      </div>
+    `;
+
+    /* Toplu işlem barı (tamamlanan veya arşiv sekmesinde) */
+    let bulkBarHTML = '';
+    if (this._gorevFilter === 'tamamlanan' && tamamlanan.length > 0) {
+      bulkBarHTML = `
+        <div class="task-bulk-bar">
+          <span><strong>${tamamlanan.length}</strong> tamamlanmış görev</span>
+          <div class="task-bulk-actions">
+            <button class="task-bulk-btn archive" onclick="App._bulkArsivle()">
+              <i class="fas fa-box-archive"></i> Hepsini Arşivle
+            </button>
+          </div>
+        </div>
+      `;
+    }
+    if (this._gorevFilter === 'arsiv' && arsiv.length > 0) {
+      bulkBarHTML = `
+        <div class="task-bulk-bar">
+          <span><strong>${arsiv.length}</strong> arşivlenmiş görev</span>
+          <div class="task-bulk-actions">
+            <button class="task-bulk-btn delete" onclick="App._bulkDeleteArsiv()">
+              <i class="fas fa-trash"></i> Hepsini Sil
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    /* Görev listesi */
+    const emptyMessages = {
+      aktif:      { icon: 'fa-clipboard-check',   title: 'Aktif görev yok',     desc: 'Yukarıdan hızlıca yeni bir görev ekleyin.' },
+      bugun:      { icon: 'fa-sun',               title: 'Bugün görev yok',     desc: 'Bugüne ait bir görev bulunmuyor. Rahat bir gün!' },
+      hafta:      { icon: 'fa-calendar-week',     title: 'Bu hafta görev yok',  desc: 'Önümüzdeki 7 gün için planlanmış görev yok.' },
+      geciken:    { icon: 'fa-thumbs-up',         title: 'Geciken görev yok',   desc: 'Harika! Tüm görevler zamanında.' },
+      tamamlanan: { icon: 'fa-check-circle',      title: 'Tamamlanan yok',      desc: 'Görev tamamladıkça burada görünür.' },
+      arsiv:      { icon: 'fa-box-archive',       title: 'Arşiv boş',           desc: 'Tamamlanan görevleri arşivledikçe burada birikir.' }
+    };
+    const emp = emptyMessages[this._gorevFilter] || emptyMessages.aktif;
+
+    const listHTML = gosterilecek.length
+      ? gosterilecek.map(g => this._renderTaskCard(g)).join('')
+      : `<div class="task-empty">
+           <i class="fas ${emp.icon} task-empty-icon"></i>
+           <div class="task-empty-title">${emp.title}</div>
+           <div class="task-empty-desc">${emp.desc}</div>
+         </div>`;
+
+    document.getElementById('view').innerHTML = `<div class="page-in">
+      ${statHTML}
+      ${quickAddHTML}
+      ${tabsHTML}
+      ${bulkBarHTML}
+      <div id="taskList">${listHTML}</div>
+    </div>`;
+  },
+
+  /* Aktif görev sıralama: gecikmiş > bugün > yakın tarih > öncelik > oluşturulma */
+  _gorevSortFn(a, b) {
+    const priOrder = { kritik: 0, yuksek: 1, normal: 2, dusuk: 3 };
+    const aTarih = a.tarih ? TaskDate.diffDays(a.tarih) : 9999;
+    const bTarih = b.tarih ? TaskDate.diffDays(b.tarih) : 9999;
+
+    /* Gecikmiş/geçmiş önce */
+    if (aTarih !== bTarih) {
+      if (aTarih < 0 && bTarih >= 0) return -1;
+      if (bTarih < 0 && aTarih >= 0) return 1;
+      return aTarih - bTarih;
+    }
+
+    /* Sonra öncelik */
+    const aPri = priOrder[a.oncelik] ?? 2;
+    const bPri = priOrder[b.oncelik] ?? 2;
+    if (aPri !== bPri) return aPri - bPri;
+
+    /* Son olarak en yeni */
+    return (b.olusturulma || '').localeCompare(a.olusturulma || '');
+  },
+
+  /* Tek görev kartı render */
+  _renderTaskCard(g) {
+    const cat = GOREV_KATEGORI[g.kategori] || GOREV_KATEGORI.diger;
+    const pri = GOREV_ONCELIK[g.oncelik] || GOREV_ONCELIK.normal;
+    const rel = TaskDate.relative(g.tarih);
+
+    /* Alt görev progress */
+    let altHTML = '';
+    if (Array.isArray(g.altGorevler) && g.altGorevler.length > 0) {
+      const total = g.altGorevler.length;
+      const done = g.altGorevler.filter(s => s.tamamlandi).length;
+      const pct = Math.round((done / total) * 100);
+      altHTML = `
+        <div class="task-subtask-bar">
+          <i class="fas fa-list-check" style="font-size:10px;"></i>
+          <span>${done}/${total}</span>
+          <div class="task-subtask-mini-track">
+            <div class="task-subtask-mini-bar" style="width:${pct}%;"></div>
+          </div>
+        </div>
+      `;
+    }
+
+    const isGeciken = rel && rel.cls === 'tarih-geciken';
+    const classes = [
+      'task-card',
+      'priority-' + (g.oncelik || 'normal'),
+      g.tamamlandi ? 'done' : '',
+      isGeciken ? 'geciken' : ''
+    ].filter(Boolean).join(' ');
+
+    return `
+      <div class="${classes}" data-id="${g.id}" onclick="App.openGorevDetay(${g.id})">
+        <div class="task-checkbox${g.tamamlandi ? ' checked' : ''}"
+             onclick="event.stopPropagation();App._toggleTaskComplete(${g.id})">
+          <i class="fas fa-check"></i>
+        </div>
+        <div class="task-body">
+          <div class="task-title">${UI.escHtml(g.baslik)}</div>
+          <div class="task-meta">
+            <span class="task-meta-item cat">
+              <i class="fas ${cat.icon}" style="color:${cat.color};font-size:10px;"></i>
+              ${cat.label}
+            </span>
+            ${rel ? `<span class="task-meta-item ${rel.cls}">
+              <i class="fas ${rel.icon}" style="font-size:9px;"></i> ${rel.text}
+            </span>` : ''}
+            <span class="task-priority-badge ${pri.cls}">
+              <i class="fas ${pri.icon}" style="font-size:8px;"></i> ${pri.label}
+            </span>
+          </div>
+          ${altHTML}
+        </div>
+        <div class="task-actions">
+          <button class="task-action-btn" onclick="event.stopPropagation();App.openGorevForm(${g.id})" title="Düzenle">
+            <i class="fas fa-pencil"></i>
+          </button>
+          <button class="task-action-btn del" onclick="event.stopPropagation();App._deleteTask(${g.id})" title="Sil">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  },
+
+  /* Checkbox tıklama */
+  async _toggleTaskComplete(id) {
+    const g = state.gorevler.find(x => x.id == id);
+    if (!g) return;
+    await CRUD.gorevTamamla(id, !g.tamamlandi);
+    if (g.tamamlandi) showToast(`✅ Tamamlandı: ${g.baslik.substring(0, 30)}`);
+    else              showToast(`↩️ Geri alındı: ${g.baslik.substring(0, 30)}`);
+    this._updateTaskBadge();
+    await this.renderGorevler();
+  },
+
+  /* Hızlı ekle */
+  async _quickAddTask() {
+    const inp = document.getElementById('quickTaskInput');
+    if (!inp) return;
+    const val = inp.value.trim();
+    if (!val) { inp.focus(); return; }
+    await CRUD.gorevEkle({ baslik: val });
+    inp.value = '';
+    inp.focus();
+    this._updateTaskBadge();
+    await this.renderGorevler();
+    showToast('🎯 Görev eklendi');
+  },
+
+  /* Sil onayı */
+  async _deleteTask(id) {
+    const g = state.gorevler.find(x => x.id == id);
+    if (!g) return;
+    const r = await Swal.fire({
+      icon: 'warning',
+      title: 'Görevi Sil',
+      html: `<p>«<strong>${UI.escHtml(g.baslik)}</strong>» silinecek.</p><p style="font-size:12px;color:#94a3b8;margin-top:6px;">Bu işlem geri alınamaz.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Sil',
+      cancelButtonText: 'İptal',
+      confirmButtonColor: '#DC2626',
+      width: Math.min(400, window.innerWidth - 24)
+    });
+    if (!r.isConfirmed) return;
+    await CRUD.gorevSil(id);
+    this._updateTaskBadge();
+    await this.renderGorevler();
+    showToast('🗑️ Görev silindi');
+  },
+
+  /* Toplu arşiv */
+  async _bulkArsivle() {
+    const n = await CRUD.gorevTopluArsivle();
+    if (n > 0) {
+      this._updateTaskBadge();
+      await this.renderGorevler();
+      showToast(`📦 ${n} görev arşivlendi`);
+    }
+  },
+
+  /* Arşivden toplu sil */
+  async _bulkDeleteArsiv() {
+    const arsiv = state.gorevler.filter(g => g.arsivlendi);
+    if (!arsiv.length) return;
+    const r = await Swal.fire({
+      icon: 'warning',
+      title: 'Arşivi Temizle',
+      html: `<p><strong>${arsiv.length}</strong> arşivlenmiş görev kalıcı olarak silinecek.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Sil',
+      cancelButtonText: 'İptal',
+      confirmButtonColor: '#DC2626',
+      width: Math.min(400, window.innerWidth - 24)
+    });
+    if (!r.isConfirmed) return;
+    const n = await CRUD.gorevTopluSil(arsiv.map(g => g.id));
+    await this.renderGorevler();
+    showToast(`🗑️ ${n} görev silindi`);
+  },
+
+  /* Nav badge güncelle: geciken + bugün sayısı */
+  _updateTaskBadge() {
+    const badge = document.getElementById('taskNavBadge');
+    if (!badge) return;
+    const acil = state.gorevler.filter(g => {
+      if (g.tamamlandi || g.arsivlendi || !g.tarih) return false;
+      const d = TaskDate.diffDays(g.tarih);
+      return d !== null && d <= 0;
+    }).length;
+    if (acil > 0) {
+      badge.textContent = acil > 99 ? '99+' : acil;
+      badge.style.display = 'flex';
+    } else {
+      badge.style.display = 'none';
+    }
+  },
+
+  /* ═══════════════════════════════════════════════════════════
+     GÖREV FORMU (Yeni + Düzenle)
+     ═══════════════════════════════════════════════════════════ */
+  async openGorevForm(id = null) {
+    const eski = id ? state.gorevler.find(g => g.id == id) : null;
+    this._taskFormTemp = {
+      kategori: eski?.kategori || 'diger',
+      oncelik: eski?.oncelik || 'normal',
+      altGorevler: eski ? [...(eski.altGorevler || [])] : []
+    };
+
+    const catChipsHTML = Object.entries(GOREV_KATEGORI).map(([key, m]) => `
+      <button type="button" class="task-cat-chip${key === this._taskFormTemp.kategori ? ' active' : ''}"
+              data-cat="${key}" onclick="App._taskFormSetCat('${key}')">
+        <i class="fas ${m.icon}"></i>
+        ${m.label}
+      </button>
+    `).join('');
+
+    const priChipsHTML = Object.entries(GOREV_ONCELIK).map(([key, m]) => `
+      <button type="button" class="task-pri-chip${key === this._taskFormTemp.oncelik ? ' active' : ''}"
+              data-pri="${key}" onclick="App._taskFormSetPri('${key}')">
+        <i class="fas ${m.icon}" style="font-size:10px;"></i> ${m.label}
+      </button>
+    `).join('');
+
+    const { value } = await Swal.fire({
+      title: eski ? '✏️ Görevi Düzenle' : '🎯 Yeni Görev',
+      html: `<div style="text-align:left;max-height:70vh;overflow-y:auto;padding-right:4px;">
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;">Başlık *</label>
+        <input type="text" id="tfBaslik" class="swal2-input" placeholder="Ne yapmalısın?"
+               value="${eski ? UI.escHtml(eski.baslik) : ''}"
+               maxlength="120"
+               style="margin:0 0 12px 0;width:100%;">
+
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;">Açıklama</label>
+        <textarea id="tfAciklama" class="swal2-textarea" placeholder="Detaylar…" style="height:64px;margin:0 0 14px 0;width:100%;">${eski ? UI.escHtml(eski.aciklama || '') : ''}</textarea>
+
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;">Kategori</label>
+        <div class="task-cat-grid" id="tfCatGrid">${catChipsHTML}</div>
+
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;">Öncelik</label>
+        <div class="task-pri-chips" id="tfPriChips">${priChipsHTML}</div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+          <div>
+            <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;">Bitiş Tarihi</label>
+            <input type="date" id="tfTarih" class="swal2-input"
+                   value="${eski?.tarih || ''}"
+                   style="margin:0;width:100%;">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;">Hatırlatma</label>
+            <input type="date" id="tfHatirlatma" class="swal2-input"
+                   value="${eski?.hatirlatma || ''}"
+                   style="margin:0;width:100%;">
+          </div>
+        </div>
+
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;">Alt Görevler</label>
+        <div id="tfAltGorevList" class="task-subtasks-list"></div>
+        <div class="task-subtask-add-row" style="margin-bottom:14px;">
+          <input type="text" id="tfAltGorevInput" placeholder="Alt görev ekle… (Enter)" maxlength="100"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();App._taskFormAddSub();}">
+          <button type="button" onclick="App._taskFormAddSub()">+</button>
+        </div>
+
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;">Notlar</label>
+        <textarea id="tfNotlar" class="swal2-textarea" placeholder="Ek notlar…" style="height:60px;width:100%;">${eski ? UI.escHtml(eski.notlar || '') : ''}</textarea>
+      </div>`,
+      showCancelButton: true,
+      confirmButtonText: eski ? '💾 Güncelle' : '✅ Oluştur',
+      cancelButtonText: 'İptal',
+      width: Math.min(500, window.innerWidth - 24),
+      didOpen: () => {
+        this._taskFormRenderSubs();
+        setTimeout(() => document.getElementById('tfBaslik')?.focus(), 150);
+      },
+      preConfirm: () => {
+        const baslik = document.getElementById('tfBaslik')?.value?.trim();
+        if (!baslik) {
+          Swal.showValidationMessage('Başlık zorunlu');
+          return false;
+        }
+        return {
+          baslik,
+          aciklama: document.getElementById('tfAciklama').value.trim(),
+          kategori: this._taskFormTemp.kategori,
+          oncelik: this._taskFormTemp.oncelik,
+          tarih: document.getElementById('tfTarih').value || null,
+          hatirlatma: document.getElementById('tfHatirlatma').value || null,
+          altGorevler: this._taskFormTemp.altGorevler,
+          notlar: document.getElementById('tfNotlar').value.trim()
+        };
       }
+    });
+
+    if (!value) return;
+
+    if (eski) {
+      await CRUD.gorevGuncelle(id, value);
+      showToast('✅ Görev güncellendi');
+    } else {
+      await CRUD.gorevEkle(value);
+      showToast('🎯 Görev oluşturuldu');
+    }
+    this._updateTaskBadge();
+    await this.renderGorevler();
+  },
+
+  _taskFormTemp: { kategori: 'diger', oncelik: 'normal', altGorevler: [] },
+
+  _taskFormSetCat(k) {
+    this._taskFormTemp.kategori = k;
+    document.querySelectorAll('#tfCatGrid .task-cat-chip').forEach(el => {
+      el.classList.toggle('active', el.dataset.cat === k);
+    });
+  },
+
+  _taskFormSetPri(p) {
+    this._taskFormTemp.oncelik = p;
+    document.querySelectorAll('#tfPriChips .task-pri-chip').forEach(el => {
+      el.classList.toggle('active', el.dataset.pri === p);
+    });
+  },
+
+  _taskFormAddSub() {
+    const inp = document.getElementById('tfAltGorevInput');
+    if (!inp) return;
+    const val = inp.value.trim();
+    if (!val) { inp.focus(); return; }
+    this._taskFormTemp.altGorevler.push({
+      id: Date.now() + Math.random(),
+      text: val,
+      tamamlandi: false
+    });
+    inp.value = '';
+    inp.focus();
+    this._taskFormRenderSubs();
+  },
+
+  _taskFormRenderSubs() {
+    const list = document.getElementById('tfAltGorevList');
+    if (!list) return;
+    const subs = this._taskFormTemp.altGorevler;
+    if (!subs.length) {
+      list.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0;">Henüz alt görev yok</div>';
+      return;
+    }
+    list.innerHTML = subs.map(s => `
+      <div class="task-subtask-row">
+        <div class="task-subtask-check${s.tamamlandi ? ' checked' : ''}"
+             onclick="App._taskFormToggleSub(${s.id})">
+          <i class="fas fa-check"></i>
+        </div>
+        <span class="task-subtask-text${s.tamamlandi ? ' done' : ''}">${UI.escHtml(s.text)}</span>
+        <button type="button" class="task-subtask-del" onclick="App._taskFormDeleteSub(${s.id})">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    `).join('');
+  },
+
+  _taskFormToggleSub(id) {
+    const s = this._taskFormTemp.altGorevler.find(x => x.id == id);
+    if (s) s.tamamlandi = !s.tamamlandi;
+    this._taskFormRenderSubs();
+  },
+
+  _taskFormDeleteSub(id) {
+    this._taskFormTemp.altGorevler = this._taskFormTemp.altGorevler.filter(x => x.id != id);
+    this._taskFormRenderSubs();
+  },
+
+  /* ═══════════════════════════════════════════════════════════
+     GÖREV DETAY MODAL
+     ═══════════════════════════════════════════════════════════ */
+  async openGorevDetay(id) {
+    const g = state.gorevler.find(x => x.id == id);
+    if (!g) return;
+
+    const cat = GOREV_KATEGORI[g.kategori] || GOREV_KATEGORI.diger;
+    const pri = GOREV_ONCELIK[g.oncelik] || GOREV_ONCELIK.normal;
+    const rel = TaskDate.relative(g.tarih);
+
+    const altGorevlerHTML = Array.isArray(g.altGorevler) && g.altGorevler.length
+      ? g.altGorevler.map(s => `
+          <div class="task-subtask-row" style="padding:6px 8px;">
+            <div class="task-subtask-check${s.tamamlandi ? ' checked' : ''}"
+                 onclick="event.stopPropagation();App._toggleSubtask(${g.id},${s.id})">
+              <i class="fas fa-check"></i>
+            </div>
+            <span class="task-subtask-text${s.tamamlandi ? ' done' : ''}">${UI.escHtml(s.text)}</span>
+          </div>
+        `).join('')
+      : '<div style="font-size:11px;color:var(--text3);font-style:italic;">Alt görev yok</div>';
+
+    const buttons = [];
+    buttons.push(`<button class="swal2-styled" onclick="App._detailArchive(${g.id})" style="background:#0369A1;">
+      <i class="fas fa-box-archive"></i> ${g.arsivlendi ? 'Arşivden Çıkar' : 'Arşivle'}
+    </button>`);
+    buttons.push(`<button class="swal2-styled" onclick="App._detailDelete(${g.id})" style="background:#DC2626;">
+      <i class="fas fa-trash"></i> Sil
+    </button>`);
+
+    await Swal.fire({
+      title: '',
+      html: `<div style="text-align:left;">
+        <div class="task-detail-header">
+          <div class="task-detail-title">${UI.escHtml(g.baslik)}</div>
+          <div class="task-detail-meta">
+            <span><i class="fas ${cat.icon}"></i> ${cat.label}</span>
+            <span class="task-priority-badge ${pri.cls}" style="font-size:8px;padding:1px 6px;">
+              <i class="fas ${pri.icon}" style="font-size:7px;"></i> ${pri.label}
+            </span>
+            ${rel ? `<span><i class="fas ${rel.icon}"></i> ${rel.text}</span>` : ''}
+          </div>
+        </div>
+
+        ${g.aciklama ? `<div style="margin-bottom:14px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12.5px;color:var(--text2);line-height:1.55;">${UI.escHtml(g.aciklama)}</div>` : ''}
+
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">Alt Görevler</div>
+        <div class="task-subtasks-list" style="margin-bottom:14px;">${altGorevlerHTML}</div>
+
+        ${g.notlar ? `
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Notlar</div>
+          <div style="padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:14px;">${UI.escHtml(g.notlar)}</div>
+        ` : ''}
+
+        <div style="display:flex;gap:6px;font-size:10.5px;color:var(--text3);padding-top:10px;border-top:1px solid var(--border);flex-wrap:wrap;">
+          <span><i class="fas fa-plus-circle"></i> ${dayjs(g.olusturulma).format('DD MMM YYYY HH:mm')}</span>
+          ${g.tamamlandi ? `<span style="color:var(--accent);"><i class="fas fa-check-circle"></i> ${dayjs(g.tamamlanmaTarihi).format('DD MMM HH:mm')}</span>` : ''}
+          ${g.arsivlendi ? `<span style="color:var(--info);"><i class="fas fa-box-archive"></i> Arşiv</span>` : ''}
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:14px;">
+          ${buttons.join('')}
+        </div>
+      </div>`,
+      showConfirmButton: false,
+      showCloseButton: true,
+      width: Math.min(500, window.innerWidth - 24),
+      customClass: { popup: 'task-detail-popup' },
+      didOpen: () => {
+        const actions = document.querySelector('.task-detail-actions');
+      }
+    });
+  },
+
+  async _toggleSubtask(taskId, subId) {
+    await CRUD.gorevAltGorevToggle(taskId, subId);
+    await this.openGorevDetay(taskId);  // yenile
+    await this.renderGorevler();
+  },
+
+  async _detailArchive(id) {
+    const g = state.gorevler.find(x => x.id == id);
+    if (!g) return;
+    if (g.arsivlendi) {
+      await CRUD.gorevArsivdenCikar(id);
+      showToast('📤 Arşivden çıkarıldı');
+    } else {
+      await CRUD.gorevArsivle(id);
+      showToast('📦 Arşivlendi');
+    }
+    this._updateTaskBadge();
+    Swal.close();
+    await this.renderGorevler();
+  },
+
+  async _detailDelete(id) {
+    Swal.close();
+    setTimeout(() => this._deleteTask(id), 200);
+  }
     });
 
     state.borcalacaklar.forEach(b => {
@@ -12640,6 +14054,10 @@ document.addEventListener('click', () => { requestPersistentStorage(); }, { once
   try {
     await openDB();
     await loadAllData();
+      // 🆕 Görev badge'i ilk yüklemede güncelle
+  setTimeout(() => {
+    try { App._updateTaskBadge(); } catch (_) {}
+  }, 800);
   } catch (dbErr) {
     console.error('[init] DB/Kütüphane hatası:', dbErr);
     document.getElementById('view').innerHTML = `
