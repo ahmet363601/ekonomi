@@ -8903,6 +8903,9 @@ async araOdeme(id) {
           <button onclick="App.exportFuelChartPNG()" style="background:var(--primary-light);color:var(--primary);border:1px solid var(--primary);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;">
             <i class="fas fa-image"></i> PNG
           </button>
+          <button onclick="App.exportFuelStatsJSON()" style="background:var(--accent-light);color:var(--accent);border:1px solid var(--accent);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;">
+            <i class="fas fa-file-code"></i> JSON
+          </button>
         </div>
       </div>
 
@@ -9601,7 +9604,87 @@ async araOdeme(id) {
       Swal.fire({ icon: 'error', title: 'PDF Hatası', text: err.message || 'Rapor oluşturulamadı' });
     }
   },
+  /* ⛽ AKARYAKIT İSTATİSTİKLERİ — Bağımsız JSON export */
+  async exportFuelStatsJSON() {
+    try {
+      const stats = Calc.fuelStats();
+      if (stats.count === 0) {
+        showToast('ℹ️ Akaryakıt kaydı yok');
+        return;
+      }
 
+      const data = {
+        _type: 'ebha_akaryakit_analiz',
+        _version: '1.0',
+        appName: 'EBHA Mani',
+        exportedAt: new Date().toISOString(),
+
+        /* HAM KAYITLAR — ileride ana yedekle birleştirilebilir */
+        records: stats.items.map(i => ({
+          id: i.id,
+          tarih: i.tarih,
+          kategori: i.kategori,
+          miktar: i.miktar,
+          aciklama: i.aciklama || '',
+          fuel: i.fuel
+        })),
+
+        /* HESAPLANMIŞ İSTATİSTİKLER — referans/analiz amaçlı */
+        statistics: {
+          toplamDolum: stats.count,
+          lpg: {
+            dolum: stats.lpg.count,
+            toplamLitre: stats.lpg.totalLitre,
+            toplamTL:    stats.lpg.totalTL,
+            toplamKm:    stats.lpg.totalKm,
+            ortalamaL100:   stats.lpg.avgL100,
+            ortalamaTlKm:   stats.lpg.avgTlPerKm,
+            ortalamaFiyat:  stats.lpg.avgFiyat,
+            dagilim: stats.lpg.stats,
+            dolumAraligi: stats.lpg.dolumAraligi,
+            fiyatTrendi:  stats.lpg.fiyatTrend,
+            tuketimTrendi: stats.lpg.trend,
+            projeksiyon:  stats.lpg.projeksiyon,
+            enVerimli: stats.lpg.enEkonomik ? {
+              tarih: stats.lpg.enEkonomik.tarih,
+              l100: stats.lpg.enEkonomik._lpgL100
+            } : null,
+            enYuksek: stats.lpg.enPahali ? {
+              tarih: stats.lpg.enPahali.tarih,
+              l100: stats.lpg.enPahali._lpgL100
+            } : null,
+            aylik: stats.lpg.monthly.map(m => ({
+              donem: m.label,
+              litre: m.lpgLitre,
+              tutar: m.lpgTL,
+              km: m.km,
+              l100: m.avgL100
+            }))
+          },
+          benzin: {
+            dolum: stats.benzin.count,
+            toplamLitre: stats.benzin.totalLitre,
+            toplamTL:    stats.benzin.totalTL,
+            ortalamaFiyat: stats.benzin.avgFiyat,
+            fiyatTrendi: stats.benzin.fiyatTrend
+          }
+        }
+      };
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement('a'), {
+        href: url,
+        download: `ebhamani_akaryakit_${dayjs().format('YYYY-MM-DD_HHmm')}.json`
+      });
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast(`📥 ${stats.count} dolum + istatistikler yedeklendi`);
+    } catch (e) {
+      console.error('[exportFuelStatsJSON]', e);
+      Swal.fire({ icon: 'error', title: 'Yedek Hatası', text: e.message });
+    }
+  },
   /* ⛽ Akaryakıt Trend PNG */
   async exportFuelChartPNG() {
     try {
@@ -12454,15 +12537,20 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     }
   },
 
-  async exportToJSON() {
+async exportToJSON() {
     try {
       const data = {
-        version: '6.0',
+        version: '6.1',                                    // ⬅️ yükselt
         appName: 'EBHA Mani',
         exportDate: new Date().toISOString(),
+
+        // ─── ANA VERİLER ───
         gelirler:      state.gelirler,
-        giderler:      state.giderler,
+        giderler:      state.giderler,          // ⛽ yakıt detayları bunun içinde
         borcalacaklar: state.borcalacaklar,
+        gorevler:      state.gorevler,          // ✅ YENİ
+
+        // ─── YAPILANDIRMA ───
         kategoriler:   state.kategoriler,
         limitler:      state.limitler,
         ayarlar:       {
@@ -12471,8 +12559,15 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
           ceyrekAltinFiyati:      state.ayarlar.ceyrekAltinFiyati,
           maasGun:                state.ayarlar.maasGun || 15
         },
+
+        // ─── ARŞİV + ARAÇ + BİLDİRİM ───
         archives:      state.archives,
         araclar:       state.araclar,
+        notifications: state.notifications,      // ✅ YENİ
+
+        // ─── HESAPLANMIŞ SNAPSHOT (bilgi amaçlı, restore için değil) ───
+        fuelStats:     Calc.fuelStats(),         // ✅ YENİ
+
         logs:          state.logs.slice(0, 100)
       };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
@@ -12481,15 +12576,16 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       localStorage.setItem('last_backup_date', new Date().toISOString());
-      _lastBackupTime = Date.now();   // 🆕 auto backup timer'ı sıfırla
+      _lastBackupTime = Date.now();
 
       const stats = {
         gelir: state.gelirler.length,
         gider: state.giderler.length,
-        borc: state.borcalacaklar.length,
+        borc:  state.borcalacaklar.length,
+        gorev: state.gorevler.length,                    // ✅
         arsiv: Object.keys(state.archives).length
       };
-      showToast(`💾 Yedek alındı! (${stats.gelir} gelir · ${stats.gider} gider · ${stats.borc} borç · ${stats.arsiv} arşiv)`);
+      showToast(`💾 Yedek alındı! (${stats.gelir} gelir · ${stats.gider} gider · ${stats.borc} borç · ${stats.gorev} görev · ${stats.arsiv} arşiv)`);
     } catch (e) {
       console.error('[exportToJSON] Hata:', e);
       Swal.fire({ icon: 'error', title: 'Yedek Hatası', text: e.message || 'Yedek alınamadı' });
@@ -12563,7 +12659,30 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
             a && typeof a === 'object' && a.plaka
           ).map(a => ({ ...a, id: a.id || Date.now() + Math.random() }));
         }
-        let newAyarlar = { ...state.ayarlar };
+
+        /* 🆕 GÖREVLER */
+        let newGorevler = [];
+        let gorevlerDosyadaVar = Array.isArray(data.gorevler);
+        if (gorevlerDosyadaVar) {
+          newGorevler = data.gorevler
+            .filter(g => g && typeof g === 'object' && g.baslik && String(g.baslik).trim())
+            .map(g => ({
+              id: g.id || (Date.now() + Math.random()),
+              baslik: String(g.baslik).trim(),
+              aciklama: typeof g.aciklama === 'string' ? g.aciklama : '',
+              oncelik: ['dusuk','normal','yuksek','kritik'].includes(g.oncelik) ? g.oncelik : 'normal',
+              tarih: g.tarih || null,
+              tamamlandi: !!g.tamamlandi,
+              tamamlanmaTarihi: g.tamamlanmaTarihi || null,
+              arsivlendi: !!g.arsivlendi,
+              arsivTarihi: g.arsivTarihi || null,
+              olusturulma: g.olusturulma || new Date().toISOString(),
+              guncellenme: g.guncellenme || new Date().toISOString(),
+              altGorevler: Array.isArray(g.altGorevler) ? g.altGorevler : []
+            }));
+        }
+
+        let newAyarlar = { ...state.ayarlar };        // ← sonra buraya
         if (data.ayarlar && typeof data.ayarlar === 'object') {
           const mg = parseInt(data.ayarlar.maasGun, 10);
           newAyarlar = {
@@ -12573,7 +12692,27 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
             maasGun:                (mg >= 1 && mg <= 28) ? mg : 15
           };
         }
-
+        /* 🆕 GÖREVLER */
+        let newGorevler = [];
+        let gorevlerDosyadaVar = Array.isArray(data.gorevler);
+        if (gorevlerDosyadaVar) {
+          newGorevler = data.gorevler
+            .filter(g => g && typeof g === 'object' && g.baslik && String(g.baslik).trim())
+            .map(g => ({
+              id: g.id || (Date.now() + Math.random()),
+              baslik: String(g.baslik).trim(),
+              aciklama: typeof g.aciklama === 'string' ? g.aciklama : '',
+              oncelik: ['dusuk','normal','yuksek','kritik'].includes(g.oncelik) ? g.oncelik : 'normal',
+              tarih: g.tarih || null,
+              tamamlandi: !!g.tamamlandi,
+              tamamlanmaTarihi: g.tamamlanmaTarihi || null,
+              arsivlendi: !!g.arsivlendi,
+              arsivTarihi: g.arsivTarihi || null,
+              olusturulma: g.olusturulma || new Date().toISOString(),
+              guncellenme: g.guncellenme || new Date().toISOString(),
+              altGorevler: Array.isArray(g.altGorevler) ? g.altGorevler : []
+            }));
+        }
         // Onay iste
         const onay = await Swal.fire({
           icon: 'warning',
@@ -12595,6 +12734,9 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
               </div>
               <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
                 <span>Araçlar:</span><strong>${newAraclar.length}</strong>
+                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
+                <span>Görevler:</span><strong>${gorevlerDosyadaVar ? newGorevler.length : '— (dosyada yok)'}</strong>
+              </div>
               </div>
             </div>
             <p style="font-size:12px;color:#DC2626;font-weight:600;">⚠️ Mevcut verileriniz TAMAMEN DEĞİŞTİRİLECEK!</p>
@@ -12639,9 +12781,16 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
         state.archives      = newArchives;
         state.ayarlar       = newAyarlar;
         state.araclar       = newAraclar;
+
+        /* 🆕 Görevler — dosyada varsa değiştir, yoksa koru */
+        if (gorevlerDosyadaVar) {
+          state.gorevler = newGorevler;
+        }
+
         state.logs          = [];
 
         await saveAllData();
+        
         /* 🆕 Kategori versiyonunu SET et — import edilen özel kategoriler korunsun.
            Eski 'Akaryakıt' yukarıda zaten 'Araç Yakıt'a çevrildi, Bug 1 geri dönmez. */
         localStorage.setItem('kat_version', String(KAT_VERSION));
@@ -13375,6 +13524,22 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
 
     /* ═══ HIZLI EKLE ═══ */
     const quickAddHTML = `
+        /* ═══ GÖREV JSON YEDEK ═══ */
+    const gorevYedekHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;">
+        <button class="btn btn-ghost btn-sm" onclick="App.exportGorevlerJSON()"
+                style="font-size:11px;height:34px;" title="Görevleri JSON olarak indir">
+          <i class="fas fa-download"></i> Görevleri Yedekle
+        </button>
+        <label class="btn btn-ghost btn-sm"
+               style="font-size:11px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;margin:0;"
+               title="JSON'dan görev yükle">
+          <i class="fas fa-upload"></i> Görev Yükle
+          <input type="file" accept=".json" style="display:none;"
+                 onchange="App.importGorevlerJSON(this.files[0]); this.value='';">
+        </label>
+      </div>
+    `;
       <div class="task-quick-add">
         <input type="text" id="quickTaskInput" class="task-quick-input"
                placeholder="Hızlı görev ekle… (Enter)" maxlength="120"
@@ -13474,6 +13639,7 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
     document.getElementById('view').innerHTML = `<div class="page-in">
       ${statHTML}
       ${quickAddHTML}
+      ${gorevYedekHTML}       <!-- ✅ YENİ -->
       ${tabsHTML}
       ${searchSortHTML}
       ${priFilterHTML}
@@ -13737,7 +13903,159 @@ const stores = ['gelirler','giderler','borcalacaklar','kategoriler','limitler','
       showToast(`📦 ${n} görev arşivlendi`);
     }
   },
+  /* 🎯 GÖREV BAĞIMSIZ JSON EXPORT */
+  async exportGorevlerJSON() {
+    try {
+      if (!state.gorevler.length) {
+        showToast('ℹ️ Yedeklenecek görev yok');
+        return;
+      }
+      const data = {
+        _type: 'ebha_gorevler_backup',
+        _version: '1.0',
+        appName: 'EBHA Mani',
+        exportedAt: new Date().toISOString(),
+        count: state.gorevler.length,
+        ozet: {
+          aktif:      state.gorevler.filter(g => !g.tamamlandi && !g.arsivlendi).length,
+          tamamlanan: state.gorevler.filter(g => g.tamamlandi && !g.arsivlendi).length,
+          arsiv:      state.gorevler.filter(g => g.arsivlendi).length
+        },
+        gorevler: state.gorevler
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement('a'), {
+        href: url,
+        download: `ebhamani_gorevler_${dayjs().format('YYYY-MM-DD_HHmm')}.json`
+      });
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast(`📥 ${state.gorevler.length} görev yedeklendi`);
+    } catch (e) {
+      console.error('[exportGorevlerJSON]', e);
+      Swal.fire({ icon: 'error', title: 'Yedek Hatası', text: e.message || 'Görevler yedeklenemedi' });
+    }
+  },
 
+  /* 🎯 GÖREV BAĞIMSIZ JSON IMPORT */
+  async importGorevlerJSON(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const raw = JSON.parse(e.target.result);
+
+        /* 3 format desteklenir:
+           1) { _type: 'ebha_gorevler_backup', gorevler: [...] }
+           2) { gorevler: [...] }   (ana yedekten alınmış kısım)
+           3) [...]                 (sadece dizi) */
+        let kaynak = [];
+        if (Array.isArray(raw)) {
+          kaynak = raw;
+        } else if (raw && Array.isArray(raw.gorevler)) {
+          kaynak = raw.gorevler;
+        }
+
+        const valid = kaynak.filter(g =>
+          g && typeof g === 'object' &&
+          g.baslik && String(g.baslik).trim()
+        );
+
+        if (!valid.length) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Geçersiz Dosya',
+            text: 'Bu dosyada geçerli görev bulunamadı (en az "baslik" alanı olmalı).'
+          });
+          return;
+        }
+
+        const mevcutAdet = state.gorevler.length;
+
+        const result = await Swal.fire({
+          icon: 'question',
+          title: '🎯 Görevleri Yükle',
+          html: `<div style="text-align:left;">
+            <p><strong>${valid.length}</strong> geçerli görev bulundu.</p>
+            <div style="margin:12px 0;padding:10px;background:var(--surface2);border-radius:8px;font-size:12px;">
+              <div style="display:flex;justify-content:space-between;padding:3px 0;">
+                <span>Mevcut görev:</span><strong>${mevcutAdet}</strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0;">
+                <span>Yüklenecek:</span><strong style="color:var(--primary);">${valid.length}</strong>
+              </div>
+            </div>
+            <div style="padding:10px;background:var(--primary-light);border-radius:8px;font-size:11.5px;line-height:1.6;color:var(--text2);">
+              <strong>🔀 Birleştir:</strong> Mevcut görevler korunur, yeniler eklenir (ID çakışması engellenir).<br>
+              <strong style="color:var(--danger);">♻️ Değiştir:</strong> Mevcut tüm görevler silinir, sadece yüklenen kalır.
+            </div>
+          </div>`,
+          showDenyButton: true,
+          showCancelButton: true,
+          confirmButtonText: '🔀 Birleştir',
+          denyButtonText: '♻️ Değiştir',
+          cancelButtonText: 'İptal',
+          denyButtonColor: '#DC2626',
+          width: Math.min(480, window.innerWidth - 24)
+        });
+
+        if (result.isDismissed) return;
+
+        const isReplace = result.isDenied;
+
+        const hazir = valid.map(g => ({
+          id: g.id || (Date.now() + Math.random()),
+          baslik: String(g.baslik).trim(),
+          aciklama: typeof g.aciklama === 'string' ? g.aciklama : '',
+          oncelik: ['dusuk','normal','yuksek','kritik'].includes(g.oncelik) ? g.oncelik : 'normal',
+          tarih: g.tarih || null,
+          tamamlandi: !!g.tamamlandi,
+          tamamlanmaTarihi: g.tamamlanmaTarihi || null,
+          arsivlendi: !!g.arsivlendi,
+          arsivTarihi: g.arsivTarihi || null,
+          olusturulma: g.olusturulma || new Date().toISOString(),
+          guncellenme: g.guncellenme || new Date().toISOString(),
+          altGorevler: Array.isArray(g.altGorevler) ? g.altGorevler : []
+        }));
+
+        let eklenenAdet = 0;
+        if (isReplace) {
+          state.gorevler = hazir;
+          eklenenAdet = hazir.length;
+        } else {
+          const mevcutIds = new Set(state.gorevler.map(g => String(g.id)));
+          const yeni = hazir.filter(g => !mevcutIds.has(String(g.id)));
+          state.gorevler = [...state.gorevler, ...yeni];
+          eklenenAdet = yeni.length;
+        }
+
+        await saveGorevler();
+        await addLog('gorev_arsivle',
+          `JSON ${isReplace ? 'değiştirdi' : 'birleştirdi'}: ${eklenenAdet} görev`,
+          { kaynak: 'gorev_json_import' });
+
+        showToast(
+          isReplace
+            ? `✅ ${eklenenAdet} görev yüklendi (önceki ${mevcutAdet} silindi)`
+            : `✅ ${eklenenAdet} görev birleştirildi`
+        );
+
+        this._updateTaskBadge();
+        await this.renderGorevler();
+
+      } catch (err) {
+        console.error('[importGorevlerJSON]', err);
+        Swal.fire({
+          icon: 'error',
+          title: 'Geçersiz Dosya',
+          text: err.message || 'JSON formatı hatalı veya bozuk.'
+        });
+      }
+    };
+    reader.onerror = () => Swal.fire({ icon: 'error', title: 'Dosya Okunamadı' });
+    reader.readAsText(file);
+  },
   async _bulkDeleteArsiv() {
     const arsiv = state.gorevler.filter(g => g.arsivlendi);
     if (!arsiv.length) return;
