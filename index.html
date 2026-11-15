@@ -14181,48 +14181,47 @@ async exportToJSON() {
 
     return (b.olusturulma || '').localeCompare(a.olusturulma || '');
   },
+  _renderTaskCard(g) {
+    const pri = GOREV_ONCELIK[g.oncelik] || GOREV_ONCELIK.normal;
+    const rel = TaskDate.relative(g.tarih);
 
-_renderTaskCard(g) {
-  const pri = GOREV_ONCELIK[g.oncelik] || GOREV_ONCELIK.normal;
-  const rel = TaskDate.relative(g.tarih);
+    const isGeciken = rel && rel.cls === 'tarih-geciken';
+    const classes = [
+      'task-card',
+      'priority-' + (g.oncelik || 'normal'),
+      g.tamamlandi ? 'done' : '',
+      isGeciken ? 'geciken' : ''
+    ].filter(Boolean).join(' ');
 
-  const isGeciken = rel && rel.cls === 'tarih-geciken';
-  const classes = [
-    'task-card',
-    'priority-' + (g.oncelik || 'normal'),
-    g.tamamlandi ? 'done' : '',
-    isGeciken ? 'geciken' : ''
-  ].filter(Boolean).join(' ');
-
-  return `
-    <div class="${classes}" data-id="${g.id}" onclick="App.openGorevDetay(${g.id})">
-      <div class="task-checkbox${g.tamamlandi ? ' checked' : ''}"
-           onclick="event.stopPropagation();App._toggleTaskComplete(${g.id})">
-        <i class="fas fa-check"></i>
-      </div>
-      <div class="task-body">
-        <div class="task-title">${UI.escHtml(g.baslik)}</div>
-        <div class="task-meta">
-          ${rel ? `<span class="task-meta-item ${rel.cls}">
-            <i class="fas ${rel.icon}" style="font-size:9px;"></i> ${rel.text}
-          </span>` : ''}
-          <span class="task-priority-badge ${pri.cls}">
-            <i class="fas ${pri.icon}" style="font-size:8px;"></i> ${pri.label}
-          </span>
+    return `
+      <div class="${classes}" data-id="${g.id}" onclick="App.openGorevDetay(${g.id})">
+        <div class="task-checkbox${g.tamamlandi ? ' checked' : ''}"
+             onclick="event.stopPropagation();App._toggleTaskComplete(${g.id})">
+          <i class="fas fa-check"></i>
         </div>
-        ${g.aciklama ? `<div style="font-size:11.5px;color:var(--text3);margin-top:4px;line-height:1.45;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${UI.escHtml(g.aciklama)}</div>` : ''}
+        <div class="task-body">
+          <div class="task-title">${UI.escHtml(g.baslik)}</div>
+          <div class="task-meta">
+            ${rel ? `<span class="task-meta-item ${rel.cls}">
+              <i class="fas ${rel.icon}" style="font-size:9px;"></i> ${rel.text}
+            </span>` : ''}
+            <span class="task-priority-badge ${pri.cls}">
+              <i class="fas ${pri.icon}" style="font-size:8px;"></i> ${pri.label}
+            </span>
+          </div>
+          ${g.aciklama ? `<div style="font-size:11.5px;color:var(--text3);margin-top:4px;line-height:1.45;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${UI.escHtml(g.aciklama)}</div>` : ''}
+        </div>
+        <div class="task-actions">
+          <button class="task-action-btn" onclick="event.stopPropagation();App.openGorevForm(${g.id})" title="Düzenle">
+            <i class="fas fa-pencil"></i>
+          </button>
+          <button class="task-action-btn del" onclick="event.stopPropagation();App._deleteTask(${g.id})" title="Sil">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
       </div>
-      <div class="task-actions">
-        <button class="task-action-btn" onclick="event.stopPropagation();App.openGorevForm(${g.id})" title="Düzenle">
-          <i class="fas fa-pencil"></i>
-        </button>
-        <button class="task-action-btn del" onclick="event.stopPropagation();App._deleteTask(${g.id})" title="Sil">
-          <i class="fas fa-trash"></i>
-        </button>
-      </div>
-    </div>
-  `;
-},
+    `;
+  },
 /* ═══════════════════════════════════════════════════════════════
    saveFile — iOS/Android'de önce Web Share API, fallback <a download>
    Blob verilir → kullanıcıya kaydetme seçenekleri sunar.
