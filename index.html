@@ -5622,7 +5622,6 @@ async gorevEkle(data) {
     arsivTarihi: null,
     olusturulma: new Date().toISOString(),
     guncellenme: new Date().toISOString(),
-    altGorevler: Array.isArray(data.altGorevler) ? data.altGorevler : []   // ✅ EKLENDİ
   };
   if (!item.baslik) return null;
   // ...
@@ -5696,16 +5695,7 @@ async gorevEkle(data) {
     return true;
   },
 
-  async gorevAltGorevToggle(taskId, subId) {
-    const task = state.gorevler.find(g => g.id == taskId);
-    if (!task || !Array.isArray(task.altGorevler)) return false;
-    const sub = task.altGorevler.find(s => s.id == subId);
-    if (!sub) return false;
-    sub.tamamlandi = !sub.tamamlandi;
-    task.guncellenme = new Date().toISOString();
-    await saveGorevler();
-    return true;
-  },
+
 
   async gorevTopluArsivle() {
     const tamamlanan = state.gorevler.filter(g => g.tamamlandi && !g.arsivlendi);
@@ -13081,7 +13071,6 @@ async exportToJSON() {
               arsivTarihi: g.arsivTarihi || null,
               olusturulma: g.olusturulma || new Date().toISOString(),
               guncellenme: g.guncellenme || new Date().toISOString(),
-              altGorevler: Array.isArray(g.altGorevler) ? g.altGorevler : []
             }));
         }
 
@@ -14223,15 +14212,7 @@ async exportToJSON() {
               <i class="fas ${pri.icon}" style="font-size:8px;"></i> ${pri.label}
             </span>
           </div>
-          ${Array.isArray(g.altGorevler) && g.altGorevler.length > 0 ? (() => {
-          const toplam = g.altGorevler.length;
-          const tamam = g.altGorevler.filter(s => s.tamamlandi).length;
-          const yuzde = Math.round((tamam / toplam) * 100);
-          return `<div class="task-subtask-bar">
-            <i class="fas fa-list-check" style="font-size:9px;"></i>
-            <span>${tamam}/${toplam}</span>
-            <div class="task-subtask-mini-track">
-              <div class="task-subtask-mini-bar" style="width:${yuzde}%;"></div>
+          <div class="task-subtask-mini-bar" style="width:${yuzde}%;"></div>
             </div>
           </div>`;
         })() : ''}
@@ -14448,7 +14429,6 @@ async saveFile(blob, filename) {
           arsivTarihi: g.arsivTarihi || null,
           olusturulma: g.olusturulma || new Date().toISOString(),
           guncellenme: g.guncellenme || new Date().toISOString(),
-          altGorevler: Array.isArray(g.altGorevler) ? g.altGorevler : []
         }));
 
         let eklenenAdet = 0;
@@ -14523,11 +14503,13 @@ async saveFile(blob, filename) {
     }
   },
 
-  async openGorevForm(id = null) {
-    const eski = id ? state.gorevler.find(g => g.id == id) : null;
-  // ❌ MEVCUT
+async openGorevForm(id = null) {
+  const eski = id ? state.gorevler.find(g => g.id == id) : null;
   this._taskFormTemp = {
-    oncelik: eski?.oncelik || 'normal'
+    oncelik: eski?.oncelik || 'normal',
+    altGorevler: Array.isArray(eski?.altGorevler)
+      ? JSON.parse(JSON.stringify(eski.altGorevler))   // derin kopya
+      : []
   };
 
     const priChipsHTML = [
@@ -14571,6 +14553,7 @@ async saveFile(blob, filename) {
       focusConfirm: false,
       didOpen: () => {
         setTimeout(() => document.getElementById('tfBaslik')?.focus(), 200);
+          this._taskFormRenderSubs();   // ✅ alt görevleri ilk render
       },
       preConfirm: () => {
         const baslik = document.getElementById('tfBaslik')?.value?.trim();
@@ -14582,7 +14565,8 @@ async saveFile(blob, filename) {
           baslik,
           aciklama: document.getElementById('tfAciklama').value.trim(),
           oncelik: this._taskFormTemp.oncelik,
-          tarih: document.getElementById('tfTarih').value || null
+          tarih: document.getElementById('tfTarih').value || null,
+          altGorevler: this._taskFormTemp.altGorevler    // ✅ EKLENDİ
         };
       }
     });
@@ -14607,8 +14591,7 @@ async saveFile(blob, filename) {
     await this.renderGorevler();
   },
 
-  _taskFormTemp: { kategori: 'diger', oncelik: 'normal', altGorevler: [] },
-
+_taskFormTemp: { oncelik: 'normal' },
 
 
   _taskFormSetPri(p) {
@@ -14618,53 +14601,7 @@ async saveFile(blob, filename) {
     });
   },
 
-  _taskFormAddSub() {
-    const inp = document.getElementById('tfAltGorevInput');
-    if (!inp) return;
-    const val = inp.value.trim();
-    if (!val) { inp.focus(); return; }
-    this._taskFormTemp.altGorevler.push({
-      id: Date.now() + Math.random(),
-      text: val,
-      tamamlandi: false
-    });
-    inp.value = '';
-    inp.focus();
-    this._taskFormRenderSubs();
-  },
 
-  _taskFormRenderSubs() {
-    const list = document.getElementById('tfAltGorevList');
-    if (!list) return;
-    const subs = this._taskFormTemp.altGorevler;
-    if (!subs.length) {
-      list.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0;">Henüz alt görev yok</div>';
-      return;
-    }
-    list.innerHTML = subs.map(s => `
-      <div class="task-subtask-row">
-        <div class="task-subtask-check${s.tamamlandi ? ' checked' : ''}"
-             onclick="App._taskFormToggleSub(${s.id})">
-          <i class="fas fa-check"></i>
-        </div>
-        <span class="task-subtask-text${s.tamamlandi ? ' done' : ''}">${UI.escHtml(s.text)}</span>
-        <button type="button" class="task-subtask-del" onclick="App._taskFormDeleteSub(${s.id})">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-    `).join('');
-  },
-
-  _taskFormToggleSub(id) {
-    const s = this._taskFormTemp.altGorevler.find(x => x.id == id);
-    if (s) s.tamamlandi = !s.tamamlandi;
-    this._taskFormRenderSubs();
-  },
-
-  _taskFormDeleteSub(id) {
-    this._taskFormTemp.altGorevler = this._taskFormTemp.altGorevler.filter(x => x.id != id);
-    this._taskFormRenderSubs();
-  },
   async openGorevDetay(id) {
     const g = state.gorevler.find(x => x.id == id);
     if (!g) return;
