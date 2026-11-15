@@ -9996,7 +9996,6 @@ async importFuelStatsJSON(file) {
       });
 
       /* 7) Kaydet */
-      if (activeAdded > 0)  await saveGiderler();
       if (archiveAdded > 0) await saveArchives();
 
       await addLog('json_import',
@@ -11986,10 +11985,12 @@ async showBakimGecmisi(vehicleId) {
     customClass: { popup: 'vehicle-form-popup' }
   });
 },
-    async _editVehicle(id) {
-    const v = state.araclar.find(a => a.id === id);
-    if (v) return this._vehicleForm(v);
-  },
+async _editVehicle(id) {
+  Swal.close();                                 // ← bu satırı ekle
+  await new Promise(r => setTimeout(r, 150));   // ← modal kapanma animasyonu için
+  const v = state.araclar.find(a => a.id === id);
+  if (v) return this._vehicleForm(v);
+},
 
   /* 🆕 Araç sil */
   async _deleteVehicle(id) {
