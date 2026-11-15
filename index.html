@@ -10890,6 +10890,10 @@ if (overdue) {
       }
 
       /* Yıl accordion'da aç */
+      /* 🎉 Aylık ritüel modalı — PDF hazırsa indirme seçeneği ile */
+      try { await this._showMonthlyRitual(targetKey); } catch(_) {}
+
+      /* Yıl accordion'da aç */
       const newYear = SalaryMonth.yearOf(targetKey);
       if (!this._archiveOpenYears) this._archiveOpenYears = new Set();
       this._archiveOpenYears.add(newYear);
@@ -11970,19 +11974,25 @@ async showBakimGecmisi(vehicleId) {
     if (el) el.innerHTML = renderHTML();
   };
 
-  this._bakimPagePrev = () => {
+  const onPrev = () => {
     if (this._bakimPage > 1) { this._bakimPage--; this._bakimRender(); }
   };
-  this._bakimPageNext = () => {
+  const onNext = () => {
     if (this._bakimPage < totalPages) { this._bakimPage++; this._bakimRender(); }
   };
+  this._bakimPagePrev = onPrev;
+  this._bakimPageNext = onNext;
 
   await Swal.fire({
     title: `📜 ${UI.escHtml(v.plaka)} — Bakım Geçmişi`,
     html: `<div id="bakimHistoryBody">${renderHTML()}</div>`,
     confirmButtonText: 'Kapat',
     width: Math.min(540, window.innerWidth - 20),
-    customClass: { popup: 'vehicle-form-popup' }
+    customClass: { popup: 'vehicle-form-popup' },
+    willClose: () => {
+      this._bakimPagePrev = null;
+      this._bakimPageNext = null;
+    }
   });
 },
 async _editVehicle(id) {
@@ -11992,10 +12002,12 @@ async _editVehicle(id) {
   if (v) return this._vehicleForm(v);
 },
 
-  /* 🆕 Araç sil */
-  async _deleteVehicle(id) {
+  async _editVehicle(id) {
+    Swal.close();
+    await new Promise(r => setTimeout(r, 150));
     const v = state.araclar.find(a => a.id === id);
-    if (!v) return;
+    if (v) return this._vehicleForm(v);
+  },
 
     const r = await Swal.fire({
       icon: 'warning',
@@ -14964,12 +14976,11 @@ async function _loadPdfFonts(doc) {
       }
       console.log('[PDF] ✅ Fontlar indirildi');
     }
-    // ⬇️ BUNLAR EKSİK — geri ekle:
     for (const f of _pdfFontData) {
       doc.addFileToVFS(f.name, f.b64);
       doc.addFont(f.name, f.alias, f.style);
     }
-    return true;      // ⬅️ BU DA EKSİK
+    return true;
   } catch (e) {
     _pdfFontFailed = true;
     _pdfFontData = null;
