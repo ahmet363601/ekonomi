@@ -5621,8 +5621,11 @@ async gorevEkle(data) {
     arsivlendi: false,
     arsivTarihi: null,
     olusturulma: new Date().toISOString(),
-    guncellenme: new Date().toISOString()
+    guncellenme: new Date().toISOString(),
+    altGorevler: Array.isArray(data.altGorevler) ? data.altGorevler : []   // ✅ EKLENDİ
   };
+  if (!item.baslik) return null;
+  // ...
   if (!item.baslik) return null;
   state.gorevler.push(item);
   try {
@@ -11989,34 +11992,31 @@ async _editVehicle(id) {
   if (v) return this._vehicleForm(v);
 },
 
-  async _editVehicle(id) {
-    Swal.close();
-    await new Promise(r => setTimeout(r, 150));
-    const v = state.araclar.find(a => a.id === id);
-    if (v) return this._vehicleForm(v);
-  },
+async _deleteVehicle(id) {
+  const v = state.araclar.find(a => a.id === id);
+  if (!v) { showToast('⚠️ Araç bulunamadı'); return; }
 
-    const r = await Swal.fire({
-      icon: 'warning',
-      title: 'Aracı Sil',
-      html: `<p><strong>${UI.escHtml(v.plaka || '—')}</strong> aracı kalıcı olarak silinecek.</p>
-             <p style="font-size:12px;color:#94a3b8;margin-top:6px;">Bakım geçmişi de silinir. Bu işlem geri alınamaz.</p>`,
-      showCancelButton: true,
-      confirmButtonText: 'Evet, Sil',
-      confirmButtonColor: '#DC2626',
-      cancelButtonText: 'İptal',
-      width: Math.min(420, window.innerWidth - 24)
-    });
+  const r = await Swal.fire({
+    icon: 'warning',
+    title: 'Aracı Sil',
+    html: `<p><strong>${UI.escHtml(v.plaka || '—')}</strong> aracı kalıcı olarak silinecek.</p>
+           <p style="font-size:12px;color:#94a3b8;margin-top:6px;">Bakım geçmişi de silinir. Bu işlem geri alınamaz.</p>`,
+    showCancelButton: true,
+    confirmButtonText: 'Evet, Sil',
+    confirmButtonColor: '#DC2626',
+    cancelButtonText: 'İptal',
+    width: Math.min(420, window.innerWidth - 24)
+  });
 
-    if (!r.isConfirmed) return;
+  if (!r.isConfirmed) return;
 
-    state.araclar = state.araclar.filter(a => a.id !== id);
-    await saveAraclar();
-    await addLog('arac_sil', v.plaka || '—');
-    showToast('🗑️ Araç silindi');
-    await this.openVehicleModal();
-    if (this.currentPage === 'dashboard') await this.renderDashboard();
-  },
+  state.araclar = state.araclar.filter(a => a.id !== id);
+  await saveAraclar();
+  await addLog('arac_sil', v.plaka || '—');
+  showToast('🗑️ Araç silindi');
+  await this.openVehicleModal();
+  if (this.currentPage === 'dashboard') await this.renderDashboard();
+},
   /* ══════════════════════════════════════
      AYARLAR
   ══════════════════════════════════════ */
@@ -14223,6 +14223,18 @@ async exportToJSON() {
               <i class="fas ${pri.icon}" style="font-size:8px;"></i> ${pri.label}
             </span>
           </div>
+          ${Array.isArray(g.altGorevler) && g.altGorevler.length > 0 ? (() => {
+          const toplam = g.altGorevler.length;
+          const tamam = g.altGorevler.filter(s => s.tamamlandi).length;
+          const yuzde = Math.round((tamam / toplam) * 100);
+          return `<div class="task-subtask-bar">
+            <i class="fas fa-list-check" style="font-size:9px;"></i>
+            <span>${tamam}/${toplam}</span>
+            <div class="task-subtask-mini-track">
+              <div class="task-subtask-mini-bar" style="width:${yuzde}%;"></div>
+            </div>
+          </div>`;
+        })() : ''}
           ${g.aciklama ? `<div style="font-size:11.5px;color:var(--text3);margin-top:4px;line-height:1.45;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${UI.escHtml(g.aciklama)}</div>` : ''}
         </div>
         <div class="task-actions">
@@ -14513,9 +14525,10 @@ async saveFile(blob, filename) {
 
   async openGorevForm(id = null) {
     const eski = id ? state.gorevler.find(g => g.id == id) : null;
-    this._taskFormTemp = {
-      oncelik: eski?.oncelik || 'normal'
-    };
+  // ❌ MEVCUT
+  this._taskFormTemp = {
+    oncelik: eski?.oncelik || 'normal'
+  };
 
     const priChipsHTML = [
       { key: 'dusuk',  label: 'Düşük',  icon: 'fa-arrow-down' },
